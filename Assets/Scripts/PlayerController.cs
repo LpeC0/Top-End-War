@@ -1,93 +1,113 @@
 using UnityEngine;
 
 /// <summary>
-/// Army Gate Siege – Player Controller
-/// Rigidbody YOK. Tamamen transform tabanlı. Unity 6 URP uyumlu.
+/// Top End War — Oyuncu Hareketi
+/// Rigidbody YOK. Drag (sürükleme) ile şerit değiştirme.
+/// Parmak/fare basılı tutulup sürüklenince şerit değişir — anlık, doğal his.
 /// </summary>
 public class PlayerController : MonoBehaviour
 {
-    [Header("=== HAREKET ===")]
-    public float forwardSpeed   = 10f;   // İleri koşu hızı
-    public float laneSwitchSpeed = 10f;  // Şerit geçiş yumuşaklığı
-    public float laneDistance   = 3.5f; // Şeritler arası mesafe
+    [Header("Hareket")]
+    public float forwardSpeed    = 10f;
+    public float laneSwitchSpeed = 10f;
+    public float laneDistance    = 3.5f;
 
-    [Header("=== ATEŞ ===")]
+    [Header("Ateş")]
     public GameObject bulletPrefab;
     public Transform  firePoint;
-    public float      fireRate = 3f;    // Saniyede kaç mermi
+    public float      fireRate   = 3f;
 
-    // ── Özel değişkenler ──────────────────────────────────────────────────────
-    private int   currentLane  = 1;     // 0=Sol  1=Orta  2=Sağ
-    private float targetX      = 0f;
-    private float nextFireTime = 0f;
+    [Header("Drag Ayarı")]
+    public float dragThreshold = 40f; // Kaç piksel sürüklenince şerit değişsin
 
-    // ── Combat Power (Gelecekte: kapı sistemi, morph, tier ──────────────────
-    [HideInInspector] public int cp = 100;
+    int   currentLane  = 1;
+    float targetX      = 0f;
+    float nextFireTime = 0f;
 
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Drag takibi ──────────────────────────────────────────────────────
+    bool    isDragging     = false;
+    Vector2 dragStartPos;
+    Vector2 lastDragPos;
+    float   accumulatedDrag = 0f; // Biriken sürükleme miktarı
+
     void Start()
     {
-        // Başlangıç pozisyonunu güvenli yap
         transform.position = new Vector3(0f, 1.2f, 0f);
-        targetX = 0f;
-        Debug.Log(">>> PlayerController START çalıştı!");
     }
 
     void Update()
     {
-        HandleInput();
+        HandleDragInput();
         MovePlayer();
         AutoShoot();
     }
 
-    // ── Girdi ────────────────────────────────────────────────────────────────
-    void HandleInput()
+    // ── Sürükle ile şerit değiştir ───────────────────────────────────────
+    void HandleDragInput()
     {
-        // PC: ok tuşları
+        // PC klavye (test)
         if (Input.GetKeyDown(KeyCode.LeftArrow))  ChangeLane(-1);
         if (Input.GetKeyDown(KeyCode.RightArrow)) ChangeLane(+1);
 
-        // Mobil / Mouse: ekranın sol/sağ yarısına tıklama
+        // Dokunma / Mouse basıldı
         if (Input.GetMouseButtonDown(0))
         {
-            if (Input.mousePosition.x < Screen.width * 0.5f) ChangeLane(-1);
-            else                                               ChangeLane(+1);
+            isDragging      = true;
+            dragStartPos    = Input.mousePosition;
+            lastDragPos     = Input.mousePosition;
+            accumulatedDrag = 0f;
+        }
+
+        // Basılı tutulurken sürükle
+        if (isDragging && Input.GetMouseButton(0))
+        {
+            Vector2 currentPos = Input.mousePosition;
+            float   deltaX     = currentPos.x - lastDragPos.x;
+            accumulatedDrag   += deltaX;
+            lastDragPos        = currentPos;
+
+            // Eşik aşılınca şerit değiştir, sayacı sıfırla
+            if (accumulatedDrag > dragThreshold)
+            {
+                ChangeLane(+1);
+                accumulatedDrag = 0f;
+            }
+            else if (accumulatedDrag < -dragThreshold)
+            {
+                ChangeLane(-1);
+                accumulatedDrag = 0f;
+            }
+        }
+
+        // Bırakıldı
+        if (Input.GetMouseButtonUp(0))
+        {
+            isDragging      = false;
+            accumulatedDrag = 0f;
         }
     }
 
     void ChangeLane(int dir)
     {
         currentLane = Mathf.Clamp(currentLane + dir, 0, 2);
-        targetX = (currentLane - 1) * laneDistance;
+        targetX     = (currentLane - 1) * laneDistance;
     }
 
-    // ── Hareket ──────────────────────────────────────────────────────────────
-   void MovePlayer()
-{
-    // EĞER PLAYER SİLİNİYORSA: Hierarchy'de isminin yanına (Deleted) yazıyor mu bak.
-    // Eğer siliniyorsa, sahnedeki hiçbir scriptte "Destroy(other.gameObject)" 
-    // veya "Destroy(target)" kodunun Player'ı hedeflemediğinden emin olmalıyız.
+    // ── İleri hareket ────────────────────────────────────────────────────
+    void MovePlayer()
+    {
+        Vector3 p = transform.position;
+        p.z += forwardSpeed * Time.deltaTime;
+        p.x  = Mathf.Lerp(p.x, targetX, Time.deltaTime * laneSwitchSpeed);
+        p.y  = 1.2f;
+        transform.position = p;
+    }
 
-    Vector3 p = transform.position;
-    
-    // Z ilerlemesini sadece oyun aktifken yap (veya sınırlama koyma)
-    p.z += forwardSpeed * Time.deltaTime;
-    
-    p.x  = Mathf.Lerp(p.x, targetX, Time.deltaTime * laneSwitchSpeed);
-    p.y  = 1.2f; // Y ekseninde sabit tutuyoruz
-    
-    transform.position = p;
-
-    // Konsolda takip edelim, karakter gerçekten duruyor mu yoksa sadece görsel mi kayboluyor?
-    if(Time.frameCount % 100 == 0) 
-        Debug.Log("Sistem Raporu: Player Z = " + transform.position.z);
-}
-
-    // ── Otomatik Ateş (Object Pool Güncellemesi - Gemini) ──────────────────
+    // ── Otomatik ateş ────────────────────────────────────────────────────
     void AutoShoot()
     {
         if (Time.time < nextFireTime) return;
-        if (!bulletPrefab || !firePoint) return;
+        if (!firePoint) return;
 
         RaycastHit hit;
         if (Physics.BoxCast(
@@ -98,32 +118,25 @@ public class PlayerController : MonoBehaviour
             if (hit.collider.CompareTag("Enemy"))
             {
                 Vector3 dir = (hit.transform.position - firePoint.position).normalized;
-                
-                // Instantiate yerine havuzdan çekiyoruz! Tag'i "Bullet" olmalı.
-                GameObject b = ObjectPooler.Instance.SpawnFromPool("Bullet", firePoint.position, Quaternion.LookRotation(dir));
-                
+
+                // ObjectPooler varsa kullan, yoksa Instantiate
+                GameObject b;
+                if (ObjectPooler.Instance != null)
+                    b = ObjectPooler.Instance.SpawnFromPool("Bullet", firePoint.position, Quaternion.LookRotation(dir));
+                else
+                {
+                    b = Instantiate(bulletPrefab, firePoint.position, Quaternion.LookRotation(dir));
+                    Destroy(b, 3f);
+                }
+
                 if (b != null)
                 {
                     Rigidbody rb = b.GetComponent<Rigidbody>();
                     if (rb) rb.linearVelocity = dir * 28f;
-                    
-                    // Otomatik kaybolması için (eski Destroy yerine) özel bir Invoke veya Coroutine yazılabilir,
-                    // şimdilik Bullet içindeki bir zamanlayıcı ile Disable yapacağız.
                 }
-                
+
                 nextFireTime = Time.time + 1f / fireRate;
             }
         }
-    }
-
-    void SpawnBullet(Transform target)
-    {
-        Vector3 dir = (target.position - firePoint.position).normalized;
-        GameObject b = Instantiate(bulletPrefab, firePoint.position, Quaternion.LookRotation(dir));
-
-        Rigidbody rb = b.GetComponent<Rigidbody>();
-        if (rb != null) rb.linearVelocity = dir * 28f;
-
-        Destroy(b, 3f); // 3 saniyede temizle (pool olmadığı için)
     }
 }

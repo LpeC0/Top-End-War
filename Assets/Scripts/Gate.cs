@@ -2,25 +2,37 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Top End War — Tek Kapı
-/// GatePrefab'a ekle. Rigidbody (IsKinematic=true) + BoxCollider (IsTrigger=true) gerekli.
-/// Inspector'dan GateData sürükle bırak.
+/// Top End War — Fiziksel Kapı
+/// GatePrefab'a ekle. Rigidbody(IsKinematic=true) + BoxCollider(IsTrigger=true) şart.
+/// Inspector'dan GateData sürükle. LabelText için child'a TextMeshPro ekle.
 /// </summary>
 public class Gate : MonoBehaviour
 {
-    public GateData     gateData;
-    public TextMeshPro  labelText;   // Kapının üstündeki 3D yazı (isteğe bağlı)
+    public GateData    gateData;
+    public TextMeshPro labelText; // Prefab'ın child'ındaki 3D Text objesi
 
     void Start()
     {
         if (gateData == null) return;
 
-        // Yazıyı ayarla
-        if (labelText) labelText.text = gateData.gateText;
+        // Kapı yazısını ayarla
+        if (labelText != null)
+        {
+            labelText.text      = gateData.gateText;
+            labelText.color     = Color.white;
+            labelText.fontSize  = 8f;
+            labelText.alignment = TextAlignmentOptions.Center;
+        }
 
-        // Rengi ayarla
+        // Kapı rengini ayarla
         Renderer r = GetComponent<Renderer>();
-        if (r) r.material.color = gateData.gateColor;
+        if (r != null)
+        {
+            // URP için material instance oluştur
+            Material mat = new Material(r.material);
+            mat.color = gateData.gateColor;
+            r.material = mat;
+        }
     }
 
     void OnTriggerEnter(Collider other)
@@ -34,6 +46,6 @@ public class Gate : MonoBehaviour
             Debug.Log($"Kapıdan geçildi: {gateData.gateText} | Yeni CP: {stats.CP}");
         }
 
-        Destroy(gameObject); // İleride: Object Pool ile değiştirilecek
+        Destroy(gameObject);
     }
 }

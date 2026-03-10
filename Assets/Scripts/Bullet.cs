@@ -1,27 +1,23 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Mermi (Gemini - Pool Uyumlu)
-/// Destroy yerine gameObject.SetActive(false) kullanır.
+/// Top End War — Mermi
+/// BulletPrefab'a ekle. SphereCollider(IsTrigger=true) + Rigidbody gerekli.
+/// ObjectPooler ile çalışır: Destroy yerine SetActive(false).
 /// </summary>
 public class Bullet : MonoBehaviour
 {
     public int damage = 50;
-    private float lifeTimer = 0f;
 
+    // Pool'dan çıkınca kendini 3 saniye sonra geri gönder
     void OnEnable()
     {
-        // Havuzdan her çıktığında ömrünü sıfırla (Mermi sonsuza gitmesin)
-        lifeTimer = 3f; 
+        Invoke(nameof(ReturnToPool), 3f);
     }
 
-    void Update()
+    void OnDisable()
     {
-        lifeTimer -= Time.deltaTime;
-        if (lifeTimer <= 0f)
-        {
-            gameObject.SetActive(false); // Destroy yerine havuza geri döner
-        }
+        CancelInvoke();
     }
 
     void OnTriggerEnter(Collider other)
@@ -30,8 +26,16 @@ public class Bullet : MonoBehaviour
         {
             Enemy e = other.GetComponent<Enemy>();
             if (e != null) e.TakeDamage(damage);
-
-            gameObject.SetActive(false); // Çarptıktan sonra uyu
+            ReturnToPool();
         }
+    }
+
+    void ReturnToPool()
+    {
+        // Hızı sıfırla ki bir sonraki kullanımda sorun çıkmasın
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb) rb.linearVelocity = Vector3.zero;
+
+        gameObject.SetActive(false); // Destroy yerine havuza dön
     }
 }
