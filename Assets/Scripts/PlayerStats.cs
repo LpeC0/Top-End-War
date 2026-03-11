@@ -31,6 +31,17 @@ public class PlayerStats : MonoBehaviour
 
     void Start() => GameEvents.OnCPUpdated?.Invoke(CP);
 
+    // ── Düşman öldürmekten CP ────────────────────────────────────────────
+    public void AddCPFromKill(int amount)
+    {
+        int oldTier = CurrentTier;
+        CP += amount;
+        CP = Mathf.Max(10, CP);
+        RefreshTier();
+        GameEvents.OnCPUpdated?.Invoke(CP);
+        if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
+    }
+
     // ── Kapı Uygula ───────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
