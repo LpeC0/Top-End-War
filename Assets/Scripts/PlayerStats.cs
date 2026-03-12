@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Veri Merkezi v4 (Claude)
-/// CP = can. Sifira yaklasinsa GameOver.
+/// Top End War — Oyuncu Veri Merkezi (Claude)
 /// [DefaultExecutionOrder(-10)] → TierText bos baslamaz.
+/// DIKKAT: GameEvents.cs'de OnPlayerDamaged ve OnGameOver olmali!
 /// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
@@ -24,7 +24,7 @@ public class PlayerStats : MonoBehaviour
 
     float lastDamageTime = -99f;
 
-    static readonly int[]    tierCP    = { 0, 300, 800, 2000, 5000 };
+    static readonly int[] tierCP = { 0, 300, 800, 2000, 5000 };
     static readonly string[] tierNames =
     {
         "Gonullu Er",
@@ -43,7 +43,7 @@ public class PlayerStats : MonoBehaviour
 
     void Start() => GameEvents.OnCPUpdated?.Invoke(CP);
 
-    // ── Dushmana Carpma Hasari ────────────────────────────────────────────
+    // ── Dushmana carpma hasari ────────────────────────────────────────────
     public void TakeContactDamage(int amount)
     {
         if (Time.time - lastDamageTime < invincibilityDuration) return;
@@ -56,11 +56,10 @@ public class PlayerStats : MonoBehaviour
         GameEvents.OnPlayerDamaged?.Invoke(amount);
         GameEvents.OnCPUpdated?.Invoke(CP);
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
-
         if (CP <= 10) GameEvents.OnGameOver?.Invoke();
     }
 
-    // ── Oldurme CP Odulu ─────────────────────────────────────────────────
+    // ── Oldurme odulu ─────────────────────────────────────────────────────
     public void AddCPFromKill(int amount)
     {
         int oldTier = CurrentTier;
@@ -70,9 +69,10 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
     }
 
-    // ── Kapi Etkisi ──────────────────────────────────────────────────────
+    // ── Kapi etkisi ───────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
+        if (data == null) return;
         int oldTier = CurrentTier;
 
         switch (data.effectType)
@@ -118,7 +118,10 @@ public class PlayerStats : MonoBehaviour
     {
         float total = PiyadePath + MekanizePath + TeknolojiPath;
         if (total == 0) return;
-        float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
+        float p = PiyadePath / total;
+        float m = MekanizePath / total;
+        float t = TeknolojiPath / total;
+
         if (Mathf.Min(p, Mathf.Min(m, t)) > 0.25f) { GameEvents.OnSynergyFound?.Invoke("PERFECT GENETICS"); return; }
         if (p > 0.5f && m > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu");  return; }
         if (p > 0.5f && t > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Drone Takimi");    return; }

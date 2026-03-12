@@ -7,7 +7,7 @@ using TMPro;
 /// PREFAB YAPISI:
 ///   GatePrefab
 ///   ├── [Gate.cs] [BoxCollider IsTrigger=true] [Rigidbody IsKinematic=true]
-///   ├── Panel   (Cube, scale 3x4x0.3)
+///   ├── Panel   (Cube, scale 3x4x0.2)
 ///   └── Label   (3D TextMeshPro)
 ///
 /// Seffaflik icin Panel materyali:

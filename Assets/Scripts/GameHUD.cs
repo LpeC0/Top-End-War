@@ -5,8 +5,9 @@ using System.Collections;
 
 /// <summary>
 /// Top End War — HUD (Claude)
-/// Hasar alinca ekran kirmizi flash yapar.
-/// NOT: TierText Inspector text kutusunu BOŞ birak — kod doldurur.
+/// Canvas altinda HUD_Panel objesine ekle.
+/// Tum referanslar Inspector'dan baglanti — bos birakilabilir (null check var).
+/// TierText Inspector text kutusunu BOŞ birak — kod doldurur.
 /// </summary>
 public class GameHUD : MonoBehaviour
 {
@@ -23,21 +24,27 @@ public class GameHUD : MonoBehaviour
     public TextMeshProUGUI popupText;
     public TextMeshProUGUI synergyText;
 
-    [Header("Hasar Flash")]
-    public Image damageFlashImage; // Canvas'ta tam ekran Image, alpha=0 baslar
+    [Header("Hasar Flash (optional)")]
+    public Image damageFlashImage; // Canvas'ta full-stretch Image, alpha=0
 
     int lastCP = 0;
 
     void Start()
     {
         PlayerStats stats = PlayerStats.Instance;
-        if (stats == null) { Debug.LogWarning("HUD: PlayerStats bulunamadi!"); return; }
+        if (stats == null)
+        {
+            Debug.LogWarning("GameHUD: PlayerStats.Instance bulunamadi! Player'a PlayerStats.cs eklenmis mi?");
+            return;
+        }
 
+        // Event abonelikleri
         GameEvents.OnCPUpdated     += OnCPUpdated;
         GameEvents.OnTierChanged   += OnTierChanged;
         GameEvents.OnSynergyFound  += OnSynergy;
         GameEvents.OnPlayerDamaged += OnPlayerDamaged;
 
+        // Ilk degerler
         lastCP = stats.CP;
         if (cpText)   cpText.text   = stats.CP.ToString("N0");
         if (tierText) tierText.text = "TIER 1 | " + stats.GetTierName();
@@ -71,8 +78,11 @@ public class GameHUD : MonoBehaviour
 
         int delta = cp - lastCP;
         if (delta != 0)
-            ShowPopup(delta > 0 ? "+" + delta : "" + delta,
-                      delta > 0 ? Color.cyan : Color.red);
+        {
+            string msg   = delta > 0 ? "+" + delta : "" + delta;
+            Color  color = delta > 0 ? Color.cyan : Color.red;
+            ShowPopup(msg, color);
+        }
         lastCP = cp;
     }
 
@@ -95,13 +105,13 @@ public class GameHUD : MonoBehaviour
 
     void OnPlayerDamaged(int amount)
     {
+        if (damageFlashImage == null) return;
         StopCoroutine("FlashDamage");
         StartCoroutine("FlashDamage");
     }
 
     IEnumerator FlashDamage()
     {
-        if (damageFlashImage == null) yield break;
         damageFlashImage.color = new Color(1f, 0f, 0f, 0.5f);
         float t = 0f;
         while (t < 0.45f)
