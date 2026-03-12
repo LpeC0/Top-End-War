@@ -452,6 +452,7 @@ MonoBehaviour:
   teknolojiBar: {fileID: 1436880592}
   popupText: {fileID: 1245962881}
   synergyText: {fileID: 568790068}
+  damageFlashImage: {fileID: 1365792562}
 --- !u!114 &422491179
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -534,6 +535,7 @@ RectTransform:
   - {fileID: 1868144625}
   - {fileID: 1842242780}
   - {fileID: 1436880593}
+  - {fileID: 1365792564}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -1033,12 +1035,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   forwardSpeed: 15
-  laneSwitchSpeed: 10
-  laneDistance: 4
-  bulletPrefab: {fileID: 179161563940366066, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
+  dragSensitivity: 0.04
+  smoothing: 15
+  xLimit: 7
   firePoint: {fileID: 1648944150}
+  bulletPrefab: {fileID: 0}
   fireRate: 2
-  dragThreshold: 40
+  detectRange: 25
 --- !u!136 &734728286
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1075,6 +1078,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
   startCP: 100
+  invincibilityDuration: 0.5
 --- !u!114 &734728288
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1818,6 +1822,81 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 100}
   m_SizeDelta: {x: 500, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1365792561
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1365792564}
+  - component: {fileID: 1365792563}
+  - component: {fileID: 1365792562}
+  m_Layer: 5
+  m_Name: DamageFlash
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1365792562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1365792561}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
+  m_Material: {fileID: 0}
+  m_Color: {r: 1, g: 0, b: 0, a: 1}
+  m_RaycastTarget: 0
+  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
+  m_Maskable: 1
+  m_OnCullStateChanged:
+    m_PersistentCalls:
+      m_Calls: []
+  m_Sprite: {fileID: 0}
+  m_Type: 0
+  m_PreserveAspect: 0
+  m_FillCenter: 1
+  m_FillMethod: 4
+  m_FillAmount: 1
+  m_FillClockwise: 1
+  m_FillOrigin: 0
+  m_UseSpriteMesh: 0
+  m_PixelsPerUnitMultiplier: 1
+--- !u!222 &1365792563
+CanvasRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1365792561}
+  m_CullTransparentMesh: 1
+--- !u!224 &1365792564
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1365792561}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 422491182}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: -1668, y: -1072}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &1401933230
 GameObject:
   m_ObjectHideFlags: 0
@@ -2053,7 +2132,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpawnManager
   playerTransform: {fileID: 734728282}
-  gatePrefab: {fileID: 3397764733245124619, guid: cd76c89af752cb046a6a2b42192a9454, type: 3}
+  gatePrefab: {fileID: 5767528215993270071, guid: 4ede9731f6769d24681356fa28e0fd00, type: 3}
   enemyPrefab: {fileID: 899098464761774372, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
   gateDataList:
   - {fileID: 11400000, guid: 01a893a47afa69a4280f108079e7ba6f, type: 2}
@@ -2062,10 +2141,12 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 908cfaa21aad0044bb4cd0a6483178a2, type: 2}
   - {fileID: 11400000, guid: a1d523258331bf842bc6b712a4bf35c8, type: 2}
   - {fileID: 11400000, guid: 1ebef82f8019c4549bdc09fb63c63731, type: 2}
-  spawnAheadDistance: 50
-  slotSize: 30
-  laneDistance: 3.5
-  gateSlotsOutOf10: 5
+  spawnAhead: 60
+  gateSpacing: 35
+  waveSpacing: 28
+  bossDistance: 1200
+  minEnemies: 3
+  maxEnemies: 8
 --- !u!4 &1661570128
 Transform:
   m_ObjectHideFlags: 0

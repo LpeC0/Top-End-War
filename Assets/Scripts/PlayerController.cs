@@ -2,7 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Top End War — Oyuncu Hareketi v4 (Claude)
-/// Serbest sürükleme. xLimit ile harita sınırı. Tier'a göre çoklu mermi.
+/// Serbest surukleme. xLimit=8 ile genis harita siniri.
+/// Tier'a gore 1-5 mermi.
 /// </summary>
 public class PlayerController : MonoBehaviour
 {
@@ -12,11 +13,11 @@ public class PlayerController : MonoBehaviour
     [Header("Yatay Hareket")]
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
-    public float xLimit          = 5.5f;   // Harita sınırı — SpawnManager.roadHalfWidth ile ESİT olmalı
+    public float xLimit          = 8f;   // RoadChunk genisligi ile uyumlu
 
     [Header("Ates")]
     public Transform  firePoint;
-    public GameObject bulletPrefab;        // ObjectPooler yoksa fallback
+    public GameObject bulletPrefab;
     public float      fireRate    = 2.5f;
     public float      detectRange = 30f;
 
@@ -28,7 +29,6 @@ public class PlayerController : MonoBehaviour
     void Start()
     {
         transform.position = new Vector3(0f, 1.2f, 0f);
-        targetX = 0f;
     }
 
     void Update()
@@ -38,7 +38,6 @@ public class PlayerController : MonoBehaviour
         AutoShoot();
     }
 
-    // ── Serbest Surukleme ─────────────────────────────────────────────────
     void HandleDrag()
     {
         if (Input.GetKey(KeyCode.LeftArrow))
@@ -57,66 +56,50 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // ── Hareket + Sinir ───────────────────────────────────────────────────
     void MovePlayer()
     {
         Vector3 p = transform.position;
         p.z += forwardSpeed * Time.deltaTime;
         p.x  = Mathf.Lerp(p.x, targetX, Time.deltaTime * smoothing);
-        p.x  = Mathf.Clamp(p.x, -xLimit, xLimit); // Hard sınır
+        p.x  = Mathf.Clamp(p.x, -xLimit, xLimit);
         p.y  = 1.2f;
         transform.position = p;
     }
 
-    // ── Tier Bazli Coklu Mermi ────────────────────────────────────────────
     void AutoShoot()
     {
         if (Time.time < nextFireTime || !firePoint) return;
 
-        // Tier'a gore mermi sayisi: Tier1=1, Tier2=2, Tier3=3, Tier4=4, Tier5=5
         int tier        = PlayerStats.Instance != null ? PlayerStats.Instance.CurrentTier : 1;
         int bulletCount = tier;
-        float spread    = 1.2f; // Mermiler arasi yatay offset
+        float spread    = 1.2f;
 
-        bool fired = false;
-
-        // Önce hedef var mi diye kontrol et
         RaycastHit hit;
-        if (Physics.BoxCast(
+        if (!Physics.BoxCast(
                 transform.position + Vector3.up,
-                new Vector3(xLimit * 0.6f, 1f, 0.5f),
+                new Vector3(xLimit * 0.5f, 1f, 0.5f),
                 Vector3.forward, out hit, Quaternion.identity, detectRange)
-            && hit.collider.CompareTag("Enemy"))
-        {
-            // Mermi sayisi kadar farkli offsette at
-            for (int i = 0; i < bulletCount; i++)
-            {
-                float offsetX = (i - (bulletCount - 1) * 0.5f) * spread;
-                Vector3 spawnPos = firePoint.position + new Vector3(offsetX, 0f, 0f);
-                Vector3 dir      = (hit.transform.position + new Vector3(offsetX * 0.3f, 0f, 0f)
-                                   - spawnPos).normalized;
+            || !hit.collider.CompareTag("Enemy")) return;
 
-                FireBullet(spawnPos, dir);
-                fired = true;
-            }
+        for (int i = 0; i < bulletCount; i++)
+        {
+            float   offsetX  = (i - (bulletCount - 1) * 0.5f) * spread;
+            Vector3 spawnPos = firePoint.position + new Vector3(offsetX, 0f, 0f);
+            Vector3 dir      = (hit.transform.position - spawnPos).normalized;
+            FireBullet(spawnPos, dir);
         }
 
-        if (fired) nextFireTime = Time.time + 1f / fireRate;
+        nextFireTime = Time.time + 1f / fireRate;
     }
 
     void FireBullet(Vector3 pos, Vector3 dir)
     {
-        GameObject b = null;
-
-        if (ObjectPooler.Instance != null)
-            b = ObjectPooler.Instance.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
-
+        GameObject b = ObjectPooler.Instance?.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
         if (b == null && bulletPrefab != null)
         {
             b = Instantiate(bulletPrefab, pos, Quaternion.LookRotation(dir));
             Destroy(b, 3f);
         }
-
         if (b != null)
         {
             Rigidbody rb = b.GetComponent<Rigidbody>();

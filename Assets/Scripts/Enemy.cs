@@ -4,7 +4,6 @@ using UnityEngine;
 /// Top End War — Dushman (Claude)
 /// Tag: "Enemy"
 /// Prefab: Capsule → Rigidbody(IsKinematic:true) + CapsuleCollider(IsTrigger:true)
-/// Oyuncuya dogru ilerler, sinir disina cikamaz, iç içe girmez.
 /// </summary>
 public class Enemy : MonoBehaviour
 {
@@ -13,8 +12,8 @@ public class Enemy : MonoBehaviour
 
     [Header("Hareket")]
     public float moveSpeed   = 4.5f;
-    public float trackSpeedX = 1.5f;   // Oyuncuyu X'te takip hizi (dusuk = dalga formu korunur)
-    public float xLimit      = 5.5f;   // PlayerController ile ayni olmali
+    public float trackSpeedX = 1.5f;
+    public float xLimit      = 8f;     // PlayerController ile AYNI
 
     [Header("Hasar")]
     public int contactDamage = 50;
@@ -35,25 +34,18 @@ public class Enemy : MonoBehaviour
     {
         if (isDead || PlayerStats.Instance == null) return;
 
-        Vector3 pos       = transform.position;
-        float   playerZ   = PlayerStats.Instance.transform.position.z;
+        float playerZ = PlayerStats.Instance.transform.position.z;
+        Vector3 pos   = transform.position;
 
-        // Z: Oyuncuya dogru yuru
         if (pos.z > playerZ + 0.5f)
             pos.z -= moveSpeed * Time.deltaTime;
 
-        // X: Oyuncuyu yavas takip et
-        float targetX = Mathf.Clamp(
+        pos.x = Mathf.Clamp(
             Mathf.MoveTowards(pos.x, PlayerStats.Instance.transform.position.x, trackSpeedX * Time.deltaTime),
             -xLimit, xLimit);
-        pos.x = targetX;
-
-        // Sinir kontrolu
-        pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
 
         transform.position = pos;
 
-        // 15 birim geride kaldiysa temizle
         if (pos.z < playerZ - 15f)
             Destroy(gameObject);
     }
