@@ -2,19 +2,22 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Top End War — Kapi (Claude)
+/// Top End War — Kapi v5 (Claude)
 ///
 /// PREFAB YAPISI:
-///   GatePrefab
-///   ├── [Gate.cs] [BoxCollider IsTrigger=true] [Rigidbody IsKinematic=true]
-///   ├── Panel   (Cube, scale 3x4x0.2)
-///   └── Label   (3D TextMeshPro)
+///   GatePrefab (root)
+///   ├── Gate.cs  +  BoxCollider(IsTrigger=true)  +  Rigidbody(IsKinematic=true)
+///   ├── Panel  (Cube, scale 3x4x0.3)  ← panelRenderer slotuna sur
+///   └── Label  (3D TextMeshPro)       ← labelText slotuna sur
 ///
-/// Seffaflik icin Panel materyali:
-///   1. Project → Create → Material → adi "GateMat"
-///   2. Inspector → Shader: Universal Render Pipeline/Particles/Unlit
-///      (VEYA Built-in: Standard, Rendering Mode: Transparent)
-///   3. Bu script renk+alfayi otomatik ayarlar — baska bir sey yapmana gerek yok.
+/// GateMat materyali icin tek ayar (Inspector):
+///   Shader: Particles/Standard Unlit
+///   Rendering Mode: Transparent
+///   Color Mode: COLOR  ← Multiply degil!
+///   Albedo rengi: beyaz (kod halleder)
+///
+/// Bu script sadece material.color'u degistirir — baska hic bir sey yapmaz.
+/// Shader property isimleriyle ugrasma yok.
 /// </summary>
 public class Gate : MonoBehaviour
 {
@@ -24,12 +27,16 @@ public class Gate : MonoBehaviour
 
     bool triggered = false;
 
-    void Start()      { if (gateData != null) ApplyVisuals(); }
-    void OnEnable()   { if (gateData != null) ApplyVisuals(); }
+    void Start()
+    {
+        ApplyVisuals();
+    }
 
     void ApplyVisuals()
     {
-        // Yazi
+        if (gateData == null) return;
+
+        // ── Yazi ─────────────────────────────────────────────────────────
         if (labelText != null)
         {
             labelText.text      = gateData.gateText;
@@ -39,35 +46,31 @@ public class Gate : MonoBehaviour
             labelText.fontStyle = FontStyles.Bold;
         }
 
-        // Renk + Seffaflik
+        // ── Renk ─────────────────────────────────────────────────────────
+        // Sadece material.color kullan — shader property'lerine dokunma
         if (panelRenderer != null)
         {
-            Material mat = new Material(panelRenderer.sharedMaterial);
-
-            // URP Lit shader keyword'leri
-            mat.SetFloat("_Surface", 1f);
-            mat.SetFloat("_Blend",   0f);
-            mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetFloat("_ZWrite",   0f);
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.renderQueue = 3000;
-
-            Color c = gateData.gateColor;
-            c.a     = 0.65f;
-            mat.color = c;
-
+            // Prefab kirlenmesin diye instance al
+            Material mat = Instantiate(panelRenderer.sharedMaterial);
+            mat.color    = gateData.gateColor; // Alpha deger GateData'dan gelir
             panelRenderer.material = mat;
         }
     }
 
     void OnTriggerEnter(Collider other)
     {
-        if (triggered || !other.CompareTag("Player")) return;
+        if (triggered) return;                     // Cift tetiklenme engeli
+        if (!other.CompareTag("Player")) return;
+
         triggered = true;
 
-        other.GetComponent<PlayerStats>()?.ApplyGateEffect(gateData);
-        Debug.Log("[Gate] " + gateData.gateText + " | CP: " + PlayerStats.Instance?.CP);
+        PlayerStats stats = other.GetComponent<PlayerStats>();
+        if (stats != null)
+        {
+            stats.ApplyGateEffect(gateData);
+            Debug.Log("[Gate] " + gateData.gateText + " | Yeni CP: " + stats.CP);
+        }
+
         Destroy(gameObject);
     }
 }

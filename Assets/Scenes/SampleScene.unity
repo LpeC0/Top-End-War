@@ -568,7 +568,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 568790067}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 
@@ -1005,7 +1005,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 734728276}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!4 &734728282
 Transform:
   m_ObjectHideFlags: 0
@@ -1034,12 +1034,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07426ef8eacb6fc4ebef4e0f7f0843f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  forwardSpeed: 15
+  forwardSpeed: 12
   dragSensitivity: 0.04
   smoothing: 15
   xLimit: 7
   firePoint: {fileID: 1648944150}
-  bulletPrefab: {fileID: 0}
+  bulletPrefab: {fileID: 1185041038}
   fireRate: 2
   detectRange: 25
 --- !u!136 &734728286
@@ -1573,7 +1573,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1235460559}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 

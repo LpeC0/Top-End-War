@@ -4,10 +4,20 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Top End War — HUD (Claude)
-/// Canvas altinda HUD_Panel objesine ekle.
-/// Tum referanslar Inspector'dan baglanti — bos birakilabilir (null check var).
-/// TierText Inspector text kutusunu BOŞ birak — kod doldurur.
+/// Top End War — HUD v5 (Claude)
+///
+/// CANVAS KURULUMU:
+///   Canvas (Screen Space - Overlay)
+///   ├── CPText      TextMeshProUGUI  — Anchor: TopCenter, Pos: 0, -40
+///   ├── TierText    TextMeshProUGUI  — Anchor: TopCenter, Pos: 0, -80  ← text BOSH bırak
+///   ├── PopupText   TextMeshProUGUI  — Anchor: Center,    Pos: 0, 50
+///   ├── SynergyText TextMeshProUGUI  — Anchor: Center,    Pos: 0, -50
+///   ├── DamageFlash Image            — Anchor: Stretch-All, Alpha=0, RaycastTarget=false
+///   ├── PiyadeBar   Slider           — sol alt
+///   ├── MekanizeBar Slider
+///   └── TeknolojiBar Slider
+///
+/// Bu HUD objesini Canvas'in ALTINA koy, tum referanslari Inspector'dan bagla.
 /// </summary>
 public class GameHUD : MonoBehaviour
 {
@@ -25,7 +35,7 @@ public class GameHUD : MonoBehaviour
     public TextMeshProUGUI synergyText;
 
     [Header("Hasar Flash (optional)")]
-    public Image damageFlashImage; // Canvas'ta full-stretch Image, alpha=0
+    public Image damageFlashImage;
 
     int lastCP = 0;
 
@@ -34,11 +44,15 @@ public class GameHUD : MonoBehaviour
         PlayerStats stats = PlayerStats.Instance;
         if (stats == null)
         {
-            Debug.LogWarning("GameHUD: PlayerStats.Instance bulunamadi! Player'a PlayerStats.cs eklenmis mi?");
+            Debug.LogError("GameHUD: PlayerStats.Instance NULL! Player objesinde PlayerStats.cs var mi?");
             return;
         }
 
-        // Event abonelikleri
+        // Referans kontrolu
+        if (cpText   == null) Debug.LogWarning("GameHUD: cpText atanmamis!");
+        if (tierText == null) Debug.LogWarning("GameHUD: tierText atanmamis!");
+
+        // Event baglantiları
         GameEvents.OnCPUpdated     += OnCPUpdated;
         GameEvents.OnTierChanged   += OnTierChanged;
         GameEvents.OnSynergyFound  += OnSynergy;
@@ -46,11 +60,23 @@ public class GameHUD : MonoBehaviour
 
         // Ilk degerler
         lastCP = stats.CP;
-        if (cpText)   cpText.text   = stats.CP.ToString("N0");
-        if (tierText) tierText.text = "TIER 1 | " + stats.GetTierName();
+
+        if (cpText != null)
+        {
+            cpText.text  = stats.CP.ToString("N0");
+            cpText.color = Color.white;
+        }
+
+        if (tierText != null)
+        {
+            tierText.text  = "TIER 1 | " + stats.GetTierName();
+            tierText.color = Color.yellow;  // Belirgin renk
+        }
 
         if (damageFlashImage != null)
             damageFlashImage.color = new Color(1f, 0f, 0f, 0f);
+
+        Debug.Log("GameHUD baslatildi. CP: " + stats.CP + " | Tier: " + stats.CurrentTier);
     }
 
     void OnDestroy()
@@ -66,7 +92,7 @@ public class GameHUD : MonoBehaviour
         PlayerStats stats = PlayerStats.Instance;
         if (stats == null) return;
 
-        if (cpText) cpText.text = cp.ToString("N0");
+        if (cpText != null) cpText.text = cp.ToString("N0");
 
         float total = stats.PiyadePath + stats.MekanizePath + stats.TeknolojiPath;
         if (total > 0)
@@ -78,19 +104,19 @@ public class GameHUD : MonoBehaviour
 
         int delta = cp - lastCP;
         if (delta != 0)
-        {
-            string msg   = delta > 0 ? "+" + delta : "" + delta;
-            Color  color = delta > 0 ? Color.cyan : Color.red;
-            ShowPopup(msg, color);
-        }
+            ShowPopup(delta > 0 ? "+" + delta : "" + delta,
+                      delta > 0 ? Color.cyan : Color.red);
         lastCP = cp;
     }
 
     void OnTierChanged(int tier)
     {
         PlayerStats stats = PlayerStats.Instance;
-        if (tierText && stats != null)
-            tierText.text = "TIER " + tier + " | " + stats.GetTierName();
+        if (tierText != null && stats != null)
+        {
+            tierText.text  = "TIER " + tier + " | " + stats.GetTierName();
+            tierText.color = Color.yellow;
+        }
         ShowPopup("TIER " + tier + "!", Color.yellow);
     }
 
