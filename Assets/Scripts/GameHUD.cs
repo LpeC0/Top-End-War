@@ -4,59 +4,63 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Top End War — Oyun İçi HUD
-/// Canvas altındaki UI elemanlarına bağlan.
-/// PlayerStats event'lerini dinler, otomatik güncellenir.
+/// Top End War — HUD (Claude)
+/// Hasar alinca ekran kirmizi flash yapar.
+/// NOT: TierText Inspector text kutusunu BOŞ birak — kod doldurur.
 /// </summary>
 public class GameHUD : MonoBehaviour
 {
-    [Header("CP Göstergesi")]
-    public TextMeshProUGUI cpText;       // "3.132" gibi büyük sayı
-    public TextMeshProUGUI tierText;     // "TIER 2 — Elit Komando"
+    [Header("CP / Tier")]
+    public TextMeshProUGUI cpText;
+    public TextMeshProUGUI tierText;
 
-    [Header("Path Barları (0-1 arası Slider)")]
+    [Header("Path Barlari")]
     public Slider piyadebar;
     public Slider mekanizeBar;
     public Slider teknolojiBar;
 
-    [Header("Popup Yazı (kapıdan geçince uçan)")]
-    public TextMeshProUGUI popupText;    // "+60", "×2", "TIER 3!" gibi
-    public TextMeshProUGUI synergyText;  // "PERFECT GENETICS" gibi
+    [Header("Popup")]
+    public TextMeshProUGUI popupText;
+    public TextMeshProUGUI synergyText;
+
+    [Header("Hasar Flash")]
+    public Image damageFlashImage; // Canvas'ta tam ekran Image, alpha=0 baslar
 
     int lastCP = 0;
 
     void Start()
     {
         PlayerStats stats = PlayerStats.Instance;
-        if (stats == null) { Debug.LogWarning("HUD: PlayerStats bulunamadı!"); return; }
+        if (stats == null) { Debug.LogWarning("HUD: PlayerStats bulunamadi!"); return; }
 
-        // Event'lere abone ol
-        GameEvents.OnCPUpdated    += OnCPUpdated;
-        GameEvents.OnTierChanged  += OnTierChanged;
-        GameEvents.OnSynergyFound += OnSynergy;
+        GameEvents.OnCPUpdated     += OnCPUpdated;
+        GameEvents.OnTierChanged   += OnTierChanged;
+        GameEvents.OnSynergyFound  += OnSynergy;
+        GameEvents.OnPlayerDamaged += OnPlayerDamaged;
 
-        // İlk değerleri göster
         lastCP = stats.CP;
-        RefreshAll(stats);
+        if (cpText)   cpText.text   = stats.CP.ToString("N0");
+        if (tierText) tierText.text = "TIER 1 | " + stats.GetTierName();
+
+        if (damageFlashImage != null)
+            damageFlashImage.color = new Color(1f, 0f, 0f, 0f);
     }
 
     void OnDestroy()
     {
-        GameEvents.OnCPUpdated    -= OnCPUpdated;
-        GameEvents.OnTierChanged  -= OnTierChanged;
-        GameEvents.OnSynergyFound -= OnSynergy;
+        GameEvents.OnCPUpdated     -= OnCPUpdated;
+        GameEvents.OnTierChanged   -= OnTierChanged;
+        GameEvents.OnSynergyFound  -= OnSynergy;
+        GameEvents.OnPlayerDamaged -= OnPlayerDamaged;
     }
 
-    // ── Event Dinleyicileri ───────────────────────────────────────────────
     void OnCPUpdated(int cp)
     {
         PlayerStats stats = PlayerStats.Instance;
         if (stats == null) return;
 
-        // CP yazısı
         if (cpText) cpText.text = cp.ToString("N0");
 
-        // Path barları
         float total = stats.PiyadePath + stats.MekanizePath + stats.TeknolojiPath;
         if (total > 0)
         {
@@ -65,14 +69,10 @@ public class GameHUD : MonoBehaviour
             if (teknolojiBar) teknolojiBar.value = stats.TeknolojiPath / total;
         }
 
-        // Popup: +60 veya -80
         int delta = cp - lastCP;
         if (delta != 0)
-        {
-            string txt   = delta > 0 ? $"+{delta}" : $"{delta}";
-            Color  color = delta > 0 ? Color.cyan : Color.red;
-            ShowPopup(txt, color);
-        }
+            ShowPopup(delta > 0 ? "+" + delta : "" + delta,
+                      delta > 0 ? Color.cyan : Color.red);
         lastCP = cp;
     }
 
@@ -80,9 +80,8 @@ public class GameHUD : MonoBehaviour
     {
         PlayerStats stats = PlayerStats.Instance;
         if (tierText && stats != null)
-            tierText.text = $"TİER {tier}  |  {stats.GetTierName()}";
-
-        ShowPopup($"⭐ TİER {tier}!", Color.yellow);
+            tierText.text = "TIER " + tier + " | " + stats.GetTierName();
+        ShowPopup("TIER " + tier + "!", Color.yellow);
     }
 
     void OnSynergy(string name)
@@ -94,11 +93,24 @@ public class GameHUD : MonoBehaviour
         StartCoroutine("HideSynergy");
     }
 
-    // ── Yardımcılar ───────────────────────────────────────────────────────
-    void RefreshAll(PlayerStats stats)
+    void OnPlayerDamaged(int amount)
     {
-        if (cpText)   cpText.text   = stats.CP.ToString("N0");
-        if (tierText) tierText.text = $"TİER {stats.CurrentTier}  |  {stats.GetTierName()}";
+        StopCoroutine("FlashDamage");
+        StartCoroutine("FlashDamage");
+    }
+
+    IEnumerator FlashDamage()
+    {
+        if (damageFlashImage == null) yield break;
+        damageFlashImage.color = new Color(1f, 0f, 0f, 0.5f);
+        float t = 0f;
+        while (t < 0.45f)
+        {
+            t += Time.deltaTime;
+            damageFlashImage.color = new Color(1f, 0f, 0f, Mathf.Lerp(0.5f, 0f, t / 0.45f));
+            yield return null;
+        }
+        damageFlashImage.color = new Color(1f, 0f, 0f, 0f);
     }
 
     void ShowPopup(string msg, Color color)

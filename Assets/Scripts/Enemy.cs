@@ -1,24 +1,24 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Düşman (Claude)
+/// Top End War — Dushman (Claude)
 /// Tag: "Enemy"
-/// Prefab: Capsule → Rigidbody (IsKinematic:true) + Capsule Collider (IsTrigger:true)
-/// Oyuncuya doğru yürür. Çarparsa CP düşer. Vurulunca CP kazanılır.
+/// Prefab: Capsule → Rigidbody(IsKinematic:true) + CapsuleCollider(IsTrigger:true)
+/// Oyuncuya dogru ilerler, sinir disina cikamaz, iç içe girmez.
 /// </summary>
 public class Enemy : MonoBehaviour
 {
     [Header("Can")]
-    public int maxHealth = 100;
+    public int maxHealth = 120;
 
     [Header("Hareket")]
-    public float moveSpeed = 4f;         // Oyuncuya doğru yaklaşma hızı
+    public float moveSpeed   = 4.5f;
+    public float trackSpeedX = 1.5f;   // Oyuncuyu X'te takip hizi (dusuk = dalga formu korunur)
+    public float xLimit      = 5.5f;   // PlayerController ile ayni olmali
 
-    [Header("Hasar (Oyuncu ile çarpışma)")]
-    public int contactDamage = 30;       // Oyuncuya çarpınca düşülecek CP
-
-    [Header("Ödül")]
-    public int cpReward = 20;            // Öldürülünce oyuncuya verilecek CP
+    [Header("Hasar")]
+    public int contactDamage = 50;
+    public int cpReward      = 15;
 
     int      currentHealth;
     Renderer bodyRenderer;
@@ -35,27 +35,35 @@ public class Enemy : MonoBehaviour
     {
         if (isDead || PlayerStats.Instance == null) return;
 
-        // Oyuncuya doğru sadece Z ekseninde yürü
-        float playerZ = PlayerStats.Instance.transform.position.z;
-        if (transform.position.z > playerZ)
-        {
-            transform.position -= new Vector3(0f, 0f, moveSpeed * Time.deltaTime);
-        }
+        Vector3 pos       = transform.position;
+        float   playerZ   = PlayerStats.Instance.transform.position.z;
 
-        // Oyuncu düşmanı 15 birim geçtiyse temizle (kaçırıldı)
-        if (transform.position.z < playerZ - 15f)
+        // Z: Oyuncuya dogru yuru
+        if (pos.z > playerZ + 0.5f)
+            pos.z -= moveSpeed * Time.deltaTime;
+
+        // X: Oyuncuyu yavas takip et
+        float targetX = Mathf.Clamp(
+            Mathf.MoveTowards(pos.x, PlayerStats.Instance.transform.position.x, trackSpeedX * Time.deltaTime),
+            -xLimit, xLimit);
+        pos.x = targetX;
+
+        // Sinir kontrolu
+        pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
+
+        transform.position = pos;
+
+        // 15 birim geride kaldiysa temizle
+        if (pos.z < playerZ - 15f)
             Destroy(gameObject);
     }
 
-    // ── Mermi hasarı ─────────────────────────────────────────────────────
     public void TakeDamage(int dmg)
     {
         if (isDead) return;
         currentHealth -= dmg;
-
         if (bodyRenderer != null) bodyRenderer.material.color = Color.red;
-        Invoke(nameof(ResetColor), 0.12f);
-
+        Invoke(nameof(ResetColor), 0.1f);
         if (currentHealth <= 0) Die();
     }
 
@@ -70,22 +78,15 @@ public class Enemy : MonoBehaviour
         if (isDead) return;
         isDead = true;
         CancelInvoke();
-
-        if (PlayerStats.Instance != null)
-            PlayerStats.Instance.AddCPFromKill(cpReward);
-
+        PlayerStats.Instance?.AddCPFromKill(cpReward);
         Destroy(gameObject);
     }
 
-    // ── Oyuncuya çarpma ──────────────────────────────────────────────────
     void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag("Player") || hasDamagedPlayer || isDead) return;
         hasDamagedPlayer = true;
-
-        PlayerStats stats = other.GetComponent<PlayerStats>();
-        if (stats != null) stats.TakeContactDamage(contactDamage);
-
-        Die(); // Çarptıktan sonra düşman yok olur
+        other.GetComponent<PlayerStats>()?.TakeContactDamage(contactDamage);
+        Die();
     }
 }
