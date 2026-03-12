@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d8ac0ea130acbae4d81827b6cb2c4a54, type: 3}
   m_Name: PiyadeBoost
   m_EditorClassIdentifier: Assembly-CSharp::GateData
-  gateText: +60 Piyade
+  gateText: +25 Piyade
   gateColor: {r: 0.621912, g: 0, b: 1, a: 0.5}
-  effectType: 2
-  effectValue: 60
+  effectType: 3
+  effectValue: 25

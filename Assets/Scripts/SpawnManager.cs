@@ -1,11 +1,10 @@
 using UnityEngine;
-using System.Collections.Generic;
 
 /// <summary>
 /// Top End War — Birleşik Spawn Yöneticisi (Claude)
-/// GateSpawner + EnemySpawner yerine bu TEK script kullanılır.
-/// Kapılar ve düşmanlar hiçbir zaman aynı Z'ye çıkmaz.
-/// GateSpawner ve EnemySpawner objelerini/scriptlerini KALDIR, bunu ekle.
+/// Her slot'ta KAPIDAN VEYA DÜŞMANDAN biri çıkar.
+/// Aynı Z noktasına asla ikisi birden gelmez.
+/// GateSpawner ve EnemySpawner scriptlerini/objelerini KALDIR.
 /// </summary>
 public class SpawnManager : MonoBehaviour
 {
@@ -15,18 +14,21 @@ public class SpawnManager : MonoBehaviour
     public GameObject enemyPrefab;
     public GateData[] gateDataList;
 
-    [Header("Spawn Mesafeleri")]
-    public float spawnAheadDistance = 50f;   // Player önünde kaç birim hazırla
-    public float slotSize           = 30f;   // Her slot arası mesafe (kapı VEYA düşman)
+    [Header("Spawn Ayarları")]
+    public float spawnAheadDistance = 60f;  // Player önünde kaç birim hazırla
+    public float slotSize           = 25f;  // Her slot arası mesafe
+    public float laneDistance       = 3.5f; // PlayerController ile aynı
 
-    [Header("Şerit")]
-    public float laneDistance = 3.5f;
+    [Header("Kapı Oranı (0-10)")]
+    [Range(0, 10)]
+    public int gateSlotsOutOf10 = 6; // 10 slottan 6'sı kapı, 4'ü düşman
 
-    [Header("Oran (10 slottan kaçı kapı, kaçı düşman?)")]
-    [Range(1,9)]
-    public int gateSlotsOutOf10  = 5;  // 10'da 5 kapı, 5 düşman
+    [Header("Zorluk")]
+    public int   maxEnemiesPerWave  = 2;    // Bir seferde max kaç düşman
+    public float difficultyDistance = 200f; // Bu kadar ilerleyince +1 düşman
 
-    float nextSlotZ = 30f;
+    float nextSlotZ    = 30f;
+    int   slotsSpawned = 0;
 
     void Update()
     {
@@ -35,13 +37,13 @@ public class SpawnManager : MonoBehaviour
         while (playerTransform.position.z + spawnAheadDistance >= nextSlotZ)
         {
             SpawnSlot(nextSlotZ);
-            nextSlotZ += slotSize;
+            nextSlotZ  += slotSize;
+            slotsSpawned++;
         }
     }
 
     void SpawnSlot(float zPos)
     {
-        // %gateSlotsOutOf10 ihtimalle kapı, geri kalanı düşman
         bool spawnGate = Random.Range(0, 10) < gateSlotsOutOf10;
 
         if (spawnGate)
@@ -64,10 +66,10 @@ public class SpawnManager : MonoBehaviour
 
     void SpawnGate(GateData data, Vector3 pos)
     {
-        GameObject obj = Instantiate(gatePrefab, pos, Quaternion.identity);
-        Gate gate = obj.GetComponent<Gate>();
+        GameObject obj  = Instantiate(gatePrefab, pos, Quaternion.identity);
+        Gate gate       = obj.GetComponent<Gate>();
         if (gate != null) gate.gateData = data;
-        Destroy(obj, 30f);
+        Destroy(obj, 35f); // Geride kalırsa temizle
     }
 
     // ── Düşman dalgası ────────────────────────────────────────────────────
@@ -75,28 +77,27 @@ public class SpawnManager : MonoBehaviour
     {
         if (enemyPrefab == null) return;
 
-        // 1 veya 2 düşman, orta şerit her zaman boş kalsın (kaçış yolu)
-        int count = Random.Range(1, 3); // 1 veya 2
-        int[] lanes = PickLanes(count);
+        // Zorluk: ne kadar ilerlendiyse o kadar düşman
+        int difficultyBonus = Mathf.FloorToInt(playerTransform.position.z / difficultyDistance);
+        int count           = Mathf.Clamp(1 + difficultyBonus, 1, maxEnemiesPerWave);
 
-        foreach (int lane in lanes)
+        // Şeritleri karıştır, count kadar seç
+        int[] lanes = ShuffleLanes();
+        for (int i = 0; i < count; i++)
         {
-            float x = (lane - 1) * laneDistance;
+            float x = (lanes[i] - 1) * laneDistance;
             Instantiate(enemyPrefab, new Vector3(x, 1.2f, zPos), Quaternion.identity);
         }
     }
 
-    int[] PickLanes(int count)
+    int[] ShuffleLanes()
     {
         int[] all = { 0, 1, 2 };
-        // Shuffle
         for (int i = 2; i > 0; i--)
         {
-            int j   = Random.Range(0, i + 1);
+            int j  = Random.Range(0, i + 1);
             int tmp = all[i]; all[i] = all[j]; all[j] = tmp;
         }
-        int[] result = new int[count];
-        for (int i = 0; i < count; i++) result[i] = all[i];
-        return result;
+        return all;
     }
 }

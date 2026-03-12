@@ -413,60 +413,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 364630765}
   m_CullTransparentMesh: 1
---- !u!1 &420244037
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 420244039}
-  - component: {fileID: 420244038}
-  m_Layer: 0
-  m_Name: GateSpawner
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &420244038
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 420244037}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 28515a72c0b79aa4bab775a0f816e299, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::GateSpawner
-  playerTransform: {fileID: 734728282}
-  gatePrefab: {fileID: 3397764733245124619, guid: cd76c89af752cb046a6a2b42192a9454, type: 3}
-  gateDataList:
-  - {fileID: 11400000, guid: 01a893a47afa69a4280f108079e7ba6f, type: 2}
-  - {fileID: 11400000, guid: 9d97c3dab0969c1418fef9f19f1db290, type: 2}
-  - {fileID: 11400000, guid: 908cfaa21aad0044bb4cd0a6483178a2, type: 2}
-  spawnAheadDistance: 40
-  spacingBetweenGates: 50
-  laneOffset: 3.5
-  cleanupDistance: 15
---- !u!4 &420244039
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 420244037}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1.74029, y: -0, z: 1.22869}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &422491177
 GameObject:
   m_ObjectHideFlags: 0
@@ -620,7 +566,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 568790067}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 
@@ -993,6 +939,7 @@ GameObject:
   - component: {fileID: 734728285}
   - component: {fileID: 734728286}
   - component: {fileID: 734728287}
+  - component: {fileID: 734728288}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -1091,7 +1038,7 @@ MonoBehaviour:
   bulletPrefab: {fileID: 179161563940366066, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
   firePoint: {fileID: 1648944150}
   fireRate: 2
-  cp: 100
+  dragThreshold: 40
 --- !u!136 &734728286
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1128,6 +1075,26 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
   startCP: 100
+--- !u!114 &734728288
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 734728276}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cf5e32205403ef04bb218b750905c43c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MorphController
+  tierPrefabs:
+  - {fileID: 734728276}
+  - {fileID: 734728276}
+  - {fileID: 734728276}
+  - {fileID: 734728276}
+  - {fileID: 734728276}
+  morphParticlePrefab: {fileID: 0}
+  flashDuration: 0.3
 --- !u!1 &824690629
 GameObject:
   m_ObjectHideFlags: 0
@@ -1572,6 +1539,11 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -80}
   m_SizeDelta: {x: 400, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1185041038 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 179161563940366066, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
+  m_PrefabInstance: {fileID: 7564397837830857002}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1235460559
 GameObject:
   m_ObjectHideFlags: 0
@@ -1597,7 +1569,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1235460559}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
   m_Name: 
@@ -1846,6 +1818,54 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 100}
   m_SizeDelta: {x: 500, y: 150}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1401933230
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1401933232}
+  - component: {fileID: 1401933231}
+  m_Layer: 0
+  m_Name: PoolManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1401933231
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1401933230}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 47e33c117cc37e74e9b11309c8898769, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ObjectPooler
+  pools:
+  - tag: Bullet
+    prefab: {fileID: 1185041038}
+    size: 20
+--- !u!4 &1401933232
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1401933230}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1436880591
 GameObject:
   m_ObjectHideFlags: 0
@@ -2002,6 +2022,64 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 734728282}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1661570126
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1661570128}
+  - component: {fileID: 1661570127}
+  m_Layer: 0
+  m_Name: SpawnManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1661570127
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1661570126}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c96217efc600b8149a822fa8f8c94453, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SpawnManager
+  playerTransform: {fileID: 734728282}
+  gatePrefab: {fileID: 3397764733245124619, guid: cd76c89af752cb046a6a2b42192a9454, type: 3}
+  enemyPrefab: {fileID: 899098464761774372, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
+  gateDataList:
+  - {fileID: 11400000, guid: 01a893a47afa69a4280f108079e7ba6f, type: 2}
+  - {fileID: 11400000, guid: 9d97c3dab0969c1418fef9f19f1db290, type: 2}
+  - {fileID: 11400000, guid: acbff1856fb4d1745b3033f0737aa79c, type: 2}
+  - {fileID: 11400000, guid: 908cfaa21aad0044bb4cd0a6483178a2, type: 2}
+  - {fileID: 11400000, guid: a1d523258331bf842bc6b712a4bf35c8, type: 2}
+  - {fileID: 11400000, guid: 1ebef82f8019c4549bdc09fb63c63731, type: 2}
+  spawnAheadDistance: 50
+  slotSize: 30
+  laneDistance: 3.5
+  gateSlotsOutOf10: 5
+--- !u!4 &1661570128
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1661570126}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1700232944
 GameObject:
@@ -2576,8 +2654,9 @@ SceneRoots:
   - {fileID: 705507995}
   - {fileID: 734728282}
   - {fileID: 963194228}
-  - {fileID: 420244039}
   - {fileID: 7564397837830857002}
   - {fileID: 422491182}
   - {fileID: 1823772051}
   - {fileID: 1118792121}
+  - {fileID: 1401933232}
+  - {fileID: 1661570128}
