@@ -1,0 +1,18 @@
+Aşağıdakilerin hepsi aklımdan geçen oynanış,mekanik ve tasarım planlarımı içermektedir.
+
+Oynanış planları;
+-----------------------
+Ana oyun sahnesinde haritayı keşfettiğimiz Belli Bir Şehirden Başlayıp(Şimdilik Sivas farklı textureler ve modeller ile çeşitlendirilecek.)Diğer şehirlere doğru oyuncumuzu geliştirerek gittiğimiz bir tasarımımız var.
+ana ekran UI 3D Dünya görüntüsü ile başlayıp kaldığımız başlayacağımız şehre kameranın ilerlemesiyle ve 2D br görünüm ile şehirler arası yolculukla başlayacak oyun.
+3 adet oynanış tipi fikrim var. 
+1;Oyuncunun Hareket Ettiği ve kapılardan mantıklı seçimlerle düşmanları yenerek Ana Boss savaşına geçtiği doğru seçimleri ve güzel oynanışı gerçekleştirdiyse yenmesi daha kolay olacak.
+2; oyuncunun yerinde sadece sağa sola gittiği, Düşmanların üzerine geldiği, kapı ve güçlendirmenin zamana karşı bir seçim olarak işlendiği
+3;oyuncunun yerinde durarak belli başlı özelliklerle(mermi çoğaltma,silah yükseltme,Troop sayısı artırma,seken mermiler oluşturma gibi..) seçim yaparak kalesini savunduğu 2.ve 3. fikir birleştirilebilir.
+Oyunu her aşamada tasarlarken bu şartlara dikkat edilecek.
+
+
+Eksilerimiz
+-Oynanış mekanikleri biraz belirlenmiş olsa da Güç dengesini ve ilerleme algoritmasını eğlenceli keyifli olacak şekilde belirleyemedik.
+-İnsanların keyfini kaçırmayacak gelişim açısından güçlü duygu uyandıran sıkılma hissini vermeyecek bir algoritmaya ihtiyacımız var.
+-Oyunun devamlılığı sağlayacak algoritma ile kolay Bölüm üretimi(Bu algoritamaların arkasında matematik olmalı ve oyunumuz hemen bitmemeli.Oyuncuyu içeride tutabilmeliyiz.)
+-satın alım mekanikleri oyun içi alımlar ve kazanç

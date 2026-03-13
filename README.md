@@ -29,14 +29,14 @@ TEKNİK KISITLAR (değiştirilemez):
 - Unicode sembol KULLANMA — LiberationSans desteklemiyor
 - Player'a Bullet.cs veya Enemy.cs EKLEME
 
-TIER / CP:
+TIER / CP:(Değiştirilir muhtemelen)
 Tier1=0CP "Gonullu Er" 1 mermi
 Tier2=300CP "Elit Komando" 2 mermi
 Tier3=800CP "Gatling Timi" 3 mermi
 Tier4=2000CP "Hava Indirme" 4 mermi
 Tier5=5000CP "Suru Drone" 5 mermi
 
-BOLUM (Sivas):
+BOLUM (Sivas):(Ayarları yapılacak)
 0-300: kolay, 2-3 dushman/dalga
 300-800: orta, 3-5 dushman/dalga
 800-1200: zor, 5-8 dushman/dalga
@@ -68,7 +68,8 @@ using UnityEngine;
 
 /// <summary>
 /// Top End War — Oyuncu Hareketi v4 (Claude)
-/// Serbest surukleme. xLimit=8. Tier bazli 1-5 mermi.
+/// Serbest surukleme. xLimit=8 ile genis harita siniri.
+/// Tier'a gore 1-5 mermi.
 /// </summary>
 public class PlayerController : MonoBehaviour
 {
@@ -78,7 +79,7 @@ public class PlayerController : MonoBehaviour
     [Header("Yatay Hareket")]
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
-    public float xLimit          = 8f;
+    public float xLimit          = 8f;   // RoadChunk genisligi ile uyumlu
 
     [Header("Ates")]
     public Transform  firePoint;
@@ -179,8 +180,9 @@ public class PlayerController : MonoBehaviour
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Veri Merkezi v4 (Claude)
-/// CP = can. DefaultExecOrder(-10) → TierText bos baslamaz.
+/// Top End War — Oyuncu Veri Merkezi (Claude)
+/// [DefaultExecutionOrder(-10)] → TierText bos baslamaz.
+/// DIKKAT: GameEvents.cs'de OnPlayerDamaged ve OnGameOver olmali!
 /// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
@@ -201,10 +203,14 @@ public class PlayerStats : MonoBehaviour
 
     float lastDamageTime = -99f;
 
-    static readonly int[]    tierCP    = { 0, 300, 800, 2000, 5000 };
+    static readonly int[] tierCP = { 0, 300, 800, 2000, 5000 };
     static readonly string[] tierNames =
     {
-        "Gonullu Er", "Elit Komando", "Gatling Timi", "Hava Indirme", "Suru Drone"
+        "Gonullu Er",
+        "Elit Komando",
+        "Gatling Timi",
+        "Hava Indirme",
+        "Suru Drone"
     };
 
     void Awake()
@@ -216,6 +222,7 @@ public class PlayerStats : MonoBehaviour
 
     void Start() => GameEvents.OnCPUpdated?.Invoke(CP);
 
+    // ── Dushmana carpma hasari ────────────────────────────────────────────
     public void TakeContactDamage(int amount)
     {
         if (Time.time - lastDamageTime < invincibilityDuration) return;
@@ -231,6 +238,7 @@ public class PlayerStats : MonoBehaviour
         if (CP <= 10) GameEvents.OnGameOver?.Invoke();
     }
 
+    // ── Oldurme odulu ─────────────────────────────────────────────────────
     public void AddCPFromKill(int amount)
     {
         int oldTier = CurrentTier;
@@ -240,8 +248,10 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
     }
 
+    // ── Kapi etkisi ───────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
+        if (data == null) return;
         int oldTier = CurrentTier;
 
         switch (data.effectType)
@@ -287,7 +297,10 @@ public class PlayerStats : MonoBehaviour
     {
         float total = PiyadePath + MekanizePath + TeknolojiPath;
         if (total == 0) return;
-        float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
+        float p = PiyadePath / total;
+        float m = MekanizePath / total;
+        float t = TeknolojiPath / total;
+
         if (Mathf.Min(p, Mathf.Min(m, t)) > 0.25f) { GameEvents.OnSynergyFound?.Invoke("PERFECT GENETICS"); return; }
         if (p > 0.5f && m > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu");  return; }
         if (p > 0.5f && t > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Drone Takimi");    return; }
@@ -302,21 +315,49 @@ public class PlayerStats : MonoBehaviour
 ```csharp
 using UnityEngine;
 
+/// <summary>
+/// Army Gate Siege – Kamera Takip
+/// Runner mantığı: X sabit (şerit değiştirince dünya sallanmaz),
+/// sadece Z ve Y ekseninde Player'ı takip eder.
+/// Cinemachine GEREKMİYOR. Main Camera'ya attach et, Target'a Player sürükle.
+/// </summary>
 public class SimpleCameraFollow : MonoBehaviour
 {
-    [Header("Hedef")]
-    public Transform target;
+    [Header("=== HEDEF ===")]
+    public Transform target;          // Inspector'dan Player sürükle
 
-    [Header("Kamera")]
-    public float heightOffset = 9f;
-    public float backOffset   = 11f;
-    public float followSpeed  = 12f;
+    [Header("=== KAMERA OTURUMU ===")]
+    public float heightOffset  =  9f; // Yukarı ne kadar
+    public float backOffset    = 11f; // Arkaya ne kadar
+    public float followSpeed   = 12f; // Takip yumuşaklığı (düşürünce daha "drone" hissi)
 
+    // ─────────────────────────────────────────────────────────────────────────
     void LateUpdate()
     {
-        if (target == null) return;
-        Vector3 desired = new Vector3(0f, target.position.y + heightOffset, target.position.z - backOffset);
-        transform.position = Vector3.Lerp(transform.position, desired, Time.deltaTime * followSpeed);
+        if (target == null)
+        {
+            Debug.LogWarning("SimpleCameraFollow: Target atanmadı! Main Camera Inspector'ında Player'ı sürükle.");
+            return;
+        }
+
+        // Hedef pozisyon:
+        //   X = 0 (sabit, şerit değiştirince kamera sallanmaz)
+        //   Y = Player Y + yükseklik
+        //   Z = Player Z - geri mesafe
+        Vector3 desired = new Vector3(
+            0f,
+            target.position.y + heightOffset,
+            target.position.z - backOffset
+        );
+
+        // Yumuşak geçiş
+        transform.position = Vector3.Lerp(
+            transform.position,
+            desired,
+            Time.deltaTime * followSpeed
+        );
+
+        // Her zaman Player'a bak (biraz yukarısına, boynun görünsün)
         transform.LookAt(target.position + Vector3.up * 1.5f);
     }
 }
@@ -326,15 +367,19 @@ public class SimpleCameraFollow : MonoBehaviour
 ```csharp
 using System;
 
+/// <summary>
+/// Top End War — Global Event Merkezi (Claude)
+/// Bu dosya degismeden kalsin — tum scriptler buraya bagli.
+/// </summary>
 public static class GameEvents
 {
-    public static Action<int>    OnCPUpdated;
-    public static Action<int>    OnTierChanged;
-    public static Action<string> OnPathBoosted;
-    public static Action         OnMergeTriggered;
-    public static Action<string> OnSynergyFound;
-    public static Action<int>    OnPlayerDamaged;
-    public static Action         OnGameOver;
+    public static Action<int>    OnCPUpdated;       // CP degisti
+    public static Action<int>    OnTierChanged;     // Tier atladi
+    public static Action<string> OnPathBoosted;     // Path degisti
+    public static Action         OnMergeTriggered;  // Merge kapisi
+    public static Action<string> OnSynergyFound;    // Sinerji
+    public static Action<int>    OnPlayerDamaged;   // Hasar flash (GameHUD dinler)
+    public static Action         OnGameOver;        // CP bitti
 }
 ```
 
@@ -344,15 +389,19 @@ using UnityEngine;
 
 public enum GateEffectType
 {
-    AddCP, MultiplyCP, Merge,
-    PathBoost_Piyade, PathBoost_Mekanize, PathBoost_Teknoloji,
+    AddCP,
+    MultiplyCP,
+    Merge,
+    PathBoost_Piyade,
+    PathBoost_Mekanize,
+    PathBoost_Teknoloji,
     NegativeCP
 }
 
 [CreateAssetMenu(fileName = "NewGateData", menuName = "TopEndWar/Gate Data")]
 public class GateData : ScriptableObject
 {
-    [Header("Gorsel")]
+    [Header("Görsel")]
     public string gateText  = "+60";
     public Color  gateColor = new Color(0f, 0.7f, 1f, 0.6f);
 
@@ -360,6 +409,7 @@ public class GateData : ScriptableObject
     public GateEffectType effectType  = GateEffectType.AddCP;
     public float          effectValue = 60f;
 }
+
 ```
 
 ### Gate.cs
@@ -368,11 +418,22 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Top End War — Kapi (Claude)
-/// PREFAB: GatePrefab → Gate.cs + BoxCollider(IsTrigger) + Rigidbody(IsKinematic)
-///   └── Panel (Cube 3x4x0.3) → panelRenderer buraya
-///   └── Label (3D TextMeshPro) → labelText buraya
-/// Panel materyali: herhangi bir URP/Lit mat — kod transparanligi halleder.
+/// Top End War — Kapi v5 (Claude)
+///
+/// PREFAB YAPISI:
+///   GatePrefab (root)
+///   ├── Gate.cs  +  BoxCollider(IsTrigger=true)  +  Rigidbody(IsKinematic=true)
+///   ├── Panel  (Cube, scale 3x4x0.3)  ← panelRenderer slotuna sur
+///   └── Label  (3D TextMeshPro)       ← labelText slotuna sur
+///
+/// GateMat materyali icin tek ayar (Inspector):
+///   Shader: Particles/Standard Unlit
+///   Rendering Mode: Transparent
+///   Color Mode: COLOR  ← Multiply degil!
+///   Albedo rengi: beyaz (kod halleder)
+///
+/// Bu script sadece material.color'u degistirir — baska hic bir sey yapmaz.
+/// Shader property isimleriyle ugrasma yok.
 /// </summary>
 public class Gate : MonoBehaviour
 {
@@ -382,11 +443,16 @@ public class Gate : MonoBehaviour
 
     bool triggered = false;
 
-    void Start()    { if (gateData != null) ApplyVisuals(); }
-    void OnEnable() { if (gateData != null) ApplyVisuals(); }
+    void Start()
+    {
+        ApplyVisuals();
+    }
 
     void ApplyVisuals()
     {
+        if (gateData == null) return;
+
+        // ── Yazi ─────────────────────────────────────────────────────────
         if (labelText != null)
         {
             labelText.text      = gateData.gateText;
@@ -396,29 +462,31 @@ public class Gate : MonoBehaviour
             labelText.fontStyle = FontStyles.Bold;
         }
 
+        // ── Renk ─────────────────────────────────────────────────────────
+        // Sadece material.color kullan — shader property'lerine dokunma
         if (panelRenderer != null)
         {
-            Material mat = new Material(panelRenderer.sharedMaterial);
-            mat.SetFloat("_Surface", 1f);
-            mat.SetFloat("_Blend",   0f);
-            mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetFloat("_ZWrite",   0f);
-            mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-            mat.renderQueue = 3000;
-            Color c = gateData.gateColor;
-            c.a = 0.65f;
-            mat.color = c;
+            // Prefab kirlenmesin diye instance al
+            Material mat = Instantiate(panelRenderer.sharedMaterial);
+            mat.color    = gateData.gateColor; // Alpha deger GateData'dan gelir
             panelRenderer.material = mat;
         }
     }
 
     void OnTriggerEnter(Collider other)
     {
-        if (triggered || !other.CompareTag("Player")) return;
+        if (triggered) return;                     // Cift tetiklenme engeli
+        if (!other.CompareTag("Player")) return;
+
         triggered = true;
-        other.GetComponent<PlayerStats>()?.ApplyGateEffect(gateData);
-        Debug.Log("[Gate] " + gateData.gateText);
+
+        PlayerStats stats = other.GetComponent<PlayerStats>();
+        if (stats != null)
+        {
+            stats.ApplyGateEffect(gateData);
+            Debug.Log("[Gate] " + gateData.gateText + " | Yeni CP: " + stats.CP);
+        }
+
         Destroy(gameObject);
     }
 }
@@ -429,8 +497,8 @@ public class Gate : MonoBehaviour
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Spawn Yoneticisi v3 (Claude)
-/// xLimit=8. Kapi+dushman ayri Z slotlari. Boss: 1200 birim.
+/// Top End War — Spawn Yoneticisi v4 (Claude)
+/// Dushman iç içe gecmez: Physics.OverlapSphere ile doluluk kontrolu yapilir.
 /// </summary>
 public class SpawnManager : MonoBehaviour
 {
@@ -442,7 +510,7 @@ public class SpawnManager : MonoBehaviour
     public GameObject enemyPrefab;
     public GateData[] gateDataList;
 
-    [Header("Spawn")]
+    [Header("Spawn Mesafeleri")]
     public float spawnAhead  = 65f;
     public float gateSpacing = 40f;
     public float waveSpacing = 32f;
@@ -464,21 +532,33 @@ public class SpawnManager : MonoBehaviour
         if (!bossSpawned && pz >= bossDistance)
         {
             bossSpawned = true;
-            Debug.Log("BOSS! Z: " + pz);
-            GameEvents.OnGameOver?.Invoke();
+            Debug.Log("[SpawnManager] BOSS ZAMANI! Z=" + pz);
+            // TODO: BossManager.Instance.StartBoss();
             return;
         }
 
-        while (pz + spawnAhead >= nextGateZ) { SpawnGatePair(nextGateZ); nextGateZ += gateSpacing; }
-        while (pz + spawnAhead >= nextWaveZ) { SpawnEnemyWave(nextWaveZ); nextWaveZ += waveSpacing; }
+        while (pz + spawnAhead >= nextGateZ)
+        {
+            SpawnGatePair(nextGateZ);
+            nextGateZ += gateSpacing;
+        }
+
+        while (pz + spawnAhead >= nextWaveZ)
+        {
+            SpawnEnemyWave(nextWaveZ);
+            nextWaveZ += waveSpacing;
+        }
     }
 
+    // ── Kapi Cifti ────────────────────────────────────────────────────────
     void SpawnGatePair(float zPos)
     {
         if (gatePrefab == null || gateDataList == null || gateDataList.Length == 0) return;
+
         GateData left  = gateDataList[Random.Range(0, gateDataList.Length)];
         GateData right = gateDataList[Random.Range(0, gateDataList.Length)];
-        float offset = ROAD_HALF_WIDTH * 0.45f;
+
+        float offset = ROAD_HALF_WIDTH * 0.45f; // ~3.6 birim
         SpawnGate(left,  new Vector3(-offset, 1.5f, zPos));
         SpawnGate(right, new Vector3( offset, 1.5f, zPos));
     }
@@ -486,29 +566,68 @@ public class SpawnManager : MonoBehaviour
     void SpawnGate(GateData data, Vector3 pos)
     {
         GameObject obj = Instantiate(gatePrefab, pos, Quaternion.identity);
-        Gate gate = obj.GetComponent<Gate>();
+        Gate gate      = obj.GetComponent<Gate>();
         if (gate != null) gate.gateData = data;
-        Destroy(obj, 40f);
+        Destroy(obj, 45f);
     }
 
+    // ── Dushman Dalgasi ───────────────────────────────────────────────────
     void SpawnEnemyWave(float zPos)
     {
         if (enemyPrefab == null) return;
-        float progress = Mathf.Clamp01(playerTransform.position.z / bossDistance);
-        int   count    = Mathf.RoundToInt(Mathf.Lerp(minEnemies, maxEnemies, progress));
-        int   cols     = Mathf.Min(count, 4);
-        int   rows     = Mathf.CeilToInt((float)count / cols);
-        float colGap   = (ROAD_HALF_WIDTH * 1.4f) / Mathf.Max(cols, 1);
-        float startX   = -(colGap * (cols - 1)) / 2f;
+
+        float progress  = Mathf.Clamp01(playerTransform.position.z / bossDistance);
+        int   count     = Mathf.RoundToInt(Mathf.Lerp(minEnemies, maxEnemies, progress));
+
+        // Grid boyutlari
+        int   cols      = Mathf.Min(count, 4);
+        int   rows      = Mathf.CeilToInt((float)count / cols);
+
+        // Ic ice gecmemesi icin yeterli aralik:
+        // Dushman capsule radius ~0.5, min aralik = 2x radius + bosluk = 2.0
+        float minGap    = 2.2f;
+        float roadWidth = ROAD_HALF_WIDTH * 1.6f; // Kullanılabilir genişlik
+        float colGap    = Mathf.Max(roadWidth / Mathf.Max(cols, 1), minGap);
+        float rowGap    = 3.0f; // Satirlar arasi — iç içe girmesin
+
+        // Grid'i ortala
+        float startX = -(colGap * (cols - 1)) * 0.5f;
 
         int spawned = 0;
         for (int r = 0; r < rows && spawned < count; r++)
+        {
             for (int c = 0; c < cols && spawned < count; c++)
             {
-                float x = Mathf.Clamp(startX + c * colGap, -ROAD_HALF_WIDTH + 0.5f, ROAD_HALF_WIDTH - 0.5f);
-                Instantiate(enemyPrefab, new Vector3(x, 1.2f, zPos + r * 2.8f), Quaternion.identity);
-                spawned++;
+                float x = Mathf.Clamp(
+                    startX + c * colGap,
+                    -ROAD_HALF_WIDTH + 1f,
+                     ROAD_HALF_WIDTH - 1f);
+                float z = zPos + r * rowGap;
+
+                Vector3 spawnPos = new Vector3(x, 1.2f, z);
+
+                // OVERLAP KONTROLU: Cok yakinda baska dushman var mi?
+                Collider[] nearby = Physics.OverlapSphere(spawnPos, 1.5f);
+                bool tooClose = false;
+                foreach (Collider col in nearby)
+                    if (col.CompareTag("Enemy")) { tooClose = true; break; }
+
+                if (!tooClose)
+                {
+                    Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
+                    spawned++;
+                }
+                else
+                {
+                    // Cok yakin — X'i kaydirarak tekrar dene
+                    Vector3 altPos = new Vector3(
+                        Mathf.Clamp(x + colGap * 0.5f, -ROAD_HALF_WIDTH + 1f, ROAD_HALF_WIDTH - 1f),
+                        1.2f, z + 1f);
+                    Instantiate(enemyPrefab, altPos, Quaternion.identity);
+                    spawned++;
+                }
             }
+        }
     }
 }
 ```
@@ -520,6 +639,22 @@ using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 
+/// <summary>
+/// Top End War — HUD v5 (Claude)
+///
+/// CANVAS KURULUMU:
+///   Canvas (Screen Space - Overlay)
+///   ├── CPText      TextMeshProUGUI  — Anchor: TopCenter, Pos: 0, -40
+///   ├── TierText    TextMeshProUGUI  — Anchor: TopCenter, Pos: 0, -80  ← text BOSH bırak
+///   ├── PopupText   TextMeshProUGUI  — Anchor: Center,    Pos: 0, 50
+///   ├── SynergyText TextMeshProUGUI  — Anchor: Center,    Pos: 0, -50
+///   ├── DamageFlash Image            — Anchor: Stretch-All, Alpha=0, RaycastTarget=false
+///   ├── PiyadeBar   Slider           — sol alt
+///   ├── MekanizeBar Slider
+///   └── TeknolojiBar Slider
+///
+/// Bu HUD objesini Canvas'in ALTINA koy, tum referanslari Inspector'dan bagla.
+/// </summary>
 public class GameHUD : MonoBehaviour
 {
     [Header("CP / Tier")]
@@ -535,7 +670,7 @@ public class GameHUD : MonoBehaviour
     public TextMeshProUGUI popupText;
     public TextMeshProUGUI synergyText;
 
-    [Header("Hasar Flash")]
+    [Header("Hasar Flash (optional)")]
     public Image damageFlashImage;
 
     int lastCP = 0;
@@ -543,18 +678,41 @@ public class GameHUD : MonoBehaviour
     void Start()
     {
         PlayerStats stats = PlayerStats.Instance;
-        if (stats == null) { Debug.LogWarning("HUD: PlayerStats yok!"); return; }
+        if (stats == null)
+        {
+            Debug.LogError("GameHUD: PlayerStats.Instance NULL! Player objesinde PlayerStats.cs var mi?");
+            return;
+        }
 
+        // Referans kontrolu
+        if (cpText   == null) Debug.LogWarning("GameHUD: cpText atanmamis!");
+        if (tierText == null) Debug.LogWarning("GameHUD: tierText atanmamis!");
+
+        // Event baglantiları
         GameEvents.OnCPUpdated     += OnCPUpdated;
         GameEvents.OnTierChanged   += OnTierChanged;
         GameEvents.OnSynergyFound  += OnSynergy;
         GameEvents.OnPlayerDamaged += OnPlayerDamaged;
 
+        // Ilk degerler
         lastCP = stats.CP;
-        if (cpText)   cpText.text   = stats.CP.ToString("N0");
-        if (tierText) tierText.text = "TIER 1 | " + stats.GetTierName();
+
+        if (cpText != null)
+        {
+            cpText.text  = stats.CP.ToString("N0");
+            cpText.color = Color.white;
+        }
+
+        if (tierText != null)
+        {
+            tierText.text  = "TIER 1 | " + stats.GetTierName();
+            tierText.color = Color.yellow;  // Belirgin renk
+        }
+
         if (damageFlashImage != null)
             damageFlashImage.color = new Color(1f, 0f, 0f, 0f);
+
+        Debug.Log("GameHUD baslatildi. CP: " + stats.CP + " | Tier: " + stats.CurrentTier);
     }
 
     void OnDestroy()
@@ -569,7 +727,8 @@ public class GameHUD : MonoBehaviour
     {
         PlayerStats stats = PlayerStats.Instance;
         if (stats == null) return;
-        if (cpText) cpText.text = cp.ToString("N0");
+
+        if (cpText != null) cpText.text = cp.ToString("N0");
 
         float total = stats.PiyadePath + stats.MekanizePath + stats.TeknolojiPath;
         if (total > 0)
@@ -581,15 +740,19 @@ public class GameHUD : MonoBehaviour
 
         int delta = cp - lastCP;
         if (delta != 0)
-            ShowPopup(delta > 0 ? "+" + delta : "" + delta, delta > 0 ? Color.cyan : Color.red);
+            ShowPopup(delta > 0 ? "+" + delta : "" + delta,
+                      delta > 0 ? Color.cyan : Color.red);
         lastCP = cp;
     }
 
     void OnTierChanged(int tier)
     {
         PlayerStats stats = PlayerStats.Instance;
-        if (tierText && stats != null)
-            tierText.text = "TIER " + tier + " | " + stats.GetTierName();
+        if (tierText != null && stats != null)
+        {
+            tierText.text  = "TIER " + tier + " | " + stats.GetTierName();
+            tierText.color = Color.yellow;
+        }
         ShowPopup("TIER " + tier + "!", Color.yellow);
     }
 
@@ -604,13 +767,13 @@ public class GameHUD : MonoBehaviour
 
     void OnPlayerDamaged(int amount)
     {
+        if (damageFlashImage == null) return;
         StopCoroutine("FlashDamage");
         StartCoroutine("FlashDamage");
     }
 
     IEnumerator FlashDamage()
     {
-        if (damageFlashImage == null) yield break;
         damageFlashImage.color = new Color(1f, 0f, 0f, 0.5f);
         float t = 0f;
         while (t < 0.45f)
@@ -631,8 +794,17 @@ public class GameHUD : MonoBehaviour
         StartCoroutine("HidePopup");
     }
 
-    IEnumerator HidePopup()   { yield return new WaitForSeconds(1.2f); if (popupText)   popupText.text   = ""; }
-    IEnumerator HideSynergy() { yield return new WaitForSeconds(2.5f); if (synergyText) synergyText.text = ""; }
+    IEnumerator HidePopup()
+    {
+        yield return new WaitForSeconds(1.2f);
+        if (popupText) popupText.text = "";
+    }
+
+    IEnumerator HideSynergy()
+    {
+        yield return new WaitForSeconds(2.5f);
+        if (synergyText) synergyText.text = "";
+    }
 }
 ```
 
@@ -643,13 +815,19 @@ using UnityEngine;
 
 /// <summary>
 /// Top End War — Nesne Havuzu (Gemini)
+/// Instantiate ve Destroy yerine SetActive(true/false) kullanarak performansı kurtarır.
 /// </summary>
 public class ObjectPooler : MonoBehaviour
 {
     public static ObjectPooler Instance;
 
     [System.Serializable]
-    public class Pool { public string tag; public GameObject prefab; public int size; }
+    public class Pool
+    {
+        public string tag;
+        public GameObject prefab;
+        public int size;
+    }
 
     public List<Pool> pools;
     public Dictionary<string, Queue<GameObject>> poolDictionary;
@@ -660,29 +838,37 @@ public class ObjectPooler : MonoBehaviour
         else Destroy(gameObject);
 
         poolDictionary = new Dictionary<string, Queue<GameObject>>();
+
         foreach (Pool pool in pools)
         {
-            Queue<GameObject> q = new Queue<GameObject>();
+            Queue<GameObject> objectPool = new Queue<GameObject>();
+
             for (int i = 0; i < pool.size; i++)
             {
                 GameObject obj = Instantiate(pool.prefab);
                 obj.SetActive(false);
-                obj.transform.parent = this.transform;
-                q.Enqueue(obj);
+                obj.transform.parent = this.transform; // Hierarchy temiz kalsın
+                objectPool.Enqueue(obj);
             }
-            poolDictionary.Add(pool.tag, q);
+
+            poolDictionary.Add(pool.tag, objectPool);
         }
     }
 
     public GameObject SpawnFromPool(string tag, Vector3 position, Quaternion rotation)
     {
         if (!poolDictionary.ContainsKey(tag)) return null;
-        GameObject obj = poolDictionary[tag].Dequeue();
-        obj.SetActive(true);
-        obj.transform.position = position;
-        obj.transform.rotation = rotation;
-        poolDictionary[tag].Enqueue(obj);
-        return obj;
+
+        GameObject objectToSpawn = poolDictionary[tag].Dequeue();
+
+        objectToSpawn.SetActive(true);
+        objectToSpawn.transform.position = position;
+        objectToSpawn.transform.rotation = rotation;
+
+        // Yeniden kuyruğa ekle ki döngü sağlansın
+        poolDictionary[tag].Enqueue(objectToSpawn);
+
+        return objectToSpawn;
     }
 }
 ```
@@ -693,38 +879,63 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Top End War — Sonsuz Yol (Gemini)
-/// RoadChunk prefabini Inspector'dan bagla. chunkLength=50.
-/// RoadChunk scale: X=1.6 (genislik=16, xLimit=8 ile uyumlu)
+/// Top End War — Sonsuz Yol Yöneticisi
+/// Zemin parçalarını (Chunk) Player'ın önüne dizer, arkada kalanları siler.
 /// </summary>
 public class ChunkManager : MonoBehaviour
 {
-    public GameObject chunkPrefab;
-    public Transform  playerTransform;
-    public int        initialChunks = 5;
-    public float      chunkLength   = 50f;
+    [Header("Ayarlar")]
+    public GameObject chunkPrefab;      // Hazırladığımız RoadChunk prefabı
+    public Transform playerTransform;   // Karakterimiz
+    public int initialChunks = 5;       // Ekranda aynı anda kaç zemin olacak?
+    public float chunkLength = 50f;     // Plane Z scale 5 ise uzunluk 50'dir.
 
-    float spawnZ = 0f;
-    Queue<GameObject> activeChunks = new Queue<GameObject>();
+    private float spawnZ = 0f;          // Bir sonraki zeminin çıkacağı Z konumu
+    private Queue<GameObject> activeChunks = new Queue<GameObject>();
 
-    void Start() { for (int i = 0; i < initialChunks; i++) SpawnChunk(); }
+    void Start()
+    {
+        // Oyun başlarken ilk zeminleri döşe
+        for (int i = 0; i < initialChunks; i++)
+        {
+            SpawnChunk();
+        }
+    }
 
     void Update()
     {
         if (playerTransform == null) return;
+
+        // Player yeterince ilerlediyse, yeni chunk üret ve en eskisini sil
+        // player Z konumu, arkada kalan chunk'ı geçtiğinde tetiklenir
         if (playerTransform.position.z - (chunkLength * 1.5f) > (spawnZ - (initialChunks * chunkLength)))
-        { SpawnChunk(); DeleteOldChunk(); }
+        {
+            SpawnChunk();
+            DeleteOldChunk();
+        }
     }
 
     void SpawnChunk()
     {
-        GameObject c = Instantiate(chunkPrefab, new Vector3(0, 0, spawnZ), Quaternion.identity);
-        c.transform.SetParent(this.transform);
-        activeChunks.Enqueue(c);
+        // Yeni zemini spawnla
+        GameObject chunk = Instantiate(chunkPrefab, new Vector3(0, 0, spawnZ), Quaternion.identity);
+        
+        // Zeminleri gruplamak için bu objenin (ChunkManager) altına koyalım
+        chunk.transform.SetParent(this.transform);
+        
+        activeChunks.Enqueue(chunk);
+        
+        // Bir sonraki spawn noktasını ileri taşı
         spawnZ += chunkLength;
     }
 
-    void DeleteOldChunk() { Destroy(activeChunks.Dequeue()); }
+    void DeleteOldChunk()
+    {
+        // Kuyruktan en baştakini (en eskisini) al ve yok et
+        GameObject oldChunk = activeChunks.Dequeue();
+        Destroy(oldChunk);
+        // İleride performans için bunu da Object Pool'a çevirebiliriz ama zeminler için Destroy şu an mobilde bile çok dert değil.
+    }
 }
 ```
 
@@ -734,16 +945,17 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// Top End War — Tier Morph (Claude)
-/// Player'a ekle. Tier prefablari Inspector'dan bagla (5 slot, 0=Tier1).
+/// Top End War — Tier Morph Sistemi (Claude)
+/// Tier atladığında Player modeli değişir + VFX oynar.
+/// Player objesine ekle. Tier prefabları Inspector'dan bağla.
 /// </summary>
 public class MorphController : MonoBehaviour
 {
-    [Header("Tier Prefablari (0=Tier1 ... 4=Tier5)")]
-    public GameObject[] tierPrefabs;
+    [Header("Tier Prefabları (1'den 5'e sıralı)")]
+    public GameObject[] tierPrefabs; // 0=Tier1, 1=Tier2 ... 4=Tier5
 
     [Header("VFX")]
-    public GameObject morphParticlePrefab;
+    public GameObject morphParticlePrefab; // Patlama efekti (isteğe bağlı)
     public float      flashDuration = 0.3f;
 
     GameObject currentModel;
@@ -751,39 +963,57 @@ public class MorphController : MonoBehaviour
 
     void Start()
     {
+        // Oyun başlarken Tier 1 modelini göster
         GameEvents.OnTierChanged += OnTierChanged;
         SpawnModel(0);
     }
 
-    void OnDestroy() { GameEvents.OnTierChanged -= OnTierChanged; }
+    void OnDestroy()
+    {
+        GameEvents.OnTierChanged -= OnTierChanged;
+    }
 
     void OnTierChanged(int newTier)
     {
         int index = Mathf.Clamp(newTier - 1, 0, tierPrefabs.Length - 1);
         if (index == currentTierIndex) return;
+
         StartCoroutine(MorphSequence(index));
     }
 
     IEnumerator MorphSequence(int newIndex)
     {
-        if (currentModel != null) currentModel.SetActive(false);
+        // 1) Ekran flaşı — Player'ı gizle
+        if (currentModel != null)
+            currentModel.SetActive(false);
+
+        // 2) Parçacık efekti
         if (morphParticlePrefab != null)
             Destroy(Instantiate(morphParticlePrefab, transform.position, Quaternion.identity), 2f);
+
         yield return new WaitForSeconds(flashDuration);
+
+        // 3) Yeni modeli göster
         SpawnModel(newIndex);
         currentTierIndex = newIndex;
+
+        Debug.Log($"Morph: Tier {newIndex + 1} modeli aktif");
     }
 
     void SpawnModel(int index)
     {
-        if (currentModel != null) Destroy(currentModel);
+        // Eskiyi sil
+        if (currentModel != null)
+            Destroy(currentModel);
 
+        // Prefab yoksa küp göster (placeholder)
         if (tierPrefabs == null || index >= tierPrefabs.Length || tierPrefabs[index] == null)
         {
             currentModel = GameObject.CreatePrimitive(PrimitiveType.Cube);
             currentModel.transform.SetParent(transform);
             currentModel.transform.localPosition = Vector3.zero;
             currentModel.transform.localScale    = Vector3.one;
+            // Collider çakışmasın
             Destroy(currentModel.GetComponent<Collider>());
             return;
         }
@@ -792,7 +1022,10 @@ public class MorphController : MonoBehaviour
         currentModel.transform.SetParent(transform);
         currentModel.transform.localPosition = Vector3.zero;
         currentModel.transform.localScale    = Vector3.one;
-        foreach (Collider col in currentModel.GetComponentsInChildren<Collider>()) Destroy(col);
+
+        // Morph modelinin kendi collider'ı varsa kaldır (Player'ın collider'ı yeterli)
+        foreach (Collider c in currentModel.GetComponentsInChildren<Collider>())
+            Destroy(c);
     }
 }
 ```
@@ -803,7 +1036,8 @@ using UnityEngine;
 
 /// <summary>
 /// Top End War — Dushman (Claude)
-/// Tag: "Enemy" | Capsule → Rigidbody(IsKinematic) + CapsuleCollider(IsTrigger)
+/// Tag: "Enemy"
+/// Prefab: Capsule → Rigidbody(IsKinematic:true) + CapsuleCollider(IsTrigger:true)
 /// </summary>
 public class Enemy : MonoBehaviour
 {
@@ -813,7 +1047,7 @@ public class Enemy : MonoBehaviour
     [Header("Hareket")]
     public float moveSpeed   = 4.5f;
     public float trackSpeedX = 1.5f;
-    public float xLimit      = 8f;
+    public float xLimit      = 8f;     // PlayerController ile AYNI
 
     [Header("Hasar")]
     public int contactDamage = 50;
@@ -846,7 +1080,8 @@ public class Enemy : MonoBehaviour
 
         transform.position = pos;
 
-        if (pos.z < playerZ - 15f) Destroy(gameObject);
+        if (pos.z < playerZ - 15f)
+            Destroy(gameObject);
     }
 
     public void TakeDamage(int dmg)
@@ -860,7 +1095,8 @@ public class Enemy : MonoBehaviour
 
     void ResetColor()
     {
-        if (!isDead && bodyRenderer != null) bodyRenderer.material.color = Color.white;
+        if (!isDead && bodyRenderer != null)
+            bodyRenderer.material.color = Color.white;
     }
 
     void Die()
@@ -887,28 +1123,42 @@ public class Enemy : MonoBehaviour
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Mermi (Claude)
-/// SphereCollider(IsTrigger) + Rigidbody. ObjectPooler ile SetActive.
+/// Top End War — Mermi
+/// BulletPrefab'a ekle. SphereCollider(IsTrigger=true) + Rigidbody gerekli.
+/// ObjectPooler ile çalışır: Destroy yerine SetActive(false).
 /// </summary>
 public class Bullet : MonoBehaviour
 {
     public int damage = 50;
 
-    void OnEnable()  { Invoke(nameof(ReturnToPool), 3f); }
-    void OnDisable() { CancelInvoke(); }
+    // Pool'dan çıkınca kendini 3 saniye sonra geri gönder
+    void OnEnable()
+    {
+        Invoke(nameof(ReturnToPool), 3f);
+    }
+
+    void OnDisable()
+    {
+        CancelInvoke();
+    }
 
     void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag("Enemy")) return;
-        other.GetComponent<Enemy>()?.TakeDamage(damage);
-        ReturnToPool();
+        if (other.CompareTag("Enemy"))
+        {
+            Enemy e = other.GetComponent<Enemy>();
+            if (e != null) e.TakeDamage(damage);
+            ReturnToPool();
+        }
     }
 
     void ReturnToPool()
     {
+        // Hızı sıfırla ki bir sonraki kullanımda sorun çıkmasın
         Rigidbody rb = GetComponent<Rigidbody>();
         if (rb) rb.linearVelocity = Vector3.zero;
-        gameObject.SetActive(false);
+
+        gameObject.SetActive(false); // Destroy yerine havuza dön
     }
 }
 ```
