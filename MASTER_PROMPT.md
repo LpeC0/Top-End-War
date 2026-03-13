@@ -116,6 +116,15 @@ Claude: (Sorulmadı)
 Gemini: (Sorulmadı)
 Grok: TMPro kal, ama Update'de değil event'lerle güncelle (Observer Pattern). UI profiler kullan, FPS düşüşü yakala.---
 
+### 🟡 TARTIŞMA #6 — DDA (Dinamik Zorluk) ve İlerleme Eğrisi
+**Soru:** Yeni kurulan ProgressionConfig ve DifficultyManager sisteminde oyuncunun "güçlü hissetmesini" sağlarken oyunu nasıl kırılmaz (unbreakable) yaparız?
+- **Claude / ChatGPT:** PlayerPowerRatio (gerçek CP / beklenen CP) 1 frame yerine son 30 saniyenin ortalaması alınarak yumuşatılmalı (Lerp). Negatif kapılar için A/B testi yapılmalı (%3 vs %5).
+- **Gemini:** Matematiksel polinomsal eğri `(Distance/1000)^1.3` harika bir seçim. Ancak MorphController içindeki `Instantiate` kullanımı bu harika DDA sistemini anlık FPS droplarıyla baltalayabilir. Morph modelleri acilen Object Pool'a dahil edilmeli. Ayrıca Boss öncesi "Negatif Kapı Çıkmama" (Pity Timer) kuralı eklenmeli.
+
+### 🟡 TARTIŞMA #7 — Hibrit Oyun Modları (Runner + Hold/Defense)
+**Soru:** "Anchor" alarak belirli noktalarda koşuyu durdurup kule savunmasına (auto-shooter) geçiş fikri nasıl uygulanmalı?
+- **Gemini:** "Count Masters" vizyonuna tam oturuyor. Zemin hareket etmediği için (Chunk sistemi) oyuncu bir "Anchor Kapısı"ndan geçtiğinde `PlayerController`'daki `forwardSpeed = 0` yapılır. Kamera hafif yukarı/geriye çekilir (FOV genişler). Z ekseninden dalga dalga düşman gelir. Süre bitince `forwardSpeed = 10` yapılarak koşuya devam edilir. Yapması çok kolay, oyuncu etkisi çok yüksek.
+
 ## YAPILACAKLAR SIRASI (Öncelik Sırası)
 
 1. ✅ Player hareket (ileri koşu + 3 şerit + Lerp)
