@@ -10,9 +10,9 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8ac0ea130acbae4d81827b6cb2c4a54, type: 3}
-  m_Name: CarpanX2
+  m_Name: RiskKapi
   m_EditorClassIdentifier: Assembly-CSharp::GateData
-  gateText: x 2
-  gateColor: {r: 0.06837213, g: 1, b: 0, a: 0.5}
-  effectType: 1
-  effectValue: 2
+  gateText: "R\u0130SK!"
+  gateColor: {r: 0.9593643, g: 1, b: 0, a: 0.6}
+  effectType: 7
+  effectValue: 60

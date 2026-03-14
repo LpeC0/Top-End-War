@@ -2,73 +2,129 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Top End War — Kapi v5 (Claude)
+/// Top End War — Kapi v6 (Claude)
 ///
-/// PREFAB YAPISI:
-///   GatePrefab (root)
-///   ├── Gate.cs  +  BoxCollider(IsTrigger=true)  +  Rigidbody(IsKinematic=true)
-///   ├── Panel  (Cube, scale 3x4x0.3)  ← panelRenderer slotuna sur
-///   └── Label  (3D TextMeshPro)       ← labelText slotuna sur
+/// ═══════════════════════════════════════════════════════════
+/// PREFAB YAPISI (tam olarak bu sekilde olmali):
 ///
-/// GateMat materyali icin tek ayar (Inspector):
-///   Shader: Particles/Standard Unlit
-///   Rendering Mode: Transparent
-///   Color Mode: COLOR  ← Multiply degil!
-///   Albedo rengi: beyaz (kod halleder)
+///   GatePrefab  (empty GameObject — root)
+///   ├── Gate.cs
+///   ├── BoxCollider     IsTrigger = TRUE   ← boyut otomatik ayarlanır
+///   ├── Rigidbody       IsKinematic = TRUE
+///   ├── Panel           (3D Object → Quad, scale: 4, 5, 1)
+///   │     └── Materyal: GateMat (asagiya bak)
+///   └── Label           (3D Object → Text - TextMeshPro)
+///         ├── Rect Transform: Width=3.5, Height=2
+///         ├── Position: 0, 0, -0.1  (Panel'in hafif onunde)
+///         └── TextMeshPro: FontSize=5, Overflow=Truncate, Alignment=Center
 ///
-/// Bu script sadece material.color'u degistirir — baska hic bir sey yapmaz.
-/// Shader property isimleriyle ugrasma yok.
+/// ═══════════════════════════════════════════════════════════
+/// GATE MAT NASIL YAPILIR (tek seferlik, 2 dakika):
+///
+///   1. Project → sag tik → Create → Material → adi "GateMat"
+///   2. Inspector'da Shader kutusuna tikla
+///   3. "Universal Render Pipeline/Lit" sec
+///   4. "Surface Type" → "Transparent" sec
+///   5. "Base Map" rengi BEYAZ (255,255,255,165) — alpha 165 (transparan)
+///   6. Bu materyali Panel Quad'ının uzerine surukle
+///
+///   KOD TARAFINDA: mat.SetColor("_BaseColor", ...) kullaniyoruz — bu dogru URP yolu.
+///   mat.color veya mat.SetColor("_Color") URP'de CALISMAZ.
+/// ═══════════════════════════════════════════════════════════
 /// </summary>
 public class Gate : MonoBehaviour
 {
     public GateData    gateData;
-    public Renderer    panelRenderer;
-    public TextMeshPro labelText;
+    public Renderer    panelRenderer;   // Panel Quad'ini sur
+    public TextMeshPro labelText;       // Label TMP'yi sur
 
-    bool triggered = false;
+    BoxCollider _col;
+    bool        _triggered = false;
+
+    void Awake()
+    {
+        _col = GetComponent<BoxCollider>();
+    }
 
     void Start()
     {
         ApplyVisuals();
+        FitCollider();
     }
 
+    // SpawnManager runtime'da gateData atayinca da calis
+    void OnEnable()
+    {
+        _triggered = false;
+    }
+
+    // SpawnManager gate.gateData = data yaptiktan sonra cagrilabilir
+    public void Refresh()
+    {
+        ApplyVisuals();
+        FitCollider();
+    }
+
+    // ── Gorsel ─────────────────────────────────────────────────────────────
     void ApplyVisuals()
     {
         if (gateData == null) return;
 
-        // ── Yazi ─────────────────────────────────────────────────────────
+        // Sadece matematiksel etkiyi goster (+60, x2, MERGE, RISK, vb.)
         if (labelText != null)
         {
-            labelText.text      = gateData.gateText;
-            labelText.fontSize  = 9f;
-            labelText.color     = Color.white;
-            labelText.alignment = TextAlignmentOptions.Center;
-            labelText.fontStyle = FontStyles.Bold;
+            labelText.text               = gateData.gateText;
+            labelText.fontSize           = 5f;
+            labelText.color              = Color.white;
+            labelText.alignment          = TextAlignmentOptions.Center;
+            labelText.fontStyle          = FontStyles.Bold;
+            labelText.overflowMode       = TextOverflowModes.Truncate;
+            labelText.enableWordWrapping = false;
         }
 
-        // ── Renk ─────────────────────────────────────────────────────────
-        // Sadece material.color kullan — shader property'lerine dokunma
+        // Renk — URP'de _BaseColor kullanmak zorunlu
         if (panelRenderer != null)
         {
-            // Prefab kirlenmesin diye instance al
-            Material mat = Instantiate(panelRenderer.sharedMaterial);
-            mat.color    = gateData.gateColor; // Alpha deger GateData'dan gelir
+            Material mat = new Material(panelRenderer.sharedMaterial);
+
+            Color c = gateData.gateColor;
+            c.a = 0.55f; // Transparan
+
+            // URP Lit/Unlit icin dogru property
+            if (mat.HasProperty("_BaseColor"))
+                mat.SetColor("_BaseColor", c);
+            else
+                mat.color = c; // Fallback (eski shader)
+
             panelRenderer.material = mat;
         }
     }
 
+    // ── Hitbox Boyutu — Panel'in gercek boyutuna gore ─────────────────────
+    void FitCollider()
+    {
+        if (_col == null || panelRenderer == null) return;
+
+        // Panel'in world-space bounds'unu al, local'e cevir
+        Bounds b    = panelRenderer.bounds;
+        Vector3 sz  = b.size;
+
+        // Biraz buyutur (oyuncu panel kenarina yakın gecebilsin)
+        _col.size   = new Vector3(sz.x * 1.05f, sz.y * 1.1f, sz.z + 0.8f);
+        _col.center = transform.InverseTransformPoint(b.center);
+    }
+
+    // ── Trigger ────────────────────────────────────────────────────────────
     void OnTriggerEnter(Collider other)
     {
-        if (triggered) return;                     // Cift tetiklenme engeli
-        if (!other.CompareTag("Player")) return;
-
-        triggered = true;
+        if (_triggered || !other.CompareTag("Player")) return;
+        _triggered = true;
 
         PlayerStats stats = other.GetComponent<PlayerStats>();
         if (stats != null)
         {
             stats.ApplyGateEffect(gateData);
-            Debug.Log("[Gate] " + gateData.gateText + " | Yeni CP: " + stats.CP);
+            Debug.Log("[Gate] " + gateData.gateText + " → CP: " + stats.CP);
         }
 
         Destroy(gameObject);

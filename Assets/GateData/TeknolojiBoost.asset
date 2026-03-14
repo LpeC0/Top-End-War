@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: TeknolojiBoost
   m_EditorClassIdentifier: Assembly-CSharp::GateData
   gateText: +25 Teknoloji
-  gateColor: {r: 0, g: 0.7, b: 1, a: 0.6}
+  gateColor: {r: 0, g: 0, b: 1, a: 0.63529414}
   effectType: 5
   effectValue: 25

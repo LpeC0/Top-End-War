@@ -9,10 +9,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d8ac0ea130acbae4d81827b6cb2c4a54, type: 3}
-  m_Name: CarpanX2
-  m_EditorClassIdentifier: Assembly-CSharp::GateData
-  gateText: x 2
-  gateColor: {r: 0.06837213, g: 1, b: 0, a: 0.5}
-  effectType: 1
-  effectValue: 2
+  m_Script: {fileID: 11500000, guid: d7fd9488000d3734a9e00ee676215985, type: 3}
+  m_Name: DefaultVolumeProfile
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.VolumeProfile
+  components: []

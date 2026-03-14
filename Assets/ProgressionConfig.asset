@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4deac4e2a601ddd4db01fb41cecc535d, type: 3}
+  m_Name: ProgressionConfig
+  m_EditorClassIdentifier: Assembly-CSharp::ProgressionConfig
+  growthRate: 1.15
+  difficultyExponent: 1.3
+  baseStartCP: 200
+  baseEnemyHealth: 100
+  baseEnemyDamage: 25
+  baseEnemySpeed: 4.5
+  enemyMaxSpeed: 8
+  playerCPScalingFactor: 0.9
+  gateValueGrowthRate: 1.12
+  minGateValue: 20
+  maxGateValue: 500
+  noBadGateZoneBeforeBoss: 200
+  tierThresholds: 000000002c01000020030000d007000088130000
