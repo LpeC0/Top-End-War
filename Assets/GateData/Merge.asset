@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: Merge
   m_EditorClassIdentifier: Assembly-CSharp::GateData
   gateText: Merge
-  gateColor: {r: 0, g: 1, b: 0.49876976, a: 0.5}
-  effectType: 5
+  gateColor: {r: 1, g: 0.5610755, b: 0, a: 0.5}
+  effectType: 2
   effectValue: 2

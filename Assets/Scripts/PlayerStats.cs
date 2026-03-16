@@ -1,11 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Veri Merkezi (Claude)
-/// - CP = can (sifira yaklasinca GameOver)
-/// - RiskReward: Negatif kapidan sonra 3 kapiya %50 bonus
-/// - PlayerPowerRatio: Son 30 saniye yumusatilmis (DDA icin)
+/// Top End War — Oyuncu Veri Merkezi v5 (Claude)
 /// [DefaultExecutionOrder(-10)] → TierText bos baslamaz.
+///
+/// ZORLUK DENGESI:
+///   startCP = 200 (Tier 1)
+///   invincibility = 0.8s (dusuruldu — daha az affedici)
+///   Dusman hasar CP'nin %20-40'ini alabilir (mesafeye gore)
+///   Oyun Over: CP 30'un altina dusunce (10 degil)
 /// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
@@ -13,23 +16,19 @@ public class PlayerStats : MonoBehaviour
     public static PlayerStats Instance { get; private set; }
 
     [Header("Baslangic")]
-    public int   startCP                = 200;
-    public float invincibilityDuration  = 1.2f;
+    public int   startCP               = 200;
+    public float invincibilityDuration = 0.8f; // 1.2'den dusuruldu
 
-    // ── Public Properties ────────────────────────────────────────────────────
     public int   CP            { get; private set; }
     public int   CurrentTier   { get; private set; } = 1;
     public float PiyadePath    { get; private set; } = 33f;
     public float MekanizePath  { get; private set; } = 33f;
     public float TeknolojiPath { get; private set; } = 34f;
-
-    // DDA icin — DifficultyManager okur
     public float SmoothedPowerRatio { get; private set; } = 1f;
 
-    // ── Private ──────────────────────────────────────────────────────────────
-    float lastDamageTime  = -99f;
-    int   riskBonusLeft   = 0;   // RiskReward: kac kapiya bonus kaldi
-    float expectedCP      = 200f; // DifficultyManager her updateInterval'da yazar
+    float lastDamageTime = -99f;
+    int   riskBonusLeft  = 0;
+    float expectedCP     = 200f;
 
     static readonly int[]    tierCP    = { 0, 300, 800, 2000, 5000 };
     static readonly string[] tierNames =
@@ -51,16 +50,16 @@ public class PlayerStats : MonoBehaviour
         lastDamageTime = Time.time;
 
         int oldTier = CurrentTier;
-        CP = Mathf.Max(10, CP - amount);
+        // Minimum CP = 30 (10 degil — daha gercekci game over)
+        CP = Mathf.Max(30, CP - amount);
         RefreshTier();
 
         GameEvents.OnPlayerDamaged?.Invoke(amount);
         GameEvents.OnCPUpdated?.Invoke(CP);
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
-        if (CP <= 10) GameEvents.OnGameOver?.Invoke();
+        if (CP <= 30) GameEvents.OnGameOver?.Invoke();
     }
 
-    // ── Oldurme odulu ─────────────────────────────────────────────────────────
     public void AddCPFromKill(int amount)
     {
         int oldTier = CurrentTier;
@@ -70,60 +69,39 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
     }
 
-    // ── Kapi etkisi ───────────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
         if (data == null) return;
-        int oldTier = CurrentTier;
-
-        // RiskReward bonus varsa bu kapiya uygula
-        float bonusMultiplier = (riskBonusLeft > 0) ? 1.5f : 1f;
+        int   oldTier = CurrentTier;
+        float bonus   = riskBonusLeft > 0 ? 1.5f : 1f;
 
         switch (data.effectType)
         {
             case GateEffectType.AddCP:
-                CP += Mathf.RoundToInt(data.effectValue * bonusMultiplier);
-                break;
+                CP += Mathf.RoundToInt(data.effectValue * bonus); break;
             case GateEffectType.MultiplyCP:
-                CP = Mathf.RoundToInt(CP * data.effectValue);
-                break;
+                CP = Mathf.RoundToInt(CP * data.effectValue); break;
             case GateEffectType.Merge:
                 CP = Mathf.RoundToInt(CP * 1.8f);
-                GameEvents.OnMergeTriggered?.Invoke();
-                break;
+                GameEvents.OnMergeTriggered?.Invoke(); break;
             case GateEffectType.PathBoost_Piyade:
-                CP += Mathf.RoundToInt(data.effectValue * bonusMultiplier);
-                PiyadePath += 20f;
-                GameEvents.OnPathBoosted?.Invoke("Piyade");
-                break;
+                CP += Mathf.RoundToInt(data.effectValue * bonus);
+                PiyadePath += 20f; GameEvents.OnPathBoosted?.Invoke("Piyade"); break;
             case GateEffectType.PathBoost_Mekanize:
-                CP += Mathf.RoundToInt(data.effectValue * bonusMultiplier);
-                MekanizePath += 20f;
-                GameEvents.OnPathBoosted?.Invoke("Mekanize");
-                break;
+                CP += Mathf.RoundToInt(data.effectValue * bonus);
+                MekanizePath += 20f; GameEvents.OnPathBoosted?.Invoke("Mekanize"); break;
             case GateEffectType.PathBoost_Teknoloji:
-                CP += Mathf.RoundToInt(data.effectValue * bonusMultiplier);
-                TeknolojiPath += 20f;
-                GameEvents.OnPathBoosted?.Invoke("Teknoloji");
-                break;
+                CP += Mathf.RoundToInt(data.effectValue * bonus);
+                TeknolojiPath += 20f; GameEvents.OnPathBoosted?.Invoke("Teknoloji"); break;
             case GateEffectType.NegativeCP:
-                // Saf ceza — az cikacak (%2-3), bonus etkilemez
-                CP = Mathf.Max(20, CP - Mathf.RoundToInt(data.effectValue));
-                break;
-
-            // ── RISK / REWARD (Claude) ────────────────────────────────────
-            // Negatif kapidan gec: -30% CP kaybet
-            // Karsilik: sonraki 3 AddCP/PathBoost kapısına +50% bonus
+                CP = Mathf.Max(30, CP - Mathf.RoundToInt(data.effectValue)); break;
             case GateEffectType.RiskReward:
                 int penalty = Mathf.RoundToInt(CP * 0.30f);
-                CP = Mathf.Max(30, CP - penalty);
+                CP = Mathf.Max(50, CP - penalty);
                 riskBonusLeft = 3;
-                GameEvents.OnRiskBonusActivated?.Invoke(riskBonusLeft);
-                Debug.Log("[PlayerStats] Risk alindi! Sonraki 3 kapiya +50% bonus. Ceza: " + penalty);
-                break;
+                GameEvents.OnRiskBonusActivated?.Invoke(riskBonusLeft); break;
         }
 
-        // Risk bonus sayacini azalt (cezali kapılar haric)
         if (riskBonusLeft > 0 &&
             data.effectType != GateEffectType.NegativeCP &&
             data.effectType != GateEffectType.RiskReward)
@@ -133,7 +111,7 @@ public class PlayerStats : MonoBehaviour
                 GameEvents.OnRiskBonusActivated?.Invoke(riskBonusLeft);
         }
 
-        CP = Mathf.Max(10, CP);
+        CP = Mathf.Max(30, CP);
         UpdateSmoothedRatio();
         RefreshTier();
         CheckSynergy();
@@ -141,7 +119,6 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
     }
 
-    // ── DDA icin: DifficultyManager cagirır ───────────────────────────────────
     public void SetExpectedCP(float expected)
     {
         expectedCP = Mathf.Max(1f, expected);
@@ -150,9 +127,8 @@ public class PlayerStats : MonoBehaviour
 
     void UpdateSmoothedRatio()
     {
-        float rawRatio = (float)CP / expectedCP;
-        // Son 30 saniye ortalamasını simule et — ani spike'lari yumusat (ChatGPT onerisi)
-        SmoothedPowerRatio = Mathf.Lerp(SmoothedPowerRatio, rawRatio, 0.08f);
+        float raw = (float)CP / expectedCP;
+        SmoothedPowerRatio = Mathf.Lerp(SmoothedPowerRatio, raw, 0.08f);
     }
 
     void RefreshTier()
@@ -166,12 +142,11 @@ public class PlayerStats : MonoBehaviour
     {
         float total = PiyadePath + MekanizePath + TeknolojiPath;
         if (total == 0) return;
-        float p = PiyadePath / total, m = MekanizePath / total, t = TeknolojiPath / total;
-
+        float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
         if (Mathf.Min(p, Mathf.Min(m, t)) > 0.25f) { GameEvents.OnSynergyFound?.Invoke("PERFECT GENETICS"); return; }
-        if (p > 0.5f && m > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu");  return; }
-        if (p > 0.5f && t > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Drone Takimi");    return; }
-        if (m > 0.4f && t > 0.3f)  { GameEvents.OnSynergyFound?.Invoke("Fuzyon Robotu");   return; }
+        if (p > 0.5f && m > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu"); return; }
+        if (p > 0.5f && t > 0.25f) { GameEvents.OnSynergyFound?.Invoke("Drone Takimi");   return; }
+        if (m > 0.4f && t > 0.3f)  { GameEvents.OnSynergyFound?.Invoke("Fuzyon Robotu");  return; }
     }
 
     public string GetTierName()  => tierNames[Mathf.Clamp(CurrentTier - 1, 0, 4)];

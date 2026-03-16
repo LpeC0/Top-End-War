@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 1588013547588411079}
   - component: {fileID: 8769445295258849950}
   - component: {fileID: 5566809043617500637}
+  - component: {fileID: 834506142487807126}
   m_Layer: 0
   m_Name: EnemyPrefab
   m_TagString: Enemy
@@ -128,10 +129,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 220ac9da87f536349925e6d401b0322a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Enemy
-  maxHealth: 100
-  moveSpeed: 4
-  contactDamage: 30
-  cpReward: 20
+  defaultHealth: 120
+  defaultDamage: 50
+  defaultSpeed: 4.5
+  defaultCPReward: 15
+  xLimit: 8
+  separationRadius: 1.8
+  separationForce: 3
 --- !u!54 &5566809043617500637
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -159,3 +163,21 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
+--- !u!114 &834506142487807126
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 899098464761774372}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1bb8aa37fd4227247bcd6c862b213a07, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyHealthBar
+  barWidth: 1.2
+  barHeight: 0.15
+  barYOffset: 1.8
+  fullColor: {r: 0.15, g: 0.85, b: 0.15, a: 1}
+  halfColor: {r: 0.95, g: 0.75, b: 0.05, a: 1}
+  lowColor: {r: 0.9, g: 0.15, b: 0.15, a: 1}

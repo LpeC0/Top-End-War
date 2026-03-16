@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d8ac0ea130acbae4d81827b6cb2c4a54, type: 3}
   m_Name: MekanikBoost
   m_EditorClassIdentifier: Assembly-CSharp::GateData
-  gateText: +25 Mekanik
-  gateColor: {r: 0, g: 0.7, b: 1, a: 0.6}
+  gateText: +Mekanik
+  gateColor: {r: 0, g: 1, b: 0.9208081, a: 0.6}
   effectType: 4
   effectValue: 25

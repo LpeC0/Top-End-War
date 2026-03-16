@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d8ac0ea130acbae4d81827b6cb2c4a54, type: 3}
   m_Name: TeknolojiBoost
   m_EditorClassIdentifier: Assembly-CSharp::GateData
-  gateText: +25 Teknoloji
+  gateText: +Teknoloji
   gateColor: {r: 0, g: 0, b: 1, a: 0.63529414}
   effectType: 5
   effectValue: 25

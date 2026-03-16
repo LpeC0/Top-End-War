@@ -13,6 +13,6 @@ MonoBehaviour:
   m_Name: EkleAsker
   m_EditorClassIdentifier: Assembly-CSharp::GateData
   gateText: +120
-  gateColor: {r: 0, g: 1, b: 0.8787918, a: 0.5}
+  gateColor: {r: 1, g: 0, b: 1, a: 0.5}
   effectType: 0
   effectValue: 120

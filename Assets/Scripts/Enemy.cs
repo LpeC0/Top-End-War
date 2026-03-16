@@ -1,50 +1,59 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dushman v2 (Claude)
+/// Top End War — Dushman v4 (Claude)
 /// Tag: "Enemy"
 /// Prefab: Capsule → Rigidbody(IsKinematic=true) + CapsuleCollider(IsTrigger=true)
 ///
-/// IC ICE GECME COZUMU:
-///   Update'de komsu dushmanlardan uzaklas (separation force).
-///   OverlapSphere ile 1.8 birim icindeki dusmanlardan kac.
-///   Bu sayede grid duzenini koruyarak birbirini iterler.
+/// PERFORMANS: OverlapSphere her frame degil, her 0.2s bir guncellenir.
+/// IC ICE GECME: Separation force hala aktif.
+/// HP BAR: EnemyHealthBar otomatik eklenir.
+/// ZORLUK: Initialize yoksa mesafeye gore kendi hesaplar.
 /// </summary>
 public class Enemy : MonoBehaviour
 {
-    [Header("Varsayilan (DifficultyManager yoksa)")]
-    public int   defaultHealth   = 120;
-    public int   defaultDamage   = 50;
-    public float defaultSpeed    = 4.5f;
-    public int   defaultCPReward = 15;
-    public float xLimit          = 8f;
+    [Header("Varsayilan (Initialize cagrilmazsa)")]
+    public float xLimit = 8f;
 
-    [Header("Ayirma Kuvveti")]
-    public float separationRadius = 1.8f;  // Bu yaricap icinde baskalarini it
-    public float separationForce  = 3.0f;  // Itme hizi
+    // Runtime degerler — Initialize veya Awake'den gelir
+    int    _maxHealth;
+    int    _currentHealth;
+    int    _contactDamage;
+    float  _moveSpeed;
+    int    _cpReward;
+    bool   _initialized = false;
 
-    int      _maxHealth;
-    int      _currentHealth;
-    int      _contactDamage;
-    float    _moveSpeed;
-    int      _cpReward;
-    Renderer _bodyRenderer;
-    bool     _isDead           = false;
-    bool     _hasDamagedPlayer = false;
+    Renderer        _bodyRenderer;
+    EnemyHealthBar  _hpBar;
+    bool            _isDead           = false;
+    bool            _hasDamagedPlayer = false;
+
+    // Separation icin cache
+    float     _lastSepTime = 0f;
+    Vector3   _separationVec = Vector3.zero;
+    const float SEP_INTERVAL = 0.15f; // Saniyede ~6 kez hesapla
 
     void Awake()
     {
         _bodyRenderer = GetComponentInChildren<Renderer>();
-        UseDefaults();
+        _hpBar = GetComponent<EnemyHealthBar>();
+        if (_hpBar == null) _hpBar = gameObject.AddComponent<EnemyHealthBar>();
     }
 
     void OnEnable()
     {
         _isDead           = false;
         _hasDamagedPlayer = false;
+        _separationVec    = Vector3.zero;
         if (_bodyRenderer != null) _bodyRenderer.material.color = Color.white;
+
+        // Initialize edilmediyse mesafeye gore hesapla
+        if (!_initialized) AutoInit();
+
+        _hpBar?.Init(_maxHealth);
     }
 
+    /// <summary>SpawnManager cagirır — DDA statlari uygular.</summary>
     public void Initialize(DifficultyManager.EnemyStats stats)
     {
         _maxHealth        = stats.Health;
@@ -52,74 +61,83 @@ public class Enemy : MonoBehaviour
         _contactDamage    = stats.Damage;
         _moveSpeed        = stats.Speed;
         _cpReward         = stats.CPReward;
+        _initialized      = true;
         _isDead           = false;
         _hasDamagedPlayer = false;
         if (_bodyRenderer != null) _bodyRenderer.material.color = Color.white;
+        _hpBar?.Init(_maxHealth);
     }
 
-    void UseDefaults()
+    /// <summary>DifficultyManager yoksa basit mesafe tabanli hesap.</summary>
+    void AutoInit()
     {
-        _maxHealth     = defaultHealth;
-        _currentHealth = defaultHealth;
-        _contactDamage = defaultDamage;
-        _moveSpeed     = defaultSpeed;
-        _cpReward      = defaultCPReward;
+        float z    = PlayerStats.Instance != null ? PlayerStats.Instance.transform.position.z : 0f;
+        float mult = 1f + Mathf.Pow(z / 1000f, 1.3f);
+
+        _maxHealth     = Mathf.RoundToInt(100f * mult);
+        _currentHealth = _maxHealth;
+        _contactDamage = Mathf.RoundToInt(25f  * mult);
+        _moveSpeed     = Mathf.Min(4f + (mult - 1f) * 1.4f, 7.5f);
+        _cpReward      = Mathf.RoundToInt(15f  * mult);
     }
 
     void Update()
     {
         if (_isDead || PlayerStats.Instance == null) return;
 
-        float   playerZ = PlayerStats.Instance.transform.position.z;
-        Vector3 pos     = transform.position;
+        float   pZ  = PlayerStats.Instance.transform.position.z;
+        Vector3 pos = transform.position;
 
-        // Z: Oyuncuya dogru ilerle
-        if (pos.z > playerZ + 0.5f)
+        // Z hareketi
+        if (pos.z > pZ + 0.5f)
             pos.z -= _moveSpeed * Time.deltaTime;
 
-        // X: Yavascna takip et
+        // X: oyuncuyu takip
         pos.x = Mathf.Clamp(
             Mathf.MoveTowards(pos.x, PlayerStats.Instance.transform.position.x, 1.5f * Time.deltaTime),
             -xLimit, xLimit);
 
-        // ── AYIRMA KUVVETI (ic ice gecme onleme) ──────────────────────────
-        Vector3 separation = Vector3.zero;
-        int     count      = 0;
-        Collider[] neighbors = Physics.OverlapSphere(pos, separationRadius);
-        foreach (Collider col in neighbors)
+        // Separation (her frame degil, cache)
+        if (Time.time - _lastSepTime > SEP_INTERVAL)
         {
-            if (col.gameObject == gameObject) continue;
-            if (!col.CompareTag("Enemy")) continue;
-
-            Vector3 away = pos - col.transform.position;
-            if (away.magnitude < 0.001f) away = Vector3.right * 0.1f; // Tam ustuste
-            separation += away.normalized / Mathf.Max(away.magnitude, 0.1f);
-            count++;
+            _separationVec = CalcSeparation(pos);
+            _lastSepTime   = Time.time;
         }
+        pos += _separationVec * Time.deltaTime;
 
-        if (count > 0)
-        {
-            separation /= count;
-            // Sadece X ve Z ekseninde it (Y'yi dokundurma)
-            separation.y = 0f;
-            pos += separation * separationForce * Time.deltaTime;
-        }
-
-        // Sinir
         pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
         transform.position = pos;
 
-        // Geride kalirsa geri al
-        if (pos.z < playerZ - 15f)
-            gameObject.SetActive(false);
+        if (pos.z < pZ - 15f) gameObject.SetActive(false);
+    }
+
+    Vector3 CalcSeparation(Vector3 pos)
+    {
+        Vector3 sep   = Vector3.zero;
+        int     count = 0;
+        Collider[] neighbors = Physics.OverlapSphere(pos, 1.8f);
+        foreach (Collider col in neighbors)
+        {
+            if (col.gameObject == gameObject || !col.CompareTag("Enemy")) continue;
+            Vector3 away = pos - col.transform.position;
+            away.y = 0f;
+            if (away.magnitude < 0.001f) away = new Vector3(Random.Range(-1f, 1f), 0, 0).normalized * 0.1f;
+            sep += away.normalized / Mathf.Max(away.magnitude, 0.1f);
+            count++;
+        }
+        if (count > 0) sep = (sep / count) * 3.5f;
+        return sep;
     }
 
     public void TakeDamage(int dmg)
     {
         if (_isDead) return;
         _currentHealth -= dmg;
+        _hpBar?.UpdateBar(_currentHealth);
+
         if (_bodyRenderer != null) _bodyRenderer.material.color = Color.red;
         Invoke(nameof(ResetColor), 0.1f);
+
         if (_currentHealth <= 0) Die();
     }
 
@@ -132,7 +150,8 @@ public class Enemy : MonoBehaviour
     void Die()
     {
         if (_isDead) return;
-        _isDead = true;
+        _isDead      = true;
+        _initialized = false; // Sonraki spawn icin sifirla
         CancelInvoke();
         PlayerStats.Instance?.AddCPFromKill(_cpReward);
         gameObject.SetActive(false);
@@ -146,5 +165,9 @@ public class Enemy : MonoBehaviour
         Die();
     }
 
-    void OnDisable() { CancelInvoke(); }
+    void OnDisable()
+    {
+        CancelInvoke();
+        _initialized = false;
+    }
 }

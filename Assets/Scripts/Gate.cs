@@ -2,75 +2,49 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Top End War — Kapi v6 (Claude)
+/// Top End War — Kapi v7 (Claude)
 ///
-/// ═══════════════════════════════════════════════════════════
-/// PREFAB YAPISI (tam olarak bu sekilde olmali):
-///
-///   GatePrefab  (empty GameObject — root)
+/// PREFAB YAPISI (tam):
+///   GatePrefab  [root]
 ///   ├── Gate.cs
-///   ├── BoxCollider     IsTrigger = TRUE   ← boyut otomatik ayarlanır
-///   ├── Rigidbody       IsKinematic = TRUE
-///   ├── Panel           (3D Object → Quad, scale: 4, 5, 1)
-///   │     └── Materyal: GateMat (asagiya bak)
-///   └── Label           (3D Object → Text - TextMeshPro)
-///         ├── Rect Transform: Width=3.5, Height=2
-///         ├── Position: 0, 0, -0.1  (Panel'in hafif onunde)
-///         └── TextMeshPro: FontSize=5, Overflow=Truncate, Alignment=Center
+///   ├── BoxCollider    IsTrigger=true
+///   ├── Rigidbody      IsKinematic=true
+///   ├── Panel  (Quad, Scale 4,5,1)  ← panelRenderer slotuna sur
+///   └── Label  (3D TMP)             ← labelText slotuna sur
 ///
-/// ═══════════════════════════════════════════════════════════
-/// GATE MAT NASIL YAPILIR (tek seferlik, 2 dakika):
-///
-///   1. Project → sag tik → Create → Material → adi "GateMat"
-///   2. Inspector'da Shader kutusuna tikla
-///   3. "Universal Render Pipeline/Lit" sec
-///   4. "Surface Type" → "Transparent" sec
-///   5. "Base Map" rengi BEYAZ (255,255,255,165) — alpha 165 (transparan)
-///   6. Bu materyali Panel Quad'ının uzerine surukle
-///
-///   KOD TARAFINDA: mat.SetColor("_BaseColor", ...) kullaniyoruz — bu dogru URP yolu.
-///   mat.color veya mat.SetColor("_Color") URP'de CALISMAZ.
-/// ═══════════════════════════════════════════════════════════
+/// MATERYAL (ARTIK KOD HALLEDIYOR — elle bir sey yapma):
+///   GateMat sadece var olmali, herhangi bir shader olabilir.
+///   Kod runtime'da shader'i "Sprites/Default"'a cevirir.
+///   "Sprites/Default" = tam seffaf destekler, renk tam istedigin gibi gelir.
+///   Panel uzerindeki MeshCollider otomatik silinir.
 /// </summary>
 public class Gate : MonoBehaviour
 {
     public GateData    gateData;
-    public Renderer    panelRenderer;   // Panel Quad'ini sur
-    public TextMeshPro labelText;       // Label TMP'yi sur
+    public Renderer    panelRenderer;
+    public TextMeshPro labelText;
 
-    BoxCollider _col;
-    bool        _triggered = false;
-
-    void Awake()
-    {
-        _col = GetComponent<BoxCollider>();
-    }
+    bool _triggered = false;
 
     void Start()
     {
+        // Panel'deki gereksiz collider'lari temizle
+        RemoveChildColliders();
         ApplyVisuals();
-        FitCollider();
+        FitBoxCollider();
     }
 
-    // SpawnManager runtime'da gateData atayinca da calis
-    void OnEnable()
-    {
-        _triggered = false;
-    }
+    void OnEnable() { _triggered = false; }
 
-    // SpawnManager gate.gateData = data yaptiktan sonra cagrilabilir
-    public void Refresh()
-    {
-        ApplyVisuals();
-        FitCollider();
-    }
+    // SpawnManager runtime'da gateData atadiktan sonra cagirabilir
+    public void Refresh() { ApplyVisuals(); FitBoxCollider(); }
 
-    // ── Gorsel ─────────────────────────────────────────────────────────────
+    // ── Gorsel ────────────────────────────────────────────────────────────────
     void ApplyVisuals()
     {
         if (gateData == null) return;
 
-        // Sadece matematiksel etkiyi goster (+60, x2, MERGE, RISK, vb.)
+        // Yazi
         if (labelText != null)
         {
             labelText.text               = gateData.gateText;
@@ -82,39 +56,44 @@ public class Gate : MonoBehaviour
             labelText.enableWordWrapping = false;
         }
 
-        // Renk — URP'de _BaseColor kullanmak zorunlu
+        // Renk — "Sprites/Default" shader her platformda, URP/Built-in ayirt etmeksizin
+        // tam olarak istedigin rengi verir. Transparan destekler.
         if (panelRenderer != null)
         {
-            Material mat = new Material(panelRenderer.sharedMaterial);
+            Material mat = new Material(Shader.Find("Sprites/Default"));
 
-            Color c = gateData.gateColor;
-            c.a = 0.55f; // Transparan
-
-            // URP Lit/Unlit icin dogru property
-            if (mat.HasProperty("_BaseColor"))
-                mat.SetColor("_BaseColor", c);
-            else
-                mat.color = c; // Fallback (eski shader)
+            Color c  = gateData.gateColor;
+            c.a      = 0.72f;           // Transparan — 0=tamamen seffaf, 1=tam dolu
+            mat.color = c;
 
             panelRenderer.material = mat;
         }
     }
 
-    // ── Hitbox Boyutu — Panel'in gercek boyutuna gore ─────────────────────
-    void FitCollider()
+    // ── Panel'deki gereksiz collider'lari sil ─────────────────────────────────
+    void RemoveChildColliders()
     {
-        if (_col == null || panelRenderer == null) return;
-
-        // Panel'in world-space bounds'unu al, local'e cevir
-        Bounds b    = panelRenderer.bounds;
-        Vector3 sz  = b.size;
-
-        // Biraz buyutur (oyuncu panel kenarina yakın gecebilsin)
-        _col.size   = new Vector3(sz.x * 1.05f, sz.y * 1.1f, sz.z + 0.8f);
-        _col.center = transform.InverseTransformPoint(b.center);
+        // Root'taki BoxCollider (trigger) haric tum child collider'lari sil
+        foreach (Collider col in GetComponentsInChildren<Collider>())
+        {
+            if (col.gameObject == gameObject) continue; // Root'a dokunma
+            Destroy(col);
+        }
     }
 
-    // ── Trigger ────────────────────────────────────────────────────────────
+    // ── Root BoxCollider'i Panel boyutuna gore ayarla ────────────────────────
+    void FitBoxCollider()
+    {
+        BoxCollider box = GetComponent<BoxCollider>();
+        if (box == null || panelRenderer == null) return;
+
+        // Panel'in lokal boyutunu kullan (Quad Scale 4,5,1 → 4x5)
+        Vector3 panelLocal = panelRenderer.transform.localScale;
+        box.size   = new Vector3(panelLocal.x * 0.95f, panelLocal.y * 1.0f, 1.2f);
+        box.center = Vector3.zero;
+    }
+
+    // ── Trigger ───────────────────────────────────────────────────────────────
     void OnTriggerEnter(Collider other)
     {
         if (_triggered || !other.CompareTag("Player")) return;

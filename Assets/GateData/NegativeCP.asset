@@ -15,4 +15,4 @@ MonoBehaviour:
   gateText: --
   gateColor: {r: 1, g: 0, b: 0, a: 0.63529414}
   effectType: 6
-  effectValue: 3
+  effectValue: 120

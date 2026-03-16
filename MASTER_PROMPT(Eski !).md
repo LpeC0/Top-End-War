@@ -133,6 +133,6 @@ Grok: TMPro kal, ama Update'de değil event'lerle güncelle (Observer Pattern). 
 4. ✅ GameHUD (Observer Pattern ile CP, Tier, Sinerji gösterimi)
 5. ✅ Object Pooling (Mermiler için Optimize edildi)
 6. ✅ **Chunk Sistemi** (sonsuz yol, Terrain yerine parça zemin spawn/taşıma)
-7. 🔲 **Prefab Swap Morph** (tier atlarken model değişimi + particle)
+7. ✅ **Prefab Swap Morph** (tier atlarken model değişimi + particle)
 8. 🔲 **Boss Savaşı** (Gökmedrese Muhafızı, faz sistemi, Overload kapısı)
 9. 🔲 **Meta UI** (Dünya haritası, il seçimi, kalıcı upgrade ekranı)
