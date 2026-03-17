@@ -2,21 +2,16 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Top End War — Kapi v7 (Claude)
+/// Top End War — Kapi (Claude)
 ///
-/// PREFAB YAPISI (tam):
-///   GatePrefab  [root]
-///   ├── Gate.cs
-///   ├── BoxCollider    IsTrigger=true
-///   ├── Rigidbody      IsKinematic=true
-///   ├── Panel  (Quad, Scale 4,5,1)  ← panelRenderer slotuna sur
-///   └── Label  (3D TMP)             ← labelText slotuna sur
+/// PREFAB:
+///   GatePrefab (root)
+///   ├── Gate.cs + BoxCollider(IsTrigger=true) + Rigidbody(IsKinematic=true)
+///   ├── Panel (3D Quad, Scale 4,5,1)  → panelRenderer slotuna sur
+///   └── Label (3D TextMeshPro)        → labelText slotuna sur
 ///
-/// MATERYAL (ARTIK KOD HALLEDIYOR — elle bir sey yapma):
-///   GateMat sadece var olmali, herhangi bir shader olabilir.
-///   Kod runtime'da shader'i "Sprites/Default"'a cevirir.
-///   "Sprites/Default" = tam seffaf destekler, renk tam istedigin gibi gelir.
-///   Panel uzerindeki MeshCollider otomatik silinir.
+/// MATERYAL: Herhangi bir materyal olabilir — kod runtime'da Sprites/Default'a cevirir.
+/// Panel'deki MeshCollider otomatik silinir.
 /// </summary>
 public class Gate : MonoBehaviour
 {
@@ -28,7 +23,6 @@ public class Gate : MonoBehaviour
 
     void Start()
     {
-        // Panel'deki gereksiz collider'lari temizle
         RemoveChildColliders();
         ApplyVisuals();
         FitBoxCollider();
@@ -36,15 +30,18 @@ public class Gate : MonoBehaviour
 
     void OnEnable() { _triggered = false; }
 
-    // SpawnManager runtime'da gateData atadiktan sonra cagirabilir
     public void Refresh() { ApplyVisuals(); FitBoxCollider(); }
 
-    // ── Gorsel ────────────────────────────────────────────────────────────────
+    void RemoveChildColliders()
+    {
+        foreach (Collider col in GetComponentsInChildren<Collider>())
+            if (col.gameObject != gameObject) Destroy(col);
+    }
+
     void ApplyVisuals()
     {
         if (gateData == null) return;
 
-        // Yazi
         if (labelText != null)
         {
             labelText.text               = gateData.gateText;
@@ -56,56 +53,32 @@ public class Gate : MonoBehaviour
             labelText.enableWordWrapping = false;
         }
 
-        // Renk — "Sprites/Default" shader her platformda, URP/Built-in ayirt etmeksizin
-        // tam olarak istedigin rengi verir. Transparan destekler.
         if (panelRenderer != null)
         {
+            // Sprites/Default: her shader'da calisir, tam transparan destekler
             Material mat = new Material(Shader.Find("Sprites/Default"));
-
-            Color c  = gateData.gateColor;
-            c.a      = 0.72f;           // Transparan — 0=tamamen seffaf, 1=tam dolu
-            mat.color = c;
-
+            Color c      = gateData.gateColor;
+            c.a          = 0.72f;
+            mat.color    = c;
             panelRenderer.material = mat;
         }
     }
 
-    // ── Panel'deki gereksiz collider'lari sil ─────────────────────────────────
-    void RemoveChildColliders()
-    {
-        // Root'taki BoxCollider (trigger) haric tum child collider'lari sil
-        foreach (Collider col in GetComponentsInChildren<Collider>())
-        {
-            if (col.gameObject == gameObject) continue; // Root'a dokunma
-            Destroy(col);
-        }
-    }
-
-    // ── Root BoxCollider'i Panel boyutuna gore ayarla ────────────────────────
     void FitBoxCollider()
     {
         BoxCollider box = GetComponent<BoxCollider>();
         if (box == null || panelRenderer == null) return;
-
-        // Panel'in lokal boyutunu kullan (Quad Scale 4,5,1 → 4x5)
-        Vector3 panelLocal = panelRenderer.transform.localScale;
-        box.size   = new Vector3(panelLocal.x * 0.95f, panelLocal.y * 1.0f, 1.2f);
+        Vector3 s  = panelRenderer.transform.localScale;
+        box.size   = new Vector3(s.x * 0.95f, s.y, 1.2f);
         box.center = Vector3.zero;
     }
 
-    // ── Trigger ───────────────────────────────────────────────────────────────
     void OnTriggerEnter(Collider other)
     {
         if (_triggered || !other.CompareTag("Player")) return;
         _triggered = true;
-
-        PlayerStats stats = other.GetComponent<PlayerStats>();
-        if (stats != null)
-        {
-            stats.ApplyGateEffect(gateData);
-            Debug.Log("[Gate] " + gateData.gateText + " → CP: " + stats.CP);
-        }
-
+        other.GetComponent<PlayerStats>()?.ApplyGateEffect(gateData);
+        Debug.Log("[Gate] " + gateData.gateText + " | CP: " + PlayerStats.Instance?.CP);
         Destroy(gameObject);
     }
 }

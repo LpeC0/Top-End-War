@@ -3,10 +3,10 @@ using System.Collections;
 using DG.Tweening;
 
 /// <summary>
-/// Top End War — Tier Morph v3 (Claude)
-/// HATA DUZELTME: _currentModel Destroy edilince coroutine eski
-/// referansi tutuyor ve SetActive crash yapiyordu.
-/// Cozum: Destroy yerine SetActive(false) — model havuzu gibi calisir.
+/// Top End War — Tier Morph (Claude)
+/// CRASH FIX: Destroy yerine SetActive. Tum modeller baslangicta olusturulur.
+/// DOTween ile scale pop animasyonu.
+/// Player objesine ekle. Tier prefablari 0=Tier1...4=Tier5.
 /// </summary>
 public class MorphController : MonoBehaviour
 {
@@ -30,7 +30,7 @@ public class MorphController : MonoBehaviour
     {
         PrewarmModels();
         GameEvents.OnTierChanged += HandleTierChange;
-        ActivateTier(0); // Tier 1 ile basla
+        ActivateTier(0);
     }
 
     void OnDestroy()
@@ -38,25 +38,18 @@ public class MorphController : MonoBehaviour
         GameEvents.OnTierChanged -= HandleTierChange;
     }
 
-    /// <summary>Tum tier modellerini baslangicta olustur, hepsini gizle.</summary>
     void PrewarmModels()
     {
-        int count = tierPrefabs != null ? tierPrefabs.Length : 0;
-        if (count == 0) count = 5; // Placeholder
-
+        int count = tierPrefabs != null ? tierPrefabs.Length : 5;
         _spawnedModels = new GameObject[count];
 
         for (int i = 0; i < count; i++)
         {
             GameObject model;
-
             if (tierPrefabs != null && i < tierPrefabs.Length && tierPrefabs[i] != null)
-            {
                 model = Instantiate(tierPrefabs[i], transform);
-            }
             else
             {
-                // Placeholder: Capsule
                 model = GameObject.CreatePrimitive(PrimitiveType.Capsule);
                 model.transform.SetParent(transform);
                 Destroy(model.GetComponent<Collider>());
@@ -65,11 +58,10 @@ public class MorphController : MonoBehaviour
             model.transform.localPosition = Vector3.zero;
             model.transform.localScale    = Vector3.one;
 
-            // Alt collider'lari kaldir
             foreach (Collider c in model.GetComponentsInChildren<Collider>())
                 Destroy(c);
 
-            model.SetActive(false); // Hepsi baslangicta gizli
+            model.SetActive(false);
             _spawnedModels[i] = model;
         }
     }
@@ -85,50 +77,40 @@ public class MorphController : MonoBehaviour
     {
         _isMorphing = true;
 
-        // Mevcut modeli kucult ve gizle
+        // Mevcut modeli kucult
         if (_currentTierIndex >= 0 && _currentTierIndex < _spawnedModels.Length)
         {
             GameObject prev = _spawnedModels[_currentTierIndex];
             if (prev != null)
             {
-                // DOTween ile kucult
-                yield return prev.transform
-                    .DOScale(Vector3.zero, shrinkDuration)
-                    .SetEase(Ease.InBack)
-                    .WaitForCompletion();
-
+                yield return prev.transform.DOScale(Vector3.zero, shrinkDuration)
+                    .SetEase(Ease.InBack).WaitForCompletion();
                 prev.SetActive(false);
-                prev.transform.localScale = Vector3.one; // Sonraki kullanim icin sifirla
+                prev.transform.localScale = Vector3.one;
             }
         }
 
-        // Parcacik
         if (morphParticlePrefab != null)
             Destroy(Instantiate(morphParticlePrefab, transform.position, Quaternion.identity), 2f);
 
-        // Yeni modeli goster ve pop
         ActivateTier(targetIndex);
-
         _isMorphing = false;
     }
 
     void ActivateTier(int index)
     {
         if (_spawnedModels == null || index >= _spawnedModels.Length) return;
-
         GameObject model = _spawnedModels[index];
         if (model == null) return;
 
         model.transform.localScale = Vector3.zero;
         model.SetActive(true);
 
-        // Pop animasyonu
-        model.transform
-            .DOScale(Vector3.one * popPeak, popDuration * 0.5f)
+        model.transform.DOScale(Vector3.one * popPeak, popDuration * 0.5f)
             .SetEase(Ease.OutBack)
             .OnComplete(() =>
             {
-                if (model != null) // Null kontrol
+                if (model != null)
                     model.transform.DOScale(Vector3.one, popDuration * 0.5f).SetEase(Ease.InOutQuad);
             });
 

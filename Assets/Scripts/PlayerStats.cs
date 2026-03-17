@@ -1,14 +1,14 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Veri Merkezi v5 (Claude)
-/// [DefaultExecutionOrder(-10)] → TierText bos baslamaz.
+/// Top End War — Oyuncu Veri Merkezi (Claude)
 ///
-/// ZORLUK DENGESI:
-///   startCP = 200 (Tier 1)
-///   invincibility = 0.8s (dusuruldu — daha az affedici)
-///   Dusman hasar CP'nin %20-40'ini alabilir (mesafeye gore)
-///   Oyun Over: CP 30'un altina dusunce (10 degil)
+/// ONEMLI: GPT bu dosyayi "currentCP" public field ve "partial class" ile degistirmisti.
+/// DOGRU versiyon: CP = property, normal class, GameEvents.On... Action pattern.
+///
+/// CP = can. 30'a dusunce GameOver.
+/// Invincibility: 0.8s (daha zorlu).
+/// Path skorlari (Piyade/Mekanize/Teknoloji) Merge kapisi icin kullanilir.
 /// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
@@ -17,8 +17,9 @@ public class PlayerStats : MonoBehaviour
 
     [Header("Baslangic")]
     public int   startCP               = 200;
-    public float invincibilityDuration = 0.8f; // 1.2'den dusuruldu
+    public float invincibilityDuration = 0.8f;
 
+    // ── Public Properties ─────────────────────────────────────────────────
     public int   CP            { get; private set; }
     public int   CurrentTier   { get; private set; } = 1;
     public float PiyadePath    { get; private set; } = 33f;
@@ -26,6 +27,7 @@ public class PlayerStats : MonoBehaviour
     public float TeknolojiPath { get; private set; } = 34f;
     public float SmoothedPowerRatio { get; private set; } = 1f;
 
+    // ── Private ────────────────────────────────────────────────────────────
     float lastDamageTime = -99f;
     int   riskBonusLeft  = 0;
     float expectedCP     = 200f;
@@ -43,14 +45,13 @@ public class PlayerStats : MonoBehaviour
 
     void Start() => GameEvents.OnCPUpdated?.Invoke(CP);
 
-    // ── Dusman carpma hasari ──────────────────────────────────────────────────
+    // ── Dusman carpma hasari ───────────────────────────────────────────────
     public void TakeContactDamage(int amount)
     {
         if (Time.time - lastDamageTime < invincibilityDuration) return;
         lastDamageTime = Time.time;
 
         int oldTier = CurrentTier;
-        // Minimum CP = 30 (10 degil — daha gercekci game over)
         CP = Mathf.Max(30, CP - amount);
         RefreshTier();
 
@@ -60,6 +61,7 @@ public class PlayerStats : MonoBehaviour
         if (CP <= 30) GameEvents.OnGameOver?.Invoke();
     }
 
+    // ── Oldurme odulu ──────────────────────────────────────────────────────
     public void AddCPFromKill(int amount)
     {
         int oldTier = CurrentTier;
@@ -69,6 +71,7 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
     }
 
+    // ── Kapi etkisi ────────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
         if (data == null) return;
@@ -79,29 +82,41 @@ public class PlayerStats : MonoBehaviour
         {
             case GateEffectType.AddCP:
                 CP += Mathf.RoundToInt(data.effectValue * bonus); break;
+
             case GateEffectType.MultiplyCP:
                 CP = Mathf.RoundToInt(CP * data.effectValue); break;
+
             case GateEffectType.Merge:
-                CP = Mathf.RoundToInt(CP * 1.8f);
-                GameEvents.OnMergeTriggered?.Invoke(); break;
+                HandleMerge(data); break;
+
             case GateEffectType.PathBoost_Piyade:
                 CP += Mathf.RoundToInt(data.effectValue * bonus);
-                PiyadePath += 20f; GameEvents.OnPathBoosted?.Invoke("Piyade"); break;
+                PiyadePath += 20f;
+                GameEvents.OnPathBoosted?.Invoke("Piyade"); break;
+
             case GateEffectType.PathBoost_Mekanize:
                 CP += Mathf.RoundToInt(data.effectValue * bonus);
-                MekanizePath += 20f; GameEvents.OnPathBoosted?.Invoke("Mekanize"); break;
+                MekanizePath += 20f;
+                GameEvents.OnPathBoosted?.Invoke("Mekanize"); break;
+
             case GateEffectType.PathBoost_Teknoloji:
                 CP += Mathf.RoundToInt(data.effectValue * bonus);
-                TeknolojiPath += 20f; GameEvents.OnPathBoosted?.Invoke("Teknoloji"); break;
+                TeknolojiPath += 20f;
+                GameEvents.OnPathBoosted?.Invoke("Teknoloji"); break;
+
             case GateEffectType.NegativeCP:
                 CP = Mathf.Max(30, CP - Mathf.RoundToInt(data.effectValue)); break;
+
             case GateEffectType.RiskReward:
                 int penalty = Mathf.RoundToInt(CP * 0.30f);
                 CP = Mathf.Max(50, CP - penalty);
                 riskBonusLeft = 3;
-                GameEvents.OnRiskBonusActivated?.Invoke(riskBonusLeft); break;
+                GameEvents.OnRiskBonusActivated?.Invoke(riskBonusLeft);
+                Debug.Log("[PlayerStats] Risk! -" + penalty + " CP. 3 kapiya +50% bonus.");
+                break;
         }
 
+        // Risk bonus sayaci
         if (riskBonusLeft > 0 &&
             data.effectType != GateEffectType.NegativeCP &&
             data.effectType != GateEffectType.RiskReward)
@@ -119,6 +134,47 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
     }
 
+    // ── Merge kapisi: path skoruna gore karar ─────────────────────────────
+    void HandleMerge(GateData data)
+    {
+        float total = PiyadePath + MekanizePath + TeknolojiPath;
+
+        if (total < 1f)
+        {
+            // Path yoksa x1.8 CP
+            CP = Mathf.RoundToInt(CP * 1.8f);
+            GameEvents.OnMergeTriggered?.Invoke();
+            return;
+        }
+
+        float p = PiyadePath / total;
+        float m = MekanizePath / total;
+        float t = TeknolojiPath / total;
+        float threshold = 0.5f;
+
+        string role = "none";
+        if (t >= threshold)      role = "Teknoloji";
+        else if (p >= threshold) role = "Piyade";
+        else if (m >= threshold) role = "Mekanize";
+
+        if (role == "none")
+        {
+            // Belirgin path yok — x1.8 fallback
+            CP = Mathf.RoundToInt(CP * 1.8f);
+        }
+        else
+        {
+            // Path bazli bonus: x1.8 CP + sinerji
+            CP = Mathf.RoundToInt(CP * 1.8f);
+            Debug.Log("[Merge] " + role + " rolune donusum! CP: " + CP);
+            // Path skorlarini sifirla
+            PiyadePath = MekanizePath = TeknolojiPath = 0f;
+            // Gelecekte: companion spawn, MorphController'a rol gonder
+        }
+        GameEvents.OnMergeTriggered?.Invoke();
+    }
+
+    // ── DDA icin ───────────────────────────────────────────────────────────
     public void SetExpectedCP(float expected)
     {
         expectedCP = Mathf.Max(1f, expected);
@@ -127,8 +183,7 @@ public class PlayerStats : MonoBehaviour
 
     void UpdateSmoothedRatio()
     {
-        float raw = (float)CP / expectedCP;
-        SmoothedPowerRatio = Mathf.Lerp(SmoothedPowerRatio, raw, 0.08f);
+        SmoothedPowerRatio = Mathf.Lerp(SmoothedPowerRatio, (float)CP / expectedCP, 0.08f);
     }
 
     void RefreshTier()

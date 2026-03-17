@@ -1,73 +1,46 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Ilerleme Dengeleme Konfigurasyonu (Claude + Gemini DDA)
-/// Assets/ProgressionConfig klasorunde olustur:
-///   Project → Create → TopEndWar → Progression Config
-///
-/// Bu ScriptableObject oyunun matematiksel dengesinin merkezi.
-/// Inspector'dan tweak et, DifficultyManager okur.
+/// Top End War — Ilerleme Konfigurasyonu (Claude)
+/// Assets → Create → TopEndWar → Progression Config
+/// DifficultyManager'a bagla. Baglamazsan DifficultyManager dahili sabitlerle calisir.
+/// NAMESPACE YOK — eski GPT kodlari namespace kullaniyordu, biz kullanmiyoruz.
 /// </summary>
 [CreateAssetMenu(fileName = "ProgressionConfig", menuName = "TopEndWar/Progression Config")]
 public class ProgressionConfig : ScriptableObject
 {
-    [Header("Temel Ilerleme")]
-    [Tooltip("Her 100 birimdeki buyume carpani. 1.15 = %15")]
-    [Range(1.05f, 1.5f)]
-    public float growthRate = 1.15f;
-
-    [Tooltip("Zorluk egrisi ussu. 1.3 = dengeli, 2.0 = cok sert")]
-    [Range(1.0f, 3.0f)]
-    public float difficultyExponent = 1.3f;
-
+    [Header("Ilerleme")]
+    [Range(1.05f, 1.5f)] public float growthRate          = 1.15f;
+    [Range(1.0f,  3.0f)] public float difficultyExponent  = 1.3f;
     public int baseStartCP = 200;
 
-    [Header("Dusman Olcekleme")]
-    public int   baseEnemyHealth    = 100;
-    public int   baseEnemyDamage    = 25;
-    public float baseEnemySpeed     = 4.5f;
-    public float enemyMaxSpeed      = 8f;    // Hiz tavan (Gemini onerisi)
+    [Header("Dusman")]
+    public int   baseEnemyHealth       = 100;
+    public int   baseEnemyDamage       = 25;
+    public float baseEnemySpeed        = 4.0f;
+    public float enemyMaxSpeed         = 7.5f;
+    [Range(0.5f, 1.5f)] public float playerCPScalingFactor = 0.9f;
 
-    [Tooltip("Oyuncu CP'sine gore dushman guclenme faktoru")]
-    [Range(0.5f, 1.5f)]
-    public float playerCPScalingFactor = 0.9f;
-
-    [Header("Kapi Dengeleme")]
-    public float gateValueGrowthRate = 1.12f;
-    public int   minGateValue        = 20;
-    public int   maxGateValue        = 500;
-
-    [Tooltip("Boss oncesi bu mesafede negatif/risk kapi cikmasın (Pity Timer)")]
+    [Header("Kapi")]
+    public float gateValueGrowthRate   = 1.12f;
+    public int   minGateValue          = 20;
+    public int   maxGateValue          = 500;
     public float noBadGateZoneBeforeBoss = 200f;
 
     [Header("Tier Eslikleri")]
     public int[] tierThresholds = { 0, 300, 800, 2000, 5000 };
 
-    // ── Hesaplama Metodlari (GC-friendly, allocation yok) ────────────────────
+    public int CalculateExpectedCP(float d)
+        => Mathf.RoundToInt(baseStartCP * Mathf.Pow(growthRate, d / 100f));
 
-    /// <summary>Belirli mesafedeki beklenen CP.</summary>
-    public int CalculateExpectedCP(float distance)
-    {
-        float segments   = distance / 100f;
-        float multiplier = Mathf.Pow(growthRate, segments);
-        return Mathf.RoundToInt(baseStartCP * multiplier);
-    }
+    public float CalculateDifficultyMultiplier(float d)
+        => 1f + Mathf.Pow(d / 1000f, difficultyExponent);
 
-    /// <summary>Mesafeye gore zorluk carpani.</summary>
-    public float CalculateDifficultyMultiplier(float distance)
+    public int ScaleGateValue(int v, float d)
     {
-        float normalized = distance / 1000f;
-        return 1f + Mathf.Pow(normalized, difficultyExponent);
-    }
-
-    /// <summary>Kapi degerini mesafeye gore olcekle.</summary>
-    public int ScaleGateValue(int baseValue, float distance)
-    {
-        float segments = distance / 150f;
-        float mult     = Mathf.Pow(gateValueGrowthRate, segments);
-        int   scaled   = Mathf.RoundToInt(baseValue * mult);
-        if (scaled < minGateValue) return minGateValue;
-        if (scaled > maxGateValue) return maxGateValue;
-        return scaled;
+        int s = Mathf.RoundToInt(v * Mathf.Pow(gateValueGrowthRate, d / 150f));
+        if (s < minGateValue) return minGateValue;
+        if (s > maxGateValue) return maxGateValue;
+        return s;
     }
 }
