@@ -1,15 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Veri Merkezi v3
+/// Top End War — Oyuncu Veri Merkezi v4
 ///
-/// DENGE DEĞİŞİKLİKLERİ:
-///   Kapı scale: dist/800 → dist/2400 (SpawnManager ile tutarlı)
-///   Merge: x1.8 → x1.5
-///   MultiplyCP: her zaman x1.2 (data.effectValue kullanılmıyor)
-///   PathBoost: PiyadePath += 20f → artık sınırsız birikmiyor,
-///     CheckSynergy için normalized kullanılıyor
-/// </thinking>
+/// MERGE DÜZELTMESİ:
+///   Path yoksa:      x1.1 (çok küçük bonus — yanlış kapıya girme cezası)
+///   Path var ama <%50: x1.2 (biraz bonus)
+///   Bir path >= %50: x1.5 (stratejik ödül)
+///   Perfect Genetics: x1.7 + sinerji mesajı
+///
+///   Bu sayede Merge kapısı:
+///   → PathBoost kapılarını önceden geçmek anlamlı hale geliyor
+///   → "Beynini kullan" mekaniği çalışıyor
 /// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
@@ -23,7 +25,7 @@ public class PlayerStats : MonoBehaviour
     public int   CP              { get; private set; }
     public int   CurrentTier     { get; private set; } = 1;
     public int   BulletCount     { get; private set; } = 1;
-    public float PiyadePath      { get; private set; } = 0f;  // Sıfırdan başlar
+    public float PiyadePath      { get; private set; } = 0f;
     public float MekanizePath    { get; private set; } = 0f;
     public float TeknolojiPath   { get; private set; } = 0f;
     public float SmoothedPowerRatio { get; private set; } = 1f;
@@ -46,6 +48,7 @@ public class PlayerStats : MonoBehaviour
 
     void Start() => GameEvents.OnCPUpdated?.Invoke(CP);
 
+    // ── Düşman çarpma ──────────────────────────────────────────────────────
     public void TakeContactDamage(int amount)
     {
         if (Time.time - _lastDmgTime < invincibilityDuration) return;
@@ -59,6 +62,7 @@ public class PlayerStats : MonoBehaviour
         if (CP <= 50) GameEvents.OnGameOver?.Invoke();
     }
 
+    // ── Kill ödülü ─────────────────────────────────────────────────────────
     public void AddCPFromKill(int amount)
     {
         int oldTier = CurrentTier;
@@ -68,16 +72,14 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
     }
 
+    // ── Kapı etkisi ────────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
         if (data == null) return;
         int   oldTier   = CurrentTier;
         int   oldBullet = BulletCount;
         float bonus     = _riskBonusLeft > 0 ? 1.5f : 1f;
-
-        // DÜZELTME: Scale yavaş artıyor (dist/2400)
-        float dist  = transform.position.z;
-        float scale = 1f + dist / 2400f;   // 0m=1x, 1200m=1.5x
+        float scale     = 1f + transform.position.z / 2400f;
 
         switch (data.effectType)
         {
@@ -86,7 +88,6 @@ public class PlayerStats : MonoBehaviour
                 break;
 
             case GateEffectType.MultiplyCP:
-                // SABIT x1.2 — data.effectValue ile manipülasyon yok
                 CP = Mathf.RoundToInt(CP * 1.2f);
                 break;
 
@@ -106,7 +107,7 @@ public class PlayerStats : MonoBehaviour
 
             case GateEffectType.PathBoost_Piyade:
                 CP        += Mathf.RoundToInt(data.effectValue * scale * bonus);
-                PiyadePath += 1f;   // Sayaç — CheckSynergy normalize eder
+                PiyadePath += 1f;
                 GameEvents.OnPathBoosted?.Invoke("Piyade");
                 break;
 
@@ -131,11 +132,10 @@ public class PlayerStats : MonoBehaviour
                 CP = Mathf.Max(100, CP - pen);
                 _riskBonusLeft = 3;
                 GameEvents.OnRiskBonusActivated?.Invoke(_riskBonusLeft);
-                Debug.Log("[Risk] -" + pen + " CP, +%50 bonus 3 kapı.");
                 break;
         }
 
-        // Risk bonus sayacı
+        // Risk bonus sayacı (negatif ve risk kapıları saymaz)
         if (_riskBonusLeft > 0 &&
             data.effectType != GateEffectType.NegativeCP &&
             data.effectType != GateEffectType.RiskReward)
@@ -153,26 +153,70 @@ public class PlayerStats : MonoBehaviour
         if (BulletCount != oldBullet) GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
     }
 
+    // ── Merge: STRATEJİK (path bazlı) ─────────────────────────────────────
+    //
+    // MANTIK:
+    //   Merge kapısı tek başına anlamsız — önceki PathBoost kapıları
+    //   onunla birlikte anlam kazanır. Oyuncu farkında olmadan
+    //   "path biriktiriyorum → merge = büyük ödül" mantığına giriyor.
+    //
+    //   Path yoksa    → x1.1  (minimum bonus — yanlış seçim)
+    //   Karma path    → x1.2  (biraz topladın ama odaklanmadın)
+    //   Dominant path → x1.5  (odaklandın, ödüllendiriliyorsun)
+    //   Perfect       → x1.7  (3 path dengeli — çok zor, büyük ödül)
+    //
     void HandleMerge()
     {
         float total = PiyadePath + MekanizePath + TeknolojiPath;
+        float multiplier;
+        string role = "none";
 
-        // DÜZELTME: Merge x1.5 (x1.8 değil)
-        CP = Mathf.RoundToInt(CP * 1.5f);
-
-        if (total > 0f)
+        if (total < 1f)
+        {
+            // Path yok — minimum bonus
+            multiplier = 1.1f;
+            Debug.Log("[Merge] Path yok → x1.1 (PathBoost kapılarına gir!)");
+        }
+        else
         {
             float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
-            string role = t >= 0.5f ? "Teknoloji" : p >= 0.5f ? "Piyade" : m >= 0.5f ? "Mekanize" : "none";
-            if (role != "none")
+            float minPath = Mathf.Min(p, Mathf.Min(m, t));
+
+            if (minPath > 0.28f)
             {
-                PiyadePath = MekanizePath = TeknolojiPath = 0f;
-                Debug.Log("[Merge] " + role + " → CP: " + CP);
+                // Perfect Genetics — 3 path dengeli
+                multiplier = 1.7f;
+                role = "PERFECT";
+                Debug.Log("[Merge] PERFECT GENETICS → x1.7!");
+            }
+            else if (t >= 0.5f) { multiplier = 1.5f; role = "Teknoloji"; }
+            else if (p >= 0.5f) { multiplier = 1.5f; role = "Piyade"; }
+            else if (m >= 0.5f) { multiplier = 1.5f; role = "Mekanize"; }
+            else
+            {
+                // Karma path ama dominant yok
+                multiplier = 1.2f;
+                Debug.Log("[Merge] Karma path → x1.2");
             }
         }
+
+        CP = Mathf.RoundToInt(CP * multiplier);
+
+        if (role != "none" && role != "PERFECT")
+        {
+            Debug.Log("[Merge] " + role + " dominant → x1.5, CP: " + CP);
+            PiyadePath = MekanizePath = TeknolojiPath = 0f; // Skor sıfırla
+        }
+        else if (role == "PERFECT")
+        {
+            PiyadePath = MekanizePath = TeknolojiPath = 0f;
+            GameEvents.OnSynergyFound?.Invoke("PERFECT GENETICS!");
+        }
+
         GameEvents.OnMergeTriggered?.Invoke();
     }
 
+    // ── DDA ───────────────────────────────────────────────────────────────
     public void SetExpectedCP(float e)
     {
         _expectedCP = Mathf.Max(1f, e);
@@ -189,21 +233,15 @@ public class PlayerStats : MonoBehaviour
         CurrentTier = 1;
     }
 
-    // Path skorları sayaç olarak tutuluyor (1=1 kapı geçişi)
-    // Normalize edilerek sinerji kontrolü yapılıyor
     void CheckSynergy()
     {
         float total = PiyadePath + MekanizePath + TeknolojiPath;
-        if (total < 1f) return;
+        if (total < 2f) return; // En az 2 PathBoost geçilmeli
         float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
 
-        string syn = null;
-        if (Mathf.Min(p, Mathf.Min(m, t)) > 0.25f) syn = "PERFECT GENETICS";
-        else if (p > 0.5f && m > 0.25f)             syn = "Exosuit Komutu";
-        else if (p > 0.5f && t > 0.25f)             syn = "Drone Takimi";
-        else if (m > 0.4f && t > 0.3f)              syn = "Fuzyon Robotu";
-
-        if (syn != null) GameEvents.OnSynergyFound?.Invoke(syn);
+        if (p > 0.5f && m > 0.25f)  GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu");
+        else if (p > 0.5f && t > 0.25f) GameEvents.OnSynergyFound?.Invoke("Drone Takimi");
+        else if (m > 0.4f && t > 0.3f)  GameEvents.OnSynergyFound?.Invoke("Fuzyon Robotu");
     }
 
     public string GetTierName()  => TIER_NAMES[Mathf.Clamp(CurrentTier - 1, 0, 4)];

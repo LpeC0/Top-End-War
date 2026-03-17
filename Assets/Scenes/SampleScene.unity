@@ -830,6 +830,60 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 648672856}
   m_CullTransparentMesh: 1
+--- !u!1 &661853768
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 661853770}
+  - component: {fileID: 661853769}
+  m_Layer: 0
+  m_Name: BossManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &661853769
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 661853768}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f36ffb0b1e399ac4e9b266a5a3553ce8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BossManager
+  bossMaxHP: 3000
+  bossApproachSpeed: 3
+  bossContactDmg: 100
+  bossStopDist: 12
+  phase2At: 0.6
+  phase3At: 0.3
+  minionPrefab: {fileID: 899098464761774372, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
+  minionCount: 4
+  minionInterval: 6
+  bossPrefab: {fileID: 0}
+--- !u!4 &661853770
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 661853768}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -1950,7 +2004,7 @@ MonoBehaviour:
   pools:
   - tag: Bullet
     prefab: {fileID: 1185041038}
-    size: 20
+    size: 30
 --- !u!4 &1401933232
 Transform:
   m_ObjectHideFlags: 0
@@ -2155,19 +2209,13 @@ MonoBehaviour:
   playerTransform: {fileID: 734728282}
   gatePrefab: {fileID: 5767528215993270071, guid: 4ede9731f6769d24681356fa28e0fd00, type: 3}
   enemyPrefab: {fileID: 899098464761774372, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
-  gateDataList:
-  - {fileID: 11400000, guid: 01a893a47afa69a4280f108079e7ba6f, type: 2}
-  - {fileID: 11400000, guid: 9d97c3dab0969c1418fef9f19f1db290, type: 2}
-  - {fileID: 11400000, guid: acbff1856fb4d1745b3033f0737aa79c, type: 2}
-  - {fileID: 11400000, guid: 908cfaa21aad0044bb4cd0a6483178a2, type: 2}
-  - {fileID: 11400000, guid: a1d523258331bf842bc6b712a4bf35c8, type: 2}
-  - {fileID: 11400000, guid: 1ebef82f8019c4549bdc09fb63c63731, type: 2}
-  - {fileID: 11400000, guid: cb73bade2062d054c80c60b9b25d387b, type: 2}
-  - {fileID: 11400000, guid: 6cd4814ee7f0bcf4582867c6cda9aa41, type: 2}
+  gateDataList: []
   spawnAhead: 60
   gateSpacing: 35
   waveSpacing: 28
   bossDistance: 1200
+  minEnemies: 2
+  maxEnemies: 8
 --- !u!4 &1661570128
 Transform:
   m_ObjectHideFlags: 0
@@ -2795,10 +2843,18 @@ PrefabInstance:
       propertyPath: m_Name
       value: BulletPreFab
       objectReference: {fileID: 0}
+    - target: {fileID: 179161563940366066, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
+      propertyPath: m_TagString
+      value: Bullet
+      objectReference: {fileID: 0}
     - target: {fileID: 473956870825253787, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
+    - target: {fileID: 6008064971456316287, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
+      propertyPath: m_CollisionDetection
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 8776496539061170808, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -2859,3 +2915,4 @@ SceneRoots:
   - {fileID: 1661570128}
   - {fileID: 1817119038}
   - {fileID: 1895896586}
+  - {fileID: 661853770}
