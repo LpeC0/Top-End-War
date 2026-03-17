@@ -1,23 +1,20 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Hareketi (Claude)
-/// Serbest surukleme. xLimit=8.
-/// Tier = atis HIZI (spread degil). Hasar tablosu Bullet.SetDamage() ile gider.
+/// Top End War — Oyuncu Hareketi v3 (Claude)
 ///
-/// ATIS MATEMATIGI:
-///   Tier1: 60 hasar, 1.5/sn  = 90 DPS
-///   Tier2: 95 hasar, 2.5/sn  = 237 DPS
-///   Tier3: 145 hasar, 4.0/sn = 580 DPS
-///   Tier4: 210 hasar, 6.0/sn = 1260 DPS
-///   Tier5: 300 hasar, 8.5/sn = 2550 DPS
+/// Anchor Modu: OnAnchorModeChanged(true) gelince forwardSpeed=0,
+///   oyuncu sadece X ekseninde hareket eder, boss ile savaşır.
+///   OnAnchorModeChanged(false) gelince normal koşuya döner.
+///
+/// Spread formation (V şekli):
+///   1 mermi: düz, 2: ±8°, 3: -12° 0° +12°,
+///   4: -18° -6° +6° +18°, 5: -22° -11° 0° +11° +22°
 /// </summary>
 public class PlayerController : MonoBehaviour
 {
-    [Header("Ileri Hareket")]
-    public float forwardSpeed = 10f;
-
-    [Header("Yatay Hareket")]
+    [Header("Hareket")]
+    public float forwardSpeed    = 10f;
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
     public float xLimit          = 8f;
@@ -27,31 +24,51 @@ public class PlayerController : MonoBehaviour
     public GameObject bulletPrefab;
     public float      detectRange = 35f;
 
-    // Tier bazli atis hizi (atis/saniye)
-    static readonly float[] tierFireRates = { 1.5f, 2.5f, 4.0f, 6.0f, 8.5f };
-    // Tier bazli mermi hasari
-    static readonly int[]   tierDamage    = { 60,   95,   145,  210,  300  };
+    static readonly float[] FIRE_RATES = { 1.5f, 2.5f, 4.0f, 6.0f, 8.5f };
+    static readonly int[]   DAMAGE     = { 60,   95,   145,  210,  300  };
 
-    float targetX      = 0f;
-    float nextFireTime = 0f;
-    bool  isDragging   = false;
-    float lastMouseX;
+    static readonly float[][] SPREAD = {
+        new float[]{ 0f },
+        new float[]{ -8f, 8f },
+        new float[]{ -12f, 0f, 12f },
+        new float[]{ -18f, -6f, 6f, 18f },
+        new float[]{ -22f, -11f, 0f, 11f, 22f },
+    };
+
+    float _targetX    = 0f;
+    float _nextFire   = 0f;
+    bool  _dragging   = false;
+    float _lastMouseX;
+    bool  _anchorMode = false;  // Boss sahnesi
 
     void Start()
     {
         transform.position = new Vector3(0f, 1.2f, 0f);
         EnsureCollider();
+        GameEvents.OnAnchorModeChanged += OnAnchorMode;
     }
 
-    // Gate trigger icin Player'da Collider olmali (IsTrigger = false)
+    void OnDestroy() => GameEvents.OnAnchorModeChanged -= OnAnchorMode;
+
+    void OnAnchorMode(bool active)
+    {
+        _anchorMode = active;
+        if (active)
+        {
+            forwardSpeed = 0f;
+            Debug.Log("[Player] Anchor modu actif — kosu durduruldu.");
+        }
+        else
+        {
+            forwardSpeed = 10f;
+        }
+    }
+
     void EnsureCollider()
     {
         if (GetComponent<Collider>() != null) return;
-        CapsuleCollider col = gameObject.AddComponent<CapsuleCollider>();
-        col.height    = 2f;
-        col.radius    = 0.4f;
-        col.isTrigger = false;
-        Debug.LogWarning("[Player] CapsuleCollider eklendi. Prefab'a kaydet.");
+        var c = gameObject.AddComponent<CapsuleCollider>();
+        c.height = 2f; c.radius = 0.4f; c.isTrigger = false;
     }
 
     void Update()
@@ -64,18 +81,17 @@ public class PlayerController : MonoBehaviour
     void HandleDrag()
     {
         if (Input.GetKey(KeyCode.LeftArrow))
-            targetX = Mathf.Clamp(targetX - 10f * Time.deltaTime, -xLimit, xLimit);
+            _targetX = Mathf.Clamp(_targetX - 10f * Time.deltaTime, -xLimit, xLimit);
         if (Input.GetKey(KeyCode.RightArrow))
-            targetX = Mathf.Clamp(targetX + 10f * Time.deltaTime, -xLimit, xLimit);
+            _targetX = Mathf.Clamp(_targetX + 10f * Time.deltaTime, -xLimit, xLimit);
 
-        if (Input.GetMouseButtonDown(0)) { isDragging = true;  lastMouseX = Input.mousePosition.x; }
-        if (Input.GetMouseButtonUp(0))   { isDragging = false; }
+        if (Input.GetMouseButtonDown(0)) { _dragging = true; _lastMouseX = Input.mousePosition.x; }
+        if (Input.GetMouseButtonUp(0))   _dragging = false;
 
-        if (isDragging)
+        if (_dragging)
         {
-            float delta = (Input.mousePosition.x - lastMouseX) * dragSensitivity;
-            targetX    = Mathf.Clamp(targetX + delta, -xLimit, xLimit);
-            lastMouseX = Input.mousePosition.x;
+            _targetX    = Mathf.Clamp(_targetX + (Input.mousePosition.x - _lastMouseX) * dragSensitivity, -xLimit, xLimit);
+            _lastMouseX = Input.mousePosition.x;
         }
     }
 
@@ -83,7 +99,7 @@ public class PlayerController : MonoBehaviour
     {
         Vector3 p = transform.position;
         p.z += forwardSpeed * Time.deltaTime;
-        p.x  = Mathf.Lerp(p.x, targetX, Time.deltaTime * smoothing);
+        p.x  = Mathf.Lerp(p.x, _targetX, Time.deltaTime * smoothing);
         p.x  = Mathf.Clamp(p.x, -xLimit, xLimit);
         p.y  = 1.2f;
         transform.position = p;
@@ -91,35 +107,42 @@ public class PlayerController : MonoBehaviour
 
     void AutoShoot()
     {
-        if (!firePoint) return;
+        if (!firePoint || Time.time < _nextFire) return;
 
-        int   tier     = PlayerStats.Instance != null ? PlayerStats.Instance.CurrentTier : 1;
-        int   idx      = Mathf.Clamp(tier - 1, 0, 4);
-        float fireRate = tierFireRates[idx];
-        int   damage   = tierDamage[idx];
+        int tier   = PlayerStats.Instance != null ? PlayerStats.Instance.CurrentTier : 1;
+        int bCount = PlayerStats.Instance != null ? PlayerStats.Instance.BulletCount  : 1;
+        int idx    = Mathf.Clamp(tier - 1, 0, 4);
 
-        if (Time.time < nextFireTime) return;
+        // Anchor modda daha geniş BoxCast (boss büyük)
+        float halfW   = _anchorMode ? xLimit : xLimit * 0.6f;
+        float range   = _anchorMode ? 60f : detectRange;
 
-        // Hedef bul
         RaycastHit hit;
-        if (!Physics.BoxCast(
-                transform.position + Vector3.up,
-                new Vector3(xLimit * 0.55f, 1.2f, 0.5f),
-                Vector3.forward, out hit,
-                Quaternion.identity, detectRange)
-            || !hit.collider.CompareTag("Enemy")) return;
+        bool found = Physics.BoxCast(
+            transform.position + Vector3.up,
+            new Vector3(halfW, 1.2f, 0.5f),
+            Vector3.forward, out hit,
+            Quaternion.identity, range);
 
-        // Lead hedefleme: dusman hareket yonunu tahmin et
+        if (!found || !hit.collider.CompareTag("Enemy")) return;
+
+        // Lead hedefleme
         float   dist   = Vector3.Distance(firePoint.position, hit.transform.position);
-        float   travelT= dist / 30f;
-        Vector3 aimPos = hit.transform.position + Vector3.back * (travelT * 4f);
-        Vector3 dir    = (aimPos - firePoint.position).normalized;
+        Vector3 aimPos = hit.transform.position + Vector3.back * (dist / 30f * 4f);
+        Vector3 baseDir= (aimPos - firePoint.position).normalized;
 
-        FireBullet(firePoint.position, dir, damage);
-        nextFireTime = Time.time + 1f / fireRate;
+        // Spread
+        int spreadIdx = Mathf.Clamp(bCount - 1, 0, SPREAD.Length - 1);
+        foreach (float angle in SPREAD[spreadIdx])
+        {
+            Vector3 dir = Quaternion.Euler(0f, angle, 0f) * baseDir;
+            FireOne(firePoint.position, dir.normalized, DAMAGE[idx]);
+        }
+
+        _nextFire = Time.time + 1f / FIRE_RATES[idx];
     }
 
-    void FireBullet(Vector3 pos, Vector3 dir, int damage)
+    void FireOne(Vector3 pos, Vector3 dir, int dmg)
     {
         GameObject b = ObjectPooler.Instance?.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
         if (b == null && bulletPrefab != null)
@@ -129,9 +152,11 @@ public class PlayerController : MonoBehaviour
         }
         if (b == null) return;
 
-        b.GetComponent<Bullet>()?.SetDamage(damage);
-
+        b.GetComponent<Bullet>()?.SetDamage(dmg);
         Rigidbody rb = b.GetComponent<Rigidbody>();
         if (rb) rb.linearVelocity = dir * 30f;
     }
+
+    // Boss modu için: bosluk bittikten sonra normal hıza dön
+    public void ResumeRun() => OnAnchorMode(false);
 }

@@ -51,7 +51,8 @@ public class GameHUD : MonoBehaviour
         GameEvents.OnTierChanged   += OnTierChanged;
         GameEvents.OnSynergyFound  += OnSynergy;
         GameEvents.OnPlayerDamaged += OnPlayerDamaged;
-        GameEvents.OnRiskBonusActivated += OnRiskBonus;
+        GameEvents.OnRiskBonusActivated  += OnRiskBonus;
+        GameEvents.OnBulletCountChanged  += OnBulletCount;
 
         // Ilk degerler
         _lastCP = PlayerStats.Instance.CP;
@@ -66,7 +67,8 @@ public class GameHUD : MonoBehaviour
         GameEvents.OnTierChanged        -= OnTierChanged;
         GameEvents.OnSynergyFound       -= OnSynergy;
         GameEvents.OnPlayerDamaged      -= OnPlayerDamaged;
-        GameEvents.OnRiskBonusActivated -= OnRiskBonus;
+        GameEvents.OnRiskBonusActivated  -= OnRiskBonus;
+        GameEvents.OnBulletCountChanged  -= OnBulletCount;
     }
 
     // ── Otomatik HUD olustur ──────────────────────────────────────────────────
@@ -188,6 +190,11 @@ public class GameHUD : MonoBehaviour
         StopCoroutine("HidePopup");
         popupText.text = msg; popupText.color = color;
         StartCoroutine("HidePopup");
+    }
+
+    void OnBulletCount(int count)
+    {
+        ShowPopup("MERMI +" + count, new Color(0.5f, 0f, 0.9f));
     }
 
     IEnumerator HidePopup()   { yield return new WaitForSeconds(1.2f); if (popupText)   popupText.text = ""; }

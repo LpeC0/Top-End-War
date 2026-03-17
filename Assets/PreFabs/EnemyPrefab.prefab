@@ -129,13 +129,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 220ac9da87f536349925e6d401b0322a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Enemy
-  defaultHealth: 120
-  defaultDamage: 50
-  defaultSpeed: 4.5
-  defaultCPReward: 15
   xLimit: 8
-  separationRadius: 1.8
-  separationForce: 3
 --- !u!54 &5566809043617500637
 Rigidbody:
   m_ObjectHideFlags: 0
