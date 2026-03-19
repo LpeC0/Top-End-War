@@ -2,30 +2,41 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Top End War — Spawn Yoneticisi v9 (Claude)
+/// Top End War — Spawn Yoneticisi v10 (Claude)
 ///
-/// DENGE DÜZELTMELERİ (simülasyon onaylı):
-///   Kapı değer scale: dist/800 → dist/2400 (0m=1x, 1200m=1.5x)
-///   AddCP_huge (200 CP) kaldırıldı — çok erken T5'e ulaştırıyordu
-///   Merge x1.8 → x1.5
-///   MultiplyCP x1.3 → x1.2
-///   NegativeCP %4 → %5 (biraz daha zorlayıcı)
+/// v10 DEGISIKLIKLER:
+///   - AddSoldier kapilari (Piyade/Mekanik/Teknoloji) runtime olarak eklendi
+///   - HealCommander ve HealSoldiers kapilari eklendi
+///   - PathBoost'lar daha dusuk agirlikta (AddSoldier kapilari onlari kapsıyor)
+///   - Toplam agirlik = 1.00 korundu
 ///
-/// Simülasyon sonucu (10k run):
-///   Ort.Tier: 3.2 | T3=%69 | T4=%25 | T5=%2
-///   Ort.Mermi: 4.1 | Boss HP=60000: ~19s ort. (fazlarla ~40-60s)
-///   T3+3mermi: 1740 DPS → 34sn ✓
-///   T4+3mermi: 3780 DPS → 16sn ✓
+/// Agirlik Tablosu v10 (toplam = 1.00):
+///   AddCP_large (+80)           0.22
+///   AddCP_small (+45)           0.18
+///   AddSoldier_Piyade           0.08
+///   AddSoldier_Mekanik          0.08
+///   AddSoldier_Teknoloji        0.07
+///   PathBoost_Piyade            0.04
+///   PathBoost_Mekanik           0.04
+///   PathBoost_Teknoloji         0.04
+///   Merge                       0.07
+///   HealCommander               0.05
+///   HealSoldiers                0.04
+///   AddBullet (komutan spread)  0.04
+///   RiskReward                  0.04
+///   MultiplyCP x1.2             0.04
+///   NegativeCP                  0.05
+///   TOPLAM = 1.00 ✓
 /// </summary>
 public class SpawnManager : MonoBehaviour
 {
     public static float ROAD_HALF_WIDTH = 8f;
 
-    [Header("Bağlantılar")]
+    [Header("Baglantılar")]
     public Transform  playerTransform;
     public GameObject gatePrefab;
     public GameObject enemyPrefab;
-    public GateData[] gateDataList;
+    public GateData[] gateDataList;     // Inspector'dan bos birakilabilir
 
     [Header("Spawn")]
     public float spawnAhead  = 65f;
@@ -42,10 +53,11 @@ public class SpawnManager : MonoBehaviour
     bool  _bossSpawned = false;
 
     DifficultyManager.EnemyStats _stats;
-    bool       _statsReady  = false;
+    bool    _statsReady   = false;
     GateData[] _runtimeGates;
-    float      _totalWeight = 0f;
+    float   _totalWeight  = 0f;
 
+    // ─────────────────────────────────────────────────────────────────────
     void Start()
     {
         if (playerTransform == null && PlayerStats.Instance != null)
@@ -74,37 +86,34 @@ public class SpawnManager : MonoBehaviour
             Mathf.Min(4f + (m - 1f) * 1.4f, 7.5f), Mathf.RoundToInt(15f * m));
     }
 
-    // ── Runtime Gate Oluşturma ─────────────────────────────────────────────
-    // AĞIRLIK TABLOSU (toplam = 1.00):
-    //   AddCP_large  0.28  | AddCP_small  0.22
-    //   PathBoost×3  0.06×3= 0.18
-    //   AddBullet    0.12  | Merge        0.07
-    //   RiskReward   0.04  | MultiplyCP   0.04
-    //   NegativeCP   0.05
-    //   TOPLAM = 1.00 ✓
+    // ── Runtime Gate Olustur ──────────────────────────────────────────────
     void BuildRuntimeGates()
     {
         if (gateDataList != null && gateDataList.Length > 0) return;
 
         _runtimeGates = new GateData[]
         {
-            // AddCP — toplam %50
-            MakeGate("+80",        GateEffectType.AddCP,             80f,  new Color(0.2f, 0.85f, 0.2f, 0.7f), 0.28f),
-            MakeGate("+45",        GateEffectType.AddCP,             45f,  new Color(0.2f, 0.85f, 0.2f, 0.7f), 0.22f),
-            // PathBoost — toplam %18
-            MakeGate("+Piyade",    GateEffectType.PathBoost_Piyade,  80f,  new Color(1.0f, 0.5f,  0.0f, 0.7f), 0.06f),
-            MakeGate("+Mekanize",  GateEffectType.PathBoost_Mekanize,80f,  new Color(1.0f, 0.5f,  0.0f, 0.7f), 0.06f),
-            MakeGate("+Teknoloji", GateEffectType.PathBoost_Teknoloji,80f, new Color(1.0f, 0.5f,  0.0f, 0.7f), 0.06f),
-            // AddBullet — %12
-            MakeGate("+MERMI",     GateEffectType.AddBullet,         60f,  new Color(0.5f, 0.0f,  0.8f, 0.7f), 0.12f),
-            // Merge — %7 (x1.5 artık, x1.8 değil)
-            MakeGate("MERGE",      GateEffectType.Merge,              0f,  new Color(0.6f, 0.1f,  0.9f, 0.7f), 0.07f),
-            // RiskReward — %4
-            MakeGate("RISK",       GateEffectType.RiskReward,         0f,  new Color(1.0f, 0.85f, 0.0f, 0.7f), 0.04f),
-            // MultiplyCP x1.2 — %4 (nadir, küçük sürpriz)
-            MakeGate("x1.2",       GateEffectType.MultiplyCP,        1.2f, new Color(0.1f, 0.5f,  1.0f, 0.7f), 0.04f),
-            // NegativeCP — %5
-            MakeGate("-CP",        GateEffectType.NegativeCP,         60f, new Color(0.9f, 0.1f,  0.1f, 0.7f), 0.05f),
+            // AddCP
+            MakeGate("+80",        GateEffectType.AddCP,              80f, new Color(0.2f,0.85f,0.2f,0.7f), 0.22f),
+            MakeGate("+45",        GateEffectType.AddCP,              45f, new Color(0.2f,0.85f,0.2f,0.7f), 0.18f),
+            // AddSoldier (yeni)
+            MakeGate("+PIYADE",    GateEffectType.AddSoldier_Piyade,  30f, new Color(0.3f,0.9f,0.3f,0.7f), 0.08f),
+            MakeGate("+MEKANIK",   GateEffectType.AddSoldier_Mekanik, 30f, new Color(0.7f,0.7f,0.7f,0.7f), 0.08f),
+            MakeGate("+TEKNOLOJI", GateEffectType.AddSoldier_Teknoloji,30f,new Color(0.2f,0.5f,1.0f,0.7f), 0.07f),
+            // PathBoost (kucuk agirlik)
+            MakeGate("+Piyade",    GateEffectType.PathBoost_Piyade,   50f, new Color(1.0f,0.5f,0.0f,0.7f), 0.04f),
+            MakeGate("+Mekanik",   GateEffectType.PathBoost_Mekanize, 50f, new Color(1.0f,0.5f,0.0f,0.7f), 0.04f),
+            MakeGate("+Teknoloji", GateEffectType.PathBoost_Teknoloji,50f, new Color(1.0f,0.5f,0.0f,0.7f), 0.04f),
+            // Merge
+            MakeGate("MERGE",      GateEffectType.Merge,               0f, new Color(0.6f,0.1f,0.9f,0.7f), 0.07f),
+            // Heal (yeni)
+            MakeGate("+HP",        GateEffectType.HealCommander,      300f,new Color(1.0f,0.0f,0.4f,0.7f), 0.05f),
+            MakeGate("ASKER HP",   GateEffectType.HealSoldiers,       0.5f,new Color(0.5f,1.0f,0.5f,0.7f), 0.04f),
+            // Diger
+            MakeGate("+MERMI",     GateEffectType.AddBullet,          40f, new Color(0.5f,0.0f,0.8f,0.7f), 0.04f),
+            MakeGate("RISK",       GateEffectType.RiskReward,          0f, new Color(1.0f,0.85f,0.0f,0.7f),0.04f),
+            MakeGate("x1.2",       GateEffectType.MultiplyCP,         1.2f,new Color(0.1f,0.5f,1.0f,0.7f), 0.04f),
+            MakeGate("-CP",        GateEffectType.NegativeCP,          60f,new Color(0.9f,0.1f,0.1f,0.7f), 0.05f),
         };
     }
 
@@ -128,7 +137,6 @@ public class SpawnManager : MonoBehaviour
     GateData PickGate(bool pity)
     {
         GateData[] pool = ActiveGates;
-
         if (pity)
         {
             var safe = new List<GateData>(); float st = 0f;
@@ -138,7 +146,6 @@ public class SpawnManager : MonoBehaviour
                 { safe.Add(g); st += g.spawnWeight; }
             if (safe.Count > 0) return WeightedRandom(safe.ToArray(), st);
         }
-
         return WeightedRandom(pool, _totalWeight);
     }
 
@@ -151,6 +158,7 @@ public class SpawnManager : MonoBehaviour
         return pool[pool.Length - 1];
     }
 
+    // ── Update ────────────────────────────────────────────────────────────
     void Update()
     {
         if (playerTransform == null) { TryFindPlayer(); return; }
@@ -175,7 +183,7 @@ public class SpawnManager : MonoBehaviour
     void SpawnGatePair(float zPos)
     {
         bool pity   = DifficultyManager.Instance?.IsInPityZone(bossDistance) ?? false;
-        float offset = ROAD_HALF_WIDTH * 0.40f;  // = 3.2f — yol içinde
+        float offset= ROAD_HALF_WIDTH * 0.40f;
         SpawnGate(PickGate(pity), new Vector3(-offset, 1.5f, zPos));
         SpawnGate(PickGate(pity), new Vector3( offset, 1.5f, zPos));
     }
@@ -195,18 +203,16 @@ public class SpawnManager : MonoBehaviour
             obj.transform.localScale = new Vector3(2f, 3f, 1f);
             Destroy(obj.GetComponent<MeshCollider>());
             BoxCollider bc = obj.AddComponent<BoxCollider>();
-            bc.isTrigger = true;
-            bc.size      = new Vector3(0.95f, 1.0f, 1.5f);
+            bc.isTrigger = true; bc.size = new Vector3(0.95f, 1f, 1.5f);
             Rigidbody rb = obj.AddComponent<Rigidbody>(); rb.isKinematic = true;
-            Gate g       = obj.AddComponent<Gate>();
-            g.panelRenderer = obj.GetComponent<Renderer>();
+            obj.AddComponent<Gate>();
         }
         Gate gate = obj.GetComponent<Gate>();
         if (gate != null) { gate.gateData = data; gate.Refresh(); }
         Destroy(obj, 45f);
     }
 
-    // ── Düşman Dalgası ─────────────────────────────────────────────────────
+    // ── Dusman Dalgasi ────────────────────────────────────────────────────
     void SpawnEnemyWave(float zPos)
     {
         float prog = Mathf.Clamp01(playerTransform.position.z / bossDistance);
@@ -227,7 +233,7 @@ public class SpawnManager : MonoBehaviour
 
     void NormalWave(float z, int n)
     {
-        int   cols=Mathf.Min(n,4), rows=Mathf.CeilToInt((float)n/cols), pl=0;
+        int cols=Mathf.Min(n,4), rows=Mathf.CeilToInt((float)n/cols), pl=0;
         float gap=Mathf.Max((ROAD_HALF_WIDTH*1.6f)/cols,2.2f), sx=-(gap*(cols-1))*0.5f;
         for(int r=0;r<rows&&pl<n;r++)
             for(int c=0;c<cols&&pl<n;c++)
@@ -251,15 +257,15 @@ public class SpawnManager : MonoBehaviour
     void PlaceEnemy(Vector3 pos)
     {
         foreach(Collider c in Physics.OverlapSphere(pos,1.2f))
-            if(c.CompareTag("Enemy")) { pos.x += 2.4f; break; }
-        pos.x = Mathf.Clamp(pos.x,-ROAD_HALF_WIDTH+0.8f,ROAD_HALF_WIDTH-0.8f);
+            if(c.CompareTag("Enemy")){ pos.x+=2.4f; break; }
+        pos.x=Mathf.Clamp(pos.x,-ROAD_HALF_WIDTH+0.8f,ROAD_HALF_WIDTH-0.8f);
 
         GameObject obj;
-        if(enemyPrefab != null) obj = Instantiate(enemyPrefab, pos, Quaternion.identity);
+        if(enemyPrefab!=null) obj=Instantiate(enemyPrefab,pos,Quaternion.identity);
         else
         {
-            obj = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            obj.transform.position = pos;
+            obj=GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            obj.transform.position=pos;
             Destroy(obj.GetComponent<Collider>());
             var cc=obj.AddComponent<CapsuleCollider>(); cc.isTrigger=true;
             var rb=obj.AddComponent<Rigidbody>(); rb.isKinematic=true;

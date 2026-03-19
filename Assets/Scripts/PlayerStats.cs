@@ -1,78 +1,112 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Veri Merkezi v4
+/// Top End War — Oyuncu Veri Merkezi v5 (Claude)
 ///
-/// MERGE DÜZELTMESİ:
-///   Path yoksa:      x1.1 (çok küçük bonus — yanlış kapıya girme cezası)
-///   Path var ama <%50: x1.2 (biraz bonus)
-///   Bir path >= %50: x1.5 (stratejik ödül)
-///   Perfect Genetics: x1.7 + sinerji mesajı
+/// v5 DEGISIKLIKLER:
+///   - CommanderHP sistemi eklendi (CP'den BAGIMSIZ)
+///   - TakeContactDamage artik CommanderHP'yi dusuruyor, CP'yi degil
+///   - Yeni gate tipleri: AddSoldier_*, HealCommander, HealSoldiers
+///   - PathBoost_* hala calisir (geriye donuk uyum)
+///   - AddBullet legacy korundu (BulletCount arttirır, AddSoldier_Piyade gibi davranır)
 ///
-///   Bu sayede Merge kapısı:
-///   → PathBoost kapılarını önceden geçmek anlamlı hale geliyor
-///   → "Beynini kullan" mekaniği çalışıyor
+/// UNITY NOTU:
+///   - [DefaultExecutionOrder(-10)] — Start'ta PlayerStats.Instance hazir olmali
+///   - Player GameObject'e ekle, tag "Player" olmali
 /// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance { get; private set; }
 
-    [Header("Başlangıç")]
+    // ── Inspector Ayarlari ───────────────────────────────────────────────
+    [Header("Baslangic CP")]
     public int   startCP               = 200;
     public float invincibilityDuration = 0.8f;
 
-    public int   CP              { get; private set; }
-    public int   CurrentTier     { get; private set; } = 1;
-    public int   BulletCount     { get; private set; } = 1;
-    public float PiyadePath      { get; private set; } = 0f;
-    public float MekanizePath    { get; private set; } = 0f;
-    public float TeknolojiPath   { get; private set; } = 0f;
+    // ── CP + Tier ─────────────────────────────────────────────────────────
+    public int   CP           { get; private set; }
+    public int   CurrentTier  { get; private set; } = 1;
+    public int   BulletCount  { get; private set; } = 1;   // Komutan spread
+
+    // ── Path skorlari (PathBoost kapilari icin) ───────────────────────────
+    public float PiyadePath    { get; private set; } = 0f;
+    public float MekanizePath  { get; private set; } = 0f;
+    public float TeknolojiPath { get; private set; } = 0f;
+
+    // ── Komutan HP (v5 — CP'den bagimsiz) ────────────────────────────────
+    public int CommanderMaxHP { get; private set; } = 500;
+    public int CommanderHP    { get; private set; } = 500;
+
+    // ── DDA (DifficultyManager icin) ─────────────────────────────────────
     public float SmoothedPowerRatio { get; private set; } = 1f;
 
-    float _lastDmgTime   = -99f;
-    int   _riskBonusLeft = 0;
-    float _expectedCP    = 200f;
+    // ── Dahili ────────────────────────────────────────────────────────────
+    float _lastDmgTime    = -99f;
+    int   _riskBonusLeft  = 0;
+    float _expectedCP     = 200f;
 
     static readonly int[]    TIER_CP    = { 0, 500, 1500, 4000, 9000 };
     static readonly string[] TIER_NAMES =
         { "Gonullu Er", "Elit Komando", "Gatling Timi", "Hava Indirme", "Suru Drone" };
-    const int MAX_BULLETS = 5;
+    // Komutan max HP tier'e gore (RefreshTier'da guncellenir)
+    static readonly int[]    COMMANDER_HP_BY_TIER = { 500, 700, 950, 1200, 1500 };
+    const  int MAX_BULLETS = 5;
 
+    // ─────────────────────────────────────────────────────────────────────
     void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
         Instance = this;
-        CP = startCP;
+        CP           = startCP;
+        CommanderMaxHP = COMMANDER_HP_BY_TIER[0];
+        CommanderHP    = CommanderMaxHP;
     }
 
-    void Start() => GameEvents.OnCPUpdated?.Invoke(CP);
+    void Start()
+    {
+        GameEvents.OnCPUpdated?.Invoke(CP);
+        GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
+    }
 
-    // ── Düşman çarpma ──────────────────────────────────────────────────────
+    // ── Komutan Hasar Alma (v5) ───────────────────────────────────────────
+    /// <summary>
+    /// Dusman temasinda veya boss saldirısında cagrilir.
+    /// CP ARTIK DUSMEZ — sadece CommanderHP azalir.
+    /// </summary>
     public void TakeContactDamage(int amount)
     {
         if (Time.time - _lastDmgTime < invincibilityDuration) return;
         _lastDmgTime = Time.time;
-        int oldTier = CurrentTier;
-        CP = Mathf.Max(50, CP - amount);
-        RefreshTier();
-        GameEvents.OnPlayerDamaged?.Invoke(amount);
-        GameEvents.OnCPUpdated?.Invoke(CP);
-        if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
-        if (CP <= 50) GameEvents.OnGameOver?.Invoke();
+
+        CommanderHP = Mathf.Max(0, CommanderHP - amount);
+        GameEvents.OnCommanderDamaged?.Invoke(amount, CommanderHP);
+        GameEvents.OnPlayerDamaged?.Invoke(amount);   // hasar flash icin
+        GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
+
+        if (CommanderHP <= 0) GameEvents.OnGameOver?.Invoke();
     }
 
-    // ── Kill ödülü ─────────────────────────────────────────────────────────
+    /// <summary>Komutan HP'yi yeniler (HealCommander kapisi).</summary>
+    public void HealCommander(int amount)
+    {
+        CommanderHP = Mathf.Min(CommanderMaxHP, CommanderHP + amount);
+        GameEvents.OnCommanderHealed?.Invoke(CommanderHP);
+        GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
+        Debug.Log($"[Commander] Heal +{amount} → {CommanderHP}/{CommanderMaxHP}");
+    }
+
+    // ── Kill Odulu ───────────────────────────────────────────────────────
     public void AddCPFromKill(int amount)
     {
         int oldTier = CurrentTier;
         CP = Mathf.Min(CP + amount, 99999);
         RefreshTier();
         GameEvents.OnCPUpdated?.Invoke(CP);
-        if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
+        if (CurrentTier != oldTier) OnTierChanged();
     }
 
-    // ── Kapı etkisi ────────────────────────────────────────────────────────
+    // ── Kapi Etkisi ──────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
         if (data == null) return;
@@ -83,6 +117,7 @@ public class PlayerStats : MonoBehaviour
 
         switch (data.effectType)
         {
+            // ── Var olan kapı tipleri ────────────────────────────────────
             case GateEffectType.AddCP:
                 CP += Mathf.RoundToInt(data.effectValue * scale * bonus);
                 break;
@@ -91,14 +126,15 @@ public class PlayerStats : MonoBehaviour
                 CP = Mathf.RoundToInt(CP * 1.2f);
                 break;
 
+            // AddBullet: eski sahnelerle uyumluluk — artık piyade asker de ekler
             case GateEffectType.AddBullet:
                 if (BulletCount < MAX_BULLETS)
                 {
                     BulletCount++;
                     GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
-                    Debug.Log("[Player] Mermi: " + BulletCount);
                 }
                 CP += Mathf.RoundToInt(data.effectValue * scale * bonus);
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade);
                 break;
 
             case GateEffectType.Merge:
@@ -107,14 +143,14 @@ public class PlayerStats : MonoBehaviour
 
             case GateEffectType.PathBoost_Piyade:
                 CP        += Mathf.RoundToInt(data.effectValue * scale * bonus);
-                PiyadePath += 1f;
+                PiyadePath+= 1f;
                 GameEvents.OnPathBoosted?.Invoke("Piyade");
                 break;
 
             case GateEffectType.PathBoost_Mekanize:
                 CP          += Mathf.RoundToInt(data.effectValue * scale * bonus);
-                MekanizePath += 1f;
-                GameEvents.OnPathBoosted?.Invoke("Mekanize");
+                MekanizePath+= 1f;
+                GameEvents.OnPathBoosted?.Invoke("Mekanik");
                 break;
 
             case GateEffectType.PathBoost_Teknoloji:
@@ -133,15 +169,42 @@ public class PlayerStats : MonoBehaviour
                 _riskBonusLeft = 3;
                 GameEvents.OnRiskBonusActivated?.Invoke(_riskBonusLeft);
                 break;
+
+            // ── v3 Yeni Kapi Tipleri ─────────────────────────────────────
+            case GateEffectType.AddSoldier_Piyade:
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade, count: 2);
+                CP += Mathf.RoundToInt(data.effectValue * scale * bonus);
+                break;
+
+            case GateEffectType.AddSoldier_Mekanik:
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Mekanik, count: 2);
+                CP += Mathf.RoundToInt(data.effectValue * scale * bonus);
+                break;
+
+            case GateEffectType.AddSoldier_Teknoloji:
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Teknoloji, count: 2);
+                CP += Mathf.RoundToInt(data.effectValue * scale * bonus);
+                break;
+
+            case GateEffectType.HealCommander:
+                HealCommander(Mathf.RoundToInt(data.effectValue));
+                break;
+
+            case GateEffectType.HealSoldiers:
+                float healPct = Mathf.Clamp(data.effectValue, 0f, 1f);
+                ArmyManager.Instance?.HealAll(healPct);
+                ShowPopupMessage($"ASKER +%{Mathf.RoundToInt(healPct * 100)}");
+                break;
         }
 
-        // Risk bonus sayacı (negatif ve risk kapıları saymaz)
+        // Risk bonus sayaci
         if (_riskBonusLeft > 0 &&
             data.effectType != GateEffectType.NegativeCP &&
             data.effectType != GateEffectType.RiskReward)
         {
             _riskBonusLeft--;
-            if (_riskBonusLeft > 0) GameEvents.OnRiskBonusActivated?.Invoke(_riskBonusLeft);
+            if (_riskBonusLeft > 0)
+                GameEvents.OnRiskBonusActivated?.Invoke(_riskBonusLeft);
         }
 
         CP = Mathf.Clamp(CP, 50, 99999);
@@ -149,74 +212,66 @@ public class PlayerStats : MonoBehaviour
         RefreshTier();
         CheckSynergy();
         GameEvents.OnCPUpdated?.Invoke(CP);
-        if (CurrentTier != oldTier) GameEvents.OnTierChanged?.Invoke(CurrentTier);
-        if (BulletCount != oldBullet) GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
+
+        if (CurrentTier != oldTier) OnTierChanged();
+        if (BulletCount != oldBullet)
+            GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
     }
 
-    // ── Merge: STRATEJİK (path bazlı) ─────────────────────────────────────
-    //
-    // MANTIK:
-    //   Merge kapısı tek başına anlamsız — önceki PathBoost kapıları
-    //   onunla birlikte anlam kazanır. Oyuncu farkında olmadan
-    //   "path biriktiriyorum → merge = büyük ödül" mantığına giriyor.
-    //
-    //   Path yoksa    → x1.1  (minimum bonus — yanlış seçim)
-    //   Karma path    → x1.2  (biraz topladın ama odaklanmadın)
-    //   Dominant path → x1.5  (odaklandın, ödüllendiriliyorsun)
-    //   Perfect       → x1.7  (3 path dengeli — çok zor, büyük ödül)
-    //
+    // ── Merge: path-bazli carpan ─────────────────────────────────────────
     void HandleMerge()
     {
+        // Asker merge (yeni sistem)
+        bool mergeOccurred = ArmyManager.Instance != null &&
+                             ArmyManager.Instance.TryMerge();
+
+        // CP carpani (eski+yeni birlikte calisir)
         float total = PiyadePath + MekanizePath + TeknolojiPath;
         float multiplier;
         string role = "none";
 
         if (total < 1f)
         {
-            // Path yok — minimum bonus
             multiplier = 1.1f;
-            Debug.Log("[Merge] Path yok → x1.1 (PathBoost kapılarına gir!)");
         }
         else
         {
             float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
             float minPath = Mathf.Min(p, Mathf.Min(m, t));
-
             if (minPath > 0.28f)
             {
-                // Perfect Genetics — 3 path dengeli
-                multiplier = 1.7f;
-                role = "PERFECT";
-                Debug.Log("[Merge] PERFECT GENETICS → x1.7!");
+                multiplier = 1.7f; role = "PERFECT";
+                GameEvents.OnSynergyFound?.Invoke("PERFECT GENETICS!");
             }
             else if (t >= 0.5f) { multiplier = 1.5f; role = "Teknoloji"; }
             else if (p >= 0.5f) { multiplier = 1.5f; role = "Piyade"; }
-            else if (m >= 0.5f) { multiplier = 1.5f; role = "Mekanize"; }
-            else
-            {
-                // Karma path ama dominant yok
-                multiplier = 1.2f;
-                Debug.Log("[Merge] Karma path → x1.2");
-            }
+            else if (m >= 0.5f) { multiplier = 1.5f; role = "Mekanik"; }
+            else                { multiplier = 1.2f; }
         }
 
         CP = Mathf.RoundToInt(CP * multiplier);
-
-        if (role != "none" && role != "PERFECT")
-        {
-            Debug.Log("[Merge] " + role + " dominant → x1.5, CP: " + CP);
-            PiyadePath = MekanizePath = TeknolojiPath = 0f; // Skor sıfırla
-        }
-        else if (role == "PERFECT")
-        {
-            PiyadePath = MekanizePath = TeknolojiPath = 0f;
-            GameEvents.OnSynergyFound?.Invoke("PERFECT GENETICS!");
-        }
-
+        if (role != "none") PiyadePath = MekanizePath = TeknolojiPath = 0f;
         GameEvents.OnMergeTriggered?.Invoke();
+
+        Debug.Log($"[Merge] CP x{multiplier} | Asker merge: {mergeOccurred}");
     }
 
-    // ── DDA ───────────────────────────────────────────────────────────────
+    // ── Tier Degisimi ─────────────────────────────────────────────────────
+    void OnTierChanged()
+    {
+        // Komutan max HP'yi guncelle (HP eksik dusmesin — fark kadar ekle)
+        int oldMax = CommanderMaxHP;
+        CommanderMaxHP = COMMANDER_HP_BY_TIER[Mathf.Clamp(CurrentTier - 1, 0, 4)];
+        if (CommanderMaxHP > oldMax)
+        {
+            int bonus = CommanderMaxHP - oldMax;
+            CommanderHP = Mathf.Min(CommanderMaxHP, CommanderHP + bonus);
+        }
+        GameEvents.OnTierChanged?.Invoke(CurrentTier);
+        GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
+    }
+
+    // ── DDA Yardimcilari ─────────────────────────────────────────────────
     public void SetExpectedCP(float e)
     {
         _expectedCP = Mathf.Max(1f, e);
@@ -233,17 +288,22 @@ public class PlayerStats : MonoBehaviour
         CurrentTier = 1;
     }
 
+    // ── Sinerji ──────────────────────────────────────────────────────────
     void CheckSynergy()
     {
         float total = PiyadePath + MekanizePath + TeknolojiPath;
-        if (total < 2f) return; // En az 2 PathBoost geçilmeli
+        if (total < 2f) return;
         float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
-
-        if (p > 0.5f && m > 0.25f)  GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu");
+        if      (p > 0.5f && m > 0.25f) GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu");
         else if (p > 0.5f && t > 0.25f) GameEvents.OnSynergyFound?.Invoke("Drone Takimi");
-        else if (m > 0.4f && t > 0.3f)  GameEvents.OnSynergyFound?.Invoke("Fuzyon Robotu");
+        else if (m > 0.4f && t > 0.30f) GameEvents.OnSynergyFound?.Invoke("Fuzyon Robotu");
     }
 
+    // ── Popup yardimci (HUD yok olabilir) ────────────────────────────────
+    void ShowPopupMessage(string msg)
+        => GameEvents.OnSynergyFound?.Invoke(msg); // HUD popup bunu yakaliyor
+
+    // ── Getterlar ─────────────────────────────────────────────────────────
     public string GetTierName()  => TIER_NAMES[Mathf.Clamp(CurrentTier - 1, 0, 4)];
     public int    GetRiskBonus() => _riskBonusLeft;
 }
