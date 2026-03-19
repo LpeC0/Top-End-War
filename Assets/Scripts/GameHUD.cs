@@ -4,17 +4,17 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Top End War — HUD v7 (Claude)
+/// Top End War — HUD v8 (Claude)
 ///
-/// v7: Komutan HP bar + Asker sayisi gostergesi eklendi.
+/// v8 DÜZELTMELER:
+///   - CommanderHP Slider fill rect düzgün oluşturuluyor (v7'de bozuktu)
+///   - Slider hierarchy: Bar BG → FillArea → Fill (Unity standart yapısı)
+///   - SoldierCountText sol üstte, net okunur
 ///
 /// UNITY KURULUM:
-///   Canvas -> HUDPanel -> GameHUD.cs ekle.
-///   Yeni referanslar (opsiyonel, bos birakilabilir):
-///     commanderHPSlider  : Slider (komutan HP bar)
-///     commanderHPText    : TMP text (orn: "950/950")
-///     soldierCountText   : TMP text (orn: "Asker: 12/20")
-///   Boş birakilırsa kod kendi minimal UI'ini olusturur.
+///   Canvas → HUDPanel → GameHUD bileşeni zaten bağlı.
+///   Inspector'da commanderHPSlider / commanderHPText / soldierCountText
+///   referanslarını bağlayabilirsin VEYA boş bırak (auto-build çalışır).
 /// </summary>
 public class GameHUD : MonoBehaviour
 {
@@ -27,69 +27,64 @@ public class GameHUD : MonoBehaviour
     public Slider mekanizeBar;
     public Slider teknolojiBar;
 
-    [Header("Popup / Sinerjisi")]
+    [Header("Popup / Sinerji")]
     public TextMeshProUGUI popupText;
     public TextMeshProUGUI synergyText;
 
     [Header("Hasar Flash")]
     public Image damageFlashImage;
 
-    [Header("Komutan HP (v7 — opsiyonel)")]
-    public Slider             commanderHPSlider;
-    public TextMeshProUGUI    commanderHPText;
+    [Header("Komutan HP (opsiyonel — bos birakilabilir)")]
+    public Slider          commanderHPSlider;
+    public TextMeshProUGUI commanderHPText;
 
-    [Header("Asker Sayisi (v7 — opsiyonel)")]
-    public TextMeshProUGUI    soldierCountText;
+    [Header("Asker Sayisi (opsiyonel)")]
+    public TextMeshProUGUI soldierCountText;
 
-    // Oto-olusturulan
     bool _autoBuilt = false;
     int  _lastCP    = 0;
 
     void Start()
     {
         if (PlayerStats.Instance == null)
-        { Debug.LogError("GameHUD: PlayerStats bulunamadi!"); return; }
+        { Debug.LogError("GameHUD: PlayerStats yok!"); return; }
 
         if (cpText == null || tierText == null) AutoBuildHUD();
 
-        // Event abone olma
-        GameEvents.OnCPUpdated           += OnCPUpdated;
-        GameEvents.OnTierChanged         += OnTierChanged;
-        GameEvents.OnSynergyFound        += OnSynergy;
-        GameEvents.OnPlayerDamaged       += OnPlayerDamaged;
-        GameEvents.OnRiskBonusActivated  += OnRiskBonus;
-        GameEvents.OnBulletCountChanged  += OnBulletCount;
-        // v7
-        GameEvents.OnCommanderHPChanged  += OnCommanderHP;
-        GameEvents.OnSoldierAdded        += OnSoldierCount;
-        GameEvents.OnSoldierRemoved      += OnSoldierCount;
+        GameEvents.OnCPUpdated          += OnCPUpdated;
+        GameEvents.OnTierChanged        += OnTierChanged;
+        GameEvents.OnSynergyFound       += OnSynergy;
+        GameEvents.OnPlayerDamaged      += OnPlayerDamaged;
+        GameEvents.OnRiskBonusActivated += OnRiskBonus;
+        GameEvents.OnBulletCountChanged += OnBulletCount;
+        GameEvents.OnCommanderHPChanged += OnCommanderHP;
+        GameEvents.OnSoldierAdded       += OnSoldierCount;
+        GameEvents.OnSoldierRemoved     += OnSoldierCount;
 
-        // Ilk degerler
         _lastCP = PlayerStats.Instance.CP;
         if (cpText)   cpText.text   = PlayerStats.Instance.CP.ToString("N0");
         if (tierText) tierText.text = "TIER 1 | " + PlayerStats.Instance.GetTierName();
+        if (damageFlashImage) damageFlashImage.color = new Color(1,0,0,0);
 
-        if (damageFlashImage) damageFlashImage.color = new Color(1, 0, 0, 0);
-
-        // Komutan HP bar ilk deger
-        OnCommanderHP(PlayerStats.Instance.CommanderHP,
-                      PlayerStats.Instance.CommanderMaxHP);
+        // Komutan HP bar ilk değer
+        OnCommanderHP(PlayerStats.Instance.CommanderHP, PlayerStats.Instance.CommanderMaxHP);
+        if (soldierCountText) soldierCountText.text = "Asker: 0/20";
     }
 
     void OnDestroy()
     {
-        GameEvents.OnCPUpdated           -= OnCPUpdated;
-        GameEvents.OnTierChanged         -= OnTierChanged;
-        GameEvents.OnSynergyFound        -= OnSynergy;
-        GameEvents.OnPlayerDamaged       -= OnPlayerDamaged;
-        GameEvents.OnRiskBonusActivated  -= OnRiskBonus;
-        GameEvents.OnBulletCountChanged  -= OnBulletCount;
-        GameEvents.OnCommanderHPChanged  -= OnCommanderHP;
-        GameEvents.OnSoldierAdded        -= OnSoldierCount;
-        GameEvents.OnSoldierRemoved      -= OnSoldierCount;
+        GameEvents.OnCPUpdated          -= OnCPUpdated;
+        GameEvents.OnTierChanged        -= OnTierChanged;
+        GameEvents.OnSynergyFound       -= OnSynergy;
+        GameEvents.OnPlayerDamaged      -= OnPlayerDamaged;
+        GameEvents.OnRiskBonusActivated -= OnRiskBonus;
+        GameEvents.OnBulletCountChanged -= OnBulletCount;
+        GameEvents.OnCommanderHPChanged -= OnCommanderHP;
+        GameEvents.OnSoldierAdded       -= OnSoldierCount;
+        GameEvents.OnSoldierRemoved     -= OnSoldierCount;
     }
 
-    // ── Oto HUD olustur ──────────────────────────────────────────────────
+    // ── AUTO BUILD ────────────────────────────────────────────────────────
     void AutoBuildHUD()
     {
         Canvas canvas = FindFirstObjectByType<Canvas>();
@@ -98,60 +93,95 @@ public class GameHUD : MonoBehaviour
             var go = new GameObject("AutoCanvas");
             canvas = go.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            go.AddComponent<CanvasScaler>();
-            go.AddComponent<GraphicRaycaster>();
+            go.AddComponent<CanvasScaler>(); go.AddComponent<GraphicRaycaster>();
         }
 
-        if (cpText   == null) cpText   = CreateText(canvas.gameObject, "CP", new Vector2(0.5f, 1f), new Vector2(0, -35), 36, Color.white);
-        if (tierText == null) tierText = CreateText(canvas.gameObject, "TIER 1", new Vector2(0.5f, 1f), new Vector2(0, -75), 26, Color.yellow);
-        if (popupText == null) popupText = CreateText(canvas.gameObject, "", new Vector2(0.5f, 0.5f), new Vector2(0, 60), 40, Color.cyan);
+        if (cpText   == null) cpText   = MakeText(canvas.gameObject, "CP", new Vector2(0.5f,1f), new Vector2(0,-35),  36, Color.white);
+        if (tierText == null) tierText = MakeText(canvas.gameObject, "TIER 1", new Vector2(0.5f,1f), new Vector2(0,-75), 26, Color.yellow);
+        if (popupText== null) popupText= MakeText(canvas.gameObject, "", new Vector2(0.5f,0.5f), new Vector2(0,60), 40, Color.cyan);
 
-        // Komutan HP bar (otomatik)
+        // ── Komutan HP Bar ────────────────────────────────────────────────
+        // Unity Slider standart yapısı: Slider → Background + Fill Area → Fill
         if (commanderHPSlider == null)
-        {
-            var slGo = new GameObject("CommanderHPBar");
-            slGo.transform.SetParent(canvas.transform, false);
-            var sl = slGo.AddComponent<Slider>();
-            sl.interactable = false;
-            sl.minValue = 0; sl.maxValue = 1; sl.value = 1;
-            var r = slGo.GetComponent<RectTransform>();
-            r.anchorMin = new Vector2(0.1f, 0.94f);
-            r.anchorMax = new Vector2(0.9f, 0.98f);
-            r.offsetMin = r.offsetMax = Vector2.zero;
-            // Fill image
-            var bg  = CreateSliderBg(slGo);
-            var fill= CreateSliderFill(slGo, new Color(0.2f, 0.8f, 0.2f));
-            sl.fillRect = fill.GetComponent<RectTransform>();
-            commanderHPSlider = sl;
-        }
+            commanderHPSlider = BuildHPBar(canvas,
+                new Vector2(0.05f, 0.94f), new Vector2(0.75f, 0.99f),
+                new Color(0.2f, 0.8f, 0.2f), "KomutanHP");
 
-        // Asker sayisi text
+        // HP text (slider'ın yanında)
+        if (commanderHPText == null)
+            commanderHPText = MakeText(canvas.gameObject, "HP",
+                new Vector2(0.77f, 0.965f), Vector2.zero, 18, Color.white);
+
+        // ── Asker Sayısı ──────────────────────────────────────────────────
         if (soldierCountText == null)
-            soldierCountText = CreateText(canvas.gameObject, "Asker: 0/20",
-                new Vector2(0f, 1f), new Vector2(10, -30), 20, Color.white);
+            soldierCountText = MakeText(canvas.gameObject, "Asker: 0/20",
+                new Vector2(0.0f, 0.93f), new Vector2(80, 0), 20, new Color(0.9f,0.9f,0.9f));
 
-        // Hasar flash
+        // ── Hasar Flash ───────────────────────────────────────────────────
         if (damageFlashImage == null)
         {
-            var flashGo = new GameObject("DamageFlash");
-            flashGo.transform.SetParent(canvas.transform, false);
-            damageFlashImage = flashGo.AddComponent<Image>();
-            damageFlashImage.color = new Color(1, 0, 0, 0);
+            var fg = new GameObject("DamageFlash");
+            fg.transform.SetParent(canvas.transform, false);
+            damageFlashImage = fg.AddComponent<Image>();
+            damageFlashImage.color = new Color(1,0,0,0);
             damageFlashImage.raycastTarget = false;
-            var fr = flashGo.GetComponent<RectTransform>();
+            var fr = fg.GetComponent<RectTransform>();
             fr.anchorMin = Vector2.zero; fr.anchorMax = Vector2.one;
             fr.offsetMin = fr.offsetMax = Vector2.zero;
         }
 
         _autoBuilt = true;
-        Debug.Log("[GameHUD v7] Oto HUD olusturuldu.");
+        Debug.Log("[GameHUD v8] AutoBuild tamamlandi.");
     }
 
-    // ── Event Handler'lar ─────────────────────────────────────────────────
+    /// <summary>
+    /// Unity Slider standart hiyerarşisini elle oluşturur:
+    ///   Slider root → Background → Fill Area → Fill → Handle Slide Area → Handle
+    /// Fill Rect doğru şekilde atanır — bu v7'deki hatanın düzeltmesi.
+    /// </summary>
+    Slider BuildHPBar(Canvas canvas, Vector2 anchorMin, Vector2 anchorMax,
+                      Color fillColor, string name)
+    {
+        // Root
+        var root = new GameObject(name);
+        root.transform.SetParent(canvas.transform, false);
+        var sl = root.AddComponent<Slider>();
+        sl.interactable = false;
+        sl.minValue = 0f; sl.maxValue = 1f; sl.value = 1f;
+        var rootR = root.GetComponent<RectTransform>();
+        rootR.anchorMin = anchorMin; rootR.anchorMax = anchorMax;
+        rootR.offsetMin = rootR.offsetMax = Vector2.zero;
+
+        // Background
+        var bg = new GameObject("Background"); bg.transform.SetParent(root.transform, false);
+        var bgImg = bg.AddComponent<Image>(); bgImg.color = new Color(0.08f,0.08f,0.08f,0.88f);
+        StretchRect(bg.GetComponent<RectTransform>());
+
+        // Fill Area
+        var fillArea = new GameObject("Fill Area"); fillArea.transform.SetParent(root.transform, false);
+        var faR = fillArea.GetComponent<RectTransform>() ?? fillArea.AddComponent<RectTransform>();
+        faR.anchorMin = new Vector2(0,0.25f); faR.anchorMax = new Vector2(1,0.75f);
+        faR.offsetMin = new Vector2(5,0); faR.offsetMax = new Vector2(-5,0);
+
+        // Fill
+        var fill = new GameObject("Fill"); fill.transform.SetParent(fillArea.transform, false);
+        var fillImg = fill.AddComponent<Image>(); fillImg.color = fillColor;
+        fillImg.type = Image.Type.Filled; fillImg.fillMethod = Image.FillMethod.Horizontal;
+        var fillR = fill.GetComponent<RectTransform>();
+        fillR.anchorMin = Vector2.zero; fillR.anchorMax = new Vector2(0,1);
+        fillR.sizeDelta  = new Vector2(10,0); fillR.anchoredPosition = Vector2.zero;
+
+        // Slider referanslari
+        sl.fillRect       = fillR;           // ← kritik satır, v7'de eksikti
+        sl.targetGraphic  = bgImg;
+
+        return sl;
+    }
+
+    // ── EVENT HANDLER'LAR ─────────────────────────────────────────────────
     void OnCPUpdated(int cp)
     {
-        var s = PlayerStats.Instance;
-        if (s == null) return;
+        var s = PlayerStats.Instance; if (s == null) return;
         if (cpText) cpText.text = cp.ToString("N0");
 
         float total = s.PiyadePath + s.MekanizePath + s.TeknolojiPath;
@@ -164,137 +194,105 @@ public class GameHUD : MonoBehaviour
 
         int delta = cp - _lastCP;
         if (delta != 0)
-            ShowPopup(delta > 0 ? "+" + delta : "" + delta,
-                      delta > 0 ? Color.cyan : Color.red);
+            ShowPopup(delta > 0 ? "+" + delta : "" + delta, delta > 0 ? Color.cyan : Color.red);
         _lastCP = cp;
     }
 
     void OnTierChanged(int tier)
     {
         var s = PlayerStats.Instance;
-        if (tierText && s != null)
-            tierText.text = $"TIER {tier} | {s.GetTierName()}";
+        if (tierText && s != null) tierText.text = $"TIER {tier} | {s.GetTierName()}";
         ShowPopup($"TIER {tier}!", Color.yellow);
     }
 
     void OnSynergy(string name)
     {
-        if (synergyText == null) { ShowPopup(name, new Color(1, 0.84f, 0)); return; }
+        if (synergyText == null) { ShowPopup(name, new Color(1,0.84f,0)); return; }
         StopCoroutine("HideSynergy");
-        synergyText.text = name;
-        synergyText.color = new Color(1, 0.84f, 0);
+        synergyText.text = name; synergyText.color = new Color(1,0.84f,0);
         StartCoroutine("HideSynergy");
     }
 
-    void OnRiskBonus(int remaining)
-        => ShowPopup($"RISK! +{remaining}", new Color(1, 0.85f, 0));
+    void OnRiskBonus(int r) => ShowPopup($"RISK! +{r}", new Color(1,0.85f,0));
 
     void OnPlayerDamaged(int _)
     {
-        if (damageFlashImage == null) return;
-        StopCoroutine("FlashDamage");
-        StartCoroutine("FlashDamage");
+        if (!damageFlashImage) return;
+        StopCoroutine("FlashDamage"); StartCoroutine("FlashDamage");
     }
 
-    void OnBulletCount(int count)
-        => ShowPopup($"MERMI +{count}", new Color(0.5f, 0f, 0.9f));
+    void OnBulletCount(int c) => ShowPopup($"+MERMI {c}", new Color(0.5f,0,0.9f));
 
-    // ── v7: Komutan HP ────────────────────────────────────────────────────
+    // ── KOMUTAN HP ────────────────────────────────────────────────────────
     void OnCommanderHP(int current, int max)
     {
-        if (commanderHPSlider) commanderHPSlider.value = max > 0 ? (float)current / max : 0f;
-        if (commanderHPText)   commanderHPText.text    = $"{current}/{max}";
+        float ratio = max > 0 ? (float)current / max : 0f;
 
-        // Slider rengi: HP durumuna gore
         if (commanderHPSlider)
         {
-            var fillImg = commanderHPSlider.fillRect?.GetComponent<Image>();
-            if (fillImg != null)
-            {
-                float ratio = max > 0 ? (float)current / max : 0f;
-                fillImg.color = ratio > 0.6f ? new Color(0.2f, 0.8f, 0.2f)
-                              : ratio > 0.3f ? new Color(1f, 0.7f, 0f)
-                              :                new Color(0.9f, 0.1f, 0.1f);
-            }
+            commanderHPSlider.value = ratio;
+
+            // Fill rengini güncelle
+            Image fillImg = commanderHPSlider.fillRect?.GetComponent<Image>();
+            if (fillImg)
+                fillImg.color = ratio > 0.6f ? new Color(0.2f,0.8f,0.2f)
+                              : ratio > 0.3f ? new Color(1f,0.7f,0f)
+                              :                new Color(0.9f,0.1f,0.1f);
         }
+
+        if (commanderHPText) commanderHPText.text = $"{current}/{max}";
     }
 
-    // ── v7: Asker Sayisi ─────────────────────────────────────────────────
+    // ── ASKER SAYISI ─────────────────────────────────────────────────────
     void OnSoldierCount(int count)
     {
-        if (soldierCountText)
-            soldierCountText.text = $"Asker: {count}/20";
+        if (soldierCountText) soldierCountText.text = $"Asker: {count}/20";
     }
 
-    // ── Coroutine'ler ────────────────────────────────────────────────────
+    // ── POPUP ─────────────────────────────────────────────────────────────
+    void ShowPopup(string msg, Color color)
+    {
+        if (!popupText) return;
+        StopCoroutine("HidePopup");
+        popupText.text = msg; popupText.color = color;
+        StartCoroutine("HidePopup");
+    }
+
     IEnumerator FlashDamage()
     {
-        damageFlashImage.color = new Color(1, 0, 0, 0.55f);
+        damageFlashImage.color = new Color(1,0,0,0.55f);
         float t = 0;
         while (t < 0.4f)
         {
             t += Time.deltaTime;
-            damageFlashImage.color = new Color(1, 0, 0, Mathf.Lerp(0.55f, 0, t / 0.4f));
+            damageFlashImage.color = new Color(1,0,0, Mathf.Lerp(0.55f,0,t/0.4f));
             yield return null;
         }
-        damageFlashImage.color = new Color(1, 0, 0, 0);
-    }
-
-    void ShowPopup(string msg, Color color)
-    {
-        if (popupText == null) return;
-        StopCoroutine("HidePopup");
-        popupText.text  = msg;
-        popupText.color = color;
-        StartCoroutine("HidePopup");
+        damageFlashImage.color = new Color(1,0,0,0);
     }
 
     IEnumerator HidePopup()   { yield return new WaitForSeconds(1.2f); if (popupText)   popupText.text   = ""; }
     IEnumerator HideSynergy() { yield return new WaitForSeconds(2.5f); if (synergyText) synergyText.text = ""; }
 
-    // ── Yardimci UI olusturucular ─────────────────────────────────────────
-    TextMeshProUGUI CreateText(GameObject parent, string text,
-        Vector2 anchor, Vector2 pos, float size, Color color)
+    // ── YARDIMCI ─────────────────────────────────────────────────────────
+    TextMeshProUGUI MakeText(GameObject parent, string txt, Vector2 anchor,
+                             Vector2 pos, float size, Color color)
     {
-        var obj = new GameObject("HUD_" + text.Substring(0, Mathf.Min(6, text.Length)));
+        var obj = new GameObject("HUD_" + txt.Substring(0, Mathf.Min(8, txt.Length)));
         obj.transform.SetParent(parent.transform, false);
-        var tmp = obj.AddComponent<TextMeshProUGUI>();
-        tmp.text = text; tmp.fontSize = size; tmp.color = color;
-        tmp.alignment = TextAlignmentOptions.Center;
+        var t = obj.AddComponent<TextMeshProUGUI>();
+        t.text = txt; t.fontSize = size; t.color = color;
+        t.alignment = TextAlignmentOptions.Center;
         var r = obj.GetComponent<RectTransform>();
         r.anchorMin = anchor; r.anchorMax = anchor;
         r.pivot = new Vector2(0.5f, 0.5f);
-        r.anchoredPosition = pos;
-        r.sizeDelta = new Vector2(500, 60);
-        return tmp;
+        r.anchoredPosition = pos; r.sizeDelta = new Vector2(500, 60);
+        return t;
     }
 
-    Image CreateSliderBg(GameObject parent)
+    void StretchRect(RectTransform r)
     {
-        var go = new GameObject("BG"); go.transform.SetParent(parent.transform, false);
-        var img = go.AddComponent<Image>(); img.color = new Color(0.1f, 0.1f, 0.1f, 0.8f);
-        var r = go.GetComponent<RectTransform>();
         r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one;
         r.offsetMin = r.offsetMax = Vector2.zero;
-        return img;
-    }
-
-    Image CreateSliderFill(GameObject parent, Color color)
-    {
-        var fillArea = new GameObject("FillArea");
-        fillArea.transform.SetParent(parent.transform, false);
-        var far = fillArea.GetComponent<RectTransform>() ?? fillArea.AddComponent<RectTransform>();
-        far.anchorMin = Vector2.zero; far.anchorMax = Vector2.one;
-        far.offsetMin = far.offsetMax = Vector2.zero;
-
-        var go = new GameObject("Fill"); go.transform.SetParent(fillArea.transform, false);
-        var img = go.AddComponent<Image>();
-        img.color = color;
-        img.type  = Image.Type.Filled;
-        img.fillMethod = Image.FillMethod.Horizontal;
-        var r = go.GetComponent<RectTransform>();
-        r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one;
-        r.offsetMin = r.offsetMax = Vector2.zero;
-        return img;
     }
 }
