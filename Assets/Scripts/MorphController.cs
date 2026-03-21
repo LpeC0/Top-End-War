@@ -21,6 +21,16 @@ public class MorphController : MonoBehaviour
     public float popDuration    = 0.35f;
     public float popPeak        = 1.35f;
 
+    [Header("Visual Components")]
+    [SerializeField] private Renderer characterRenderer; // Komutanın veya Askerin Mesh Renderer'ı
+    
+    // Performans için Property Block tanımlıyoruz
+    private MaterialPropertyBlock _propBlock;
+
+    // Shader referans ID'lerini (String yerine ID kullanmak çok daha hızlıdır) önbelleğe alıyoruz
+    private static readonly int TierColorID = Shader.PropertyToID("_TierColor");
+    private static readonly int BiomeTintID = Shader.PropertyToID("_BiomeTint");
+
     // Tum tier modelleri onceden olusturulur, sadece aktif/pasif yapilir
     GameObject[] _spawnedModels;
     int          _currentTierIndex = -1;
@@ -116,4 +126,28 @@ public class MorphController : MonoBehaviour
 
         _currentTierIndex = index;
     }
+private void Awake()
+    {
+        // Bellek tahsisini oyun başında sadece bir kere yapıyoruz (Garbage Collector'ı yormamak için)
+        _propBlock = new MaterialPropertyBlock();
+    }
+
+    /// <summary>
+    /// Karakterin görsel renklerini günceller. Tier atladığında veya Biyom değiştiğinde çağrılır.
+    /// </summary>
+    public void UpdateVisuals(Color tierColor, Color biomeTint)
+    {
+        if (characterRenderer == null) return;
+
+        // 1. O anki render ayarlarını bloğa al
+        characterRenderer.GetPropertyBlock(_propBlock);
+        
+        // 2. Yeni renkleri bloğa işle
+        _propBlock.SetColor(TierColorID, tierColor);
+        _propBlock.SetColor(BiomeTintID, biomeTint);
+        
+        // 3. Bloğu tekrar renderer'a geri ver (Materyal kopyalanmadan renk değişir!)
+        characterRenderer.SetPropertyBlock(_propBlock);
+    }
+
 }
