@@ -1,0 +1,63 @@
+Top-End War — Stratejik Gelişim Belgesi (GDD v5)
+1. Temel Oyun Döngüsü (The Core Loop)
+Oyun üç ana katmandan oluşur:
+
+Meta-Hub (Dünya Haritası): Oyuncu, ele geçirdiği bölgeleri görür, envanterini (Silah, Zırh, Pet) yönetir ve yeni seferler başlatır.
+
+Sefer (Runner Modu): Matematiksel kapılarla orduyu büyütme, CP toplama ve "Tier" atlayarak görsel/teknik değişim (Morph) yaşama.
+
+Yüzleşme (Anchor/Boss Modu): Bölüm sonunda hareketin durduğu, sabitlenerek (Anchor) stratejik savunma ve ağır ateş gücüyle Boss'un alt edildiği aşama.
+
+2. Teknik Altyapı Prensipleri (AI Mantığı)
+Veri Odaklılık (ScriptableObjects): Tüm birim, eşya ve pet istatistikleri EquipmentData ve PetData gibi SO'larda tutulur. Kod, bu dosyalardan gelen veriyi okur ve hesaplar.
+
+Ayrık Mimari (Decoupled Systems): GameEvents (Action<> pattern) üzerinden haberleşme sağlanır. PlayerStats CP'yi güncellediğinde, UI ve ArmyManager bunu "duyar" ama birbirlerini tanımazlar.
+
+Performans Güvenliği: Mobilde akıcılık için ObjectPooler kullanımı zorunludur. Hiçbir mermi veya düşman Destroy edilmez, havuza geri döner.
+
+3. Yol Haritası ve Fazlar (İnsan Mantığı)
+FAZ 1: Modern Envanter ve Veri Temeli (Şu an buradayız)
+
+Hedef: Oyuncunun sadece "koşan bir karakter" değil, "geliştirilebilir bir komutan" olduğunu hissettirmek.
+
+Yapılacaklar:
+
+PlayerStats içine SO (ScriptableObject) yuvaları açmak (Bunu kodla hallettik).
+
+Unity içinde ilk "Test Kılıcı" ve "Test Peti" assetlerini oluşturup CP bonuslarını tanımlamak.
+
+UI Canvas Scaler ayarlarını tüm mobil ekranlara uyumlu hale getirmek.
+
+FAZ 2: Derinlik ve Mekanik Çeşitliliği (Challenge Modu)
+
+Hedef: Oyunu monotonluktan kurtarmak.
+
+Yapılacaklar:
+
+3-Lane Challenge: Düşman, Kapı ve Upgrade yollarının ayrıldığı özel bölümler.
+
+Pet Sistemi: Seçilen petin sahnede oyuncuyu takip etmesi ve Anchor modunda "Heal" veya "Hasar Azaltma" aurası yayması.
+
+Biome Etkisi: Seçilen bölgeye göre (Kar, Çöl, Şehir) karakterin ve düşmanların shader/renk değişimleri (Morph).
+
+FAZ 3: Boss ve Taktiksel Savaş (Anchor Mode 2.0)
+
+Hedef: Boss savaşlarını bir "puzzle" haline getirmek.
+
+Yapılacaklar:
+
+Formüllü Savunma: Sabit durdukça artan DR (Hasar Azaltma) mekaniği.
+
+Telegraphing: Boss'un saldırı alanlarını önceden kırmızı alanlarla işaretlemesi.
+
+Sabitleme Kırılması (Stagger): Boss'un ağır darbelerine karşı kaçmak mı, yoksa Anchor modunda göğüslemek mi? (Yanlış karar sabitlemeyi bozar).
+
+FAZ 4: Topluluk ve Genişleme (Level Editor & PvP)
+
+Hedef: İçerik üretimini oyuncuya bırakmak.
+
+Yapılacaklar:
+
+JSON tabanlı Level Editor ile oyuncuların kendi "3-Lane" haritalarını yapabilmesi.
+
+Asenkronize PvP: Oyuncuların kurduğu orduların birbiriyle savaşması.

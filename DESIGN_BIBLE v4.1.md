@@ -168,6 +168,16 @@ Damage = BaseATK × MergeMultiplier × (1 + CommanderAura) × BiomeMultiplier
 | 3 — Çekirdek | %30-0 | Hız ×2 |
 
 ---
+## 8.MATEMATİKSEL DENGE
+  1. Güç Artış Denklemi (The Power Progression)
+  
+  Oyuncunun her zaman geliştiğini hissetmesi için doğrusal (1, 2, 3...) değil, Üstel (Exponential) bir maliyet ama Logaritmik bir güç artışı kullanıyoruz.CP Gereksinimi (Tier Atlam): $CP_{n+1} = CP_n \times 1.5 + (Level \times 100)$Neden? Her Tier bir öncekinden %50 daha zor ulaşılır olur, bu da oyuncuyu "daha iyi bir silah" veya "daha yüksek seviyeli bir pet" aramaya iter.Hasar Azaltma (Anchor Mode DR): $DR = 1 - e^{-\lambda t}$Anlamı: Sabit durduğun ilk saniyelerde savunman hızla artar, ancak 5. saniyeden sonra artış yavaşlar (Diminishing Returns). Oyuncu "sonsuza kadar ölümsüz" olamaz ama "doğru zamanda durmanın" ödülünü alır.
+  
+  2. Sürdürülebilirlik Döngüsü (Retention Loop)
+  
+  Oyuncunun yeni şeyler istemesini sağlayan 3'lü sac ayağı:Görsel Ödül (Morphing): Sadece sayı artmaz. Her Tier'da karakterin zırhı, mermisi ve yanındaki petin boyutu değişir. (İnsani dürtü: "Bir sonraki model nasıl görünüyor?")Stratejik Derinlik (Synergy): NotebookLM'in de önerdiği gibi; Piyade + Teknoloji yolu seçilirse "Drone Takımı" aktif olur. (İnsani dürtü: "Tüm kombinasyonları denemeliyim.")Zorluk Adaptasyonu (DDA - Dynamic Difficulty Adjustment): Senin kodundaki SmoothedPowerRatio bunu zaten yapıyor. Oyuncu çok güçlüyse düşman HP'si gizlice %10 artar. (İnsani dürtü: "Hala zorlanıyorum, daha fazla gelişmeliyim.")
+
+---
 
 ## 8. YAPILACAKLAR
 
