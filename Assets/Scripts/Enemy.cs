@@ -1,14 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dushman (Claude)
-/// Tag: "Enemy"
-/// Prefab: Capsule → Rigidbody(IsKinematic=true) + CapsuleCollider(IsTrigger=true)
+/// Top End War — Dusman v5 (Claude)
 ///
-/// Initialize() DifficultyManager statlari uygular.
-/// Config yoksa mesafe bazli AutoInit() devreye girer.
-/// Separation: her 0.15s bir guncellenen cached vektör.
-/// EnemyHealthBar otomatik eklenir.
+/// DEGISIKLIKLER (v5):
+///   OnTriggerEnter: Soldier tagini da taniyor.
+///   Dusman Soldier'a carparsa: Soldier hasar alir, dusman olur.
+///   Dusman Player'a carparsa: CommanderHP.TakeDamage (CP etkilenmiyor).
+///   HP degerleri: Normal 1100, Zirh 2250, Elite 3750 (ordu DPS'e gore).
 /// </summary>
 public class Enemy : MonoBehaviour
 {
@@ -27,9 +26,8 @@ public class Enemy : MonoBehaviour
     Renderer       _bodyRenderer;
     EnemyHealthBar _hpBar;
 
-    // Separation cache
-    float   _lastSepTime  = 0f;
-    Vector3 _separationVec= Vector3.zero;
+    float   _lastSepTime   = 0f;
+    Vector3 _separationVec = Vector3.zero;
     const float SEP_INTERVAL = 0.15f;
 
     void Awake()
@@ -68,17 +66,18 @@ public class Enemy : MonoBehaviour
     {
         float z    = PlayerStats.Instance != null ? PlayerStats.Instance.transform.position.z : 0f;
         float mult = 1f + Mathf.Pow(z / 1000f, 1.3f);
-        _maxHealth     = Mathf.RoundToInt(100f * mult);
+        // Yeni HP degerlerine gore (ordu DPS kalibre)
+        _maxHealth     = Mathf.RoundToInt(1100f * mult);
         _currentHealth = _maxHealth;
-        _contactDamage = Mathf.RoundToInt(25f  * mult);
+        _contactDamage = Mathf.RoundToInt(30f   * mult);
         _moveSpeed     = Mathf.Min(4f + (mult - 1f) * 1.4f, 7.5f);
-        _cpReward      = Mathf.RoundToInt(15f  * mult);
+        _cpReward      = Mathf.RoundToInt(15f   * mult);
     }
 
     void UseDefaults()
     {
-        _maxHealth = _currentHealth = 120;
-        _contactDamage = 50; _moveSpeed = 4.5f; _cpReward = 15;
+        _maxHealth = _currentHealth = 1100;
+        _contactDamage = 30; _moveSpeed = 4.5f; _cpReward = 15;
     }
 
     void Update()
@@ -94,7 +93,6 @@ public class Enemy : MonoBehaviour
             Mathf.MoveTowards(pos.x, PlayerStats.Instance.transform.position.x, 1.5f * Time.deltaTime),
             -xLimit, xLimit);
 
-        // Separation cache
         if (Time.time - _lastSepTime > SEP_INTERVAL)
         {
             _separationVec = CalcSeparation(pos);
@@ -144,13 +142,26 @@ public class Enemy : MonoBehaviour
         _isDead = _initialized = false;
         CancelInvoke();
         PlayerStats.Instance?.AddCPFromKill(_cpReward);
+        SaveManager.Instance?.RegisterKill();  // kill sayaci
         gameObject.SetActive(false);
     }
 
     void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag("Player") || _hasDamagedPlayer || _isDead) return;
+        if (_isDead) return;
+
+        // --- Askere carparsa ---
+        if (other.CompareTag("Soldier"))
+        {
+            other.GetComponent<SoldierUnit>()?.TakeDamage(_contactDamage);
+            Die(); // dusman da olur
+            return;
+        }
+
+        // --- Oyuncuya carparsa ---
+        if (!other.CompareTag("Player") || _hasDamagedPlayer) return;
         _hasDamagedPlayer = true;
+        // PlayerStats.TakeContactDamage → OnPlayerDamaged event → CommanderHP alir
         other.GetComponent<PlayerStats>()?.TakeContactDamage(_contactDamage);
         Die();
     }

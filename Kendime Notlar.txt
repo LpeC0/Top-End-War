@@ -1,0 +1,11 @@
+Risk kapısı 3 kapıya %50 bonus veriyor fakat bu oran kapılarımız için mantıklı bir geliştirme değil cp dışında herhangi bir kapımıza etki ediyor mu? bu kapıları daha mantıklı hale getirelim.
+
+Vuruşlarda vuran kişinin rengi ile hasar sayısı görünsün.Çok hızlı atışlar olduğu için bunu birbirine karışmayacak şekilde yapmalıyız.
+
+Ekipmanları giyeceğimiz göreceğimiz bir UI Menüsü
+
+Oyuncu Hp'si hala gözükmüyor bunun için de bir Healthbar cs'i gerekir mi?Mevcutta SanırımPlayerStats.cs içinde
+
+Askerlerimizin HPsi var fakat bir işe yarıyor mu asker HP'sine heal veren kapımız da var çünkü bu konuda da bir arkaplan matematiği gerekebilir.
+
+Mobları zor öldürüyoruz sürekli kaçmak zorunda kalıyoruz doğru kapıları seçsek bile bu durumda asker hp'miz olması oyunu kötü etkileyebilir ama onlara hasar gelmemesi de boşluk hissi yaratır mı?

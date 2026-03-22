@@ -1,11 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Hareketi v3 (Claude)
+/// Top End War — Oyuncu Hareketi v4 (Claude)
+///
+/// v4: EquipmentData.fireRateMultiplier ateş hızına uygulanıyor.
+///     Komutan kuşandığı silahın hızını otomatik alıyor.
 ///
 /// Anchor Modu: OnAnchorModeChanged(true) gelince forwardSpeed=0,
 ///   oyuncu sadece X ekseninde hareket eder, boss ile savaşır.
-///   OnAnchorModeChanged(false) gelince normal koşuya döner.
 ///
 /// Spread formation (V şekli):
 ///   1 mermi: düz, 2: ±8°, 3: -12° 0° +12°,
@@ -24,8 +26,9 @@ public class PlayerController : MonoBehaviour
     public GameObject bulletPrefab;
     public float      detectRange = 35f;
 
-    static readonly float[] FIRE_RATES = { 1.5f, 2.5f, 4.0f, 6.0f, 8.5f };
-    static readonly int[]   DAMAGE     = { 60,   95,   145,  210,  300  };
+    // Tier bazlı temel değerler
+    static readonly float[] BASE_FIRE_RATES = { 1.5f, 2.5f, 4.0f, 6.0f, 8.5f };
+    static readonly int[]   DAMAGE          = { 60,   95,   145,  210,  300  };
 
     static readonly float[][] SPREAD = {
         new float[]{ 0f },
@@ -39,8 +42,9 @@ public class PlayerController : MonoBehaviour
     float _nextFire   = 0f;
     bool  _dragging   = false;
     float _lastMouseX;
-    bool  _anchorMode = false;  // Boss sahnesi
+    bool  _anchorMode = false;
 
+    // ─────────────────────────────────────────────────────────────────────
     void Start()
     {
         transform.position = new Vector3(0f, 1.2f, 0f);
@@ -53,15 +57,8 @@ public class PlayerController : MonoBehaviour
     void OnAnchorMode(bool active)
     {
         _anchorMode = active;
-        if (active)
-        {
-            forwardSpeed = 0f;
-            Debug.Log("[Player] Anchor modu actif — kosu durduruldu.");
-        }
-        else
-        {
-            forwardSpeed = 10f;
-        }
+        forwardSpeed = active ? 0f : 10f;
+        if (active) Debug.Log("[Player] Anchor modu aktif.");
     }
 
     void EnsureCollider()
@@ -113,33 +110,36 @@ public class PlayerController : MonoBehaviour
         int bCount = PlayerStats.Instance != null ? PlayerStats.Instance.BulletCount  : 1;
         int idx    = Mathf.Clamp(tier - 1, 0, 4);
 
-        // Anchor modda daha geniş BoxCast (boss büyük)
-        float halfW   = _anchorMode ? xLimit : xLimit * 0.6f;
-        float range   = _anchorMode ? 60f : detectRange;
+        // ── EquipmentData ateş hızı çarpanı ──────────────────────────────
+        // Kuşanılan silah BASE_FIRE_RATES'i çarpar — silah yoksa 1x.
+        float equipMult = 1f;
+        if (PlayerStats.Instance?.equippedWeapon != null)
+            equipMult = PlayerStats.Instance.equippedWeapon.fireRateMultiplier;
 
-        RaycastHit hit;
-        bool found = Physics.BoxCast(
-            transform.position + Vector3.up,
-            new Vector3(halfW, 1.2f, 0.5f),
-            Vector3.forward, out hit,
-            Quaternion.identity, range);
+        float fireRate = BASE_FIRE_RATES[idx] * equipMult;
 
-        if (!found || !hit.collider.CompareTag("Enemy")) return;
+        // Silah hasar çarpanı
+        float dmgMult = 1f;
+        if (PlayerStats.Instance?.equippedWeapon != null)
+            dmgMult = PlayerStats.Instance.equippedWeapon.damageMultiplier;
+        int finalDamage = Mathf.RoundToInt(DAMAGE[idx] * dmgMult);
 
-        // Lead hedefleme
-        float   dist   = Vector3.Distance(firePoint.position, hit.transform.position);
-        Vector3 aimPos = hit.transform.position + Vector3.back * (dist / 30f * 4f);
-        Vector3 baseDir= (aimPos - firePoint.position).normalized;
+        // Hedef bul
+        Transform target = FindTarget();
+        if (target == null) return;
+
+        Vector3 aimPos = target.position;
+        Vector3 baseDir = (aimPos - firePoint.position).normalized;
 
         // Spread
         int spreadIdx = Mathf.Clamp(bCount - 1, 0, SPREAD.Length - 1);
         foreach (float angle in SPREAD[spreadIdx])
         {
             Vector3 dir = Quaternion.Euler(0f, angle, 0f) * baseDir;
-            FireOne(firePoint.position, dir.normalized, DAMAGE[idx]);
+            FireOne(firePoint.position, dir.normalized, finalDamage);
         }
 
-        _nextFire = Time.time + 1f / FIRE_RATES[idx];
+        _nextFire = Time.time + 1f / fireRate;
     }
 
     void FireOne(Vector3 pos, Vector3 dir, int dmg)
@@ -157,6 +157,35 @@ public class PlayerController : MonoBehaviour
         if (rb) rb.linearVelocity = dir * 30f;
     }
 
-    // Boss modu için: bosluk bittikten sonra normal hıza dön
+    /// <summary>
+    /// En yakın Enemy'i bulur.
+    /// Normal modda BoxCast (serit tarama), Anchor modda OverlapSphere (360 — boss kesin bulunur).
+    /// </summary>
+    Transform FindTarget()
+    {
+        if (_anchorMode)
+        {
+            float    bestDist = 70f * 70f;
+            Collider best     = null;
+            foreach (Collider c in Physics.OverlapSphere(transform.position, 70f))
+            {
+                if (!c.CompareTag("Enemy")) continue;
+                float d = (c.transform.position - transform.position).sqrMagnitude;
+                if (d < bestDist) { bestDist = d; best = c; }
+            }
+            return best?.transform;
+        }
+        else
+        {
+            RaycastHit hit;
+            bool found = Physics.BoxCast(
+                transform.position + Vector3.up,
+                new Vector3(xLimit * 0.6f, 1.2f, 0.5f),
+                Vector3.forward, out hit,
+                Quaternion.identity, detectRange);
+            return (found && hit.collider.CompareTag("Enemy")) ? hit.transform : null;
+        }
+    }
+
     public void ResumeRun() => OnAnchorMode(false);
 }

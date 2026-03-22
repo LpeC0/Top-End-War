@@ -9,26 +9,60 @@ public class PlayerStats : MonoBehaviour
     public int   startCP               = 200;
     public float invincibilityDuration = 0.8f;
 
-    // YENİ: Kuşanılmış Eşyalar (ScriptableObjects)
-    [Header("Kuşanılmış Eşyalar (ScriptableObjects)")]
-    public EquipmentData equippedWeapon;
-    public EquipmentData equippedArmor;
-    public PetData equippedPet;
+    // ── Kuşanılmış Ekipmanlar ────────────────────────────────────────────
+    [Header("Kuşanılmış Ekipmanlar")]
+    public EquipmentData equippedWeapon;    // ateş hızı + hasar
+    public EquipmentData equippedArmor;     // HP + hasar azaltma
+    public EquipmentData equippedShoulder;  // CP + küçük hasar
+    public EquipmentData equippedKnee;      // hafif HP bonus
+    public EquipmentData equippedNecklace;  // CP çarpanı
+    public EquipmentData equippedRing;      // genel buff
+    public PetData       equippedPet;
 
-    // YENİ MİMARİ: _baseCP oyun içi ham puanı tutar.
+    // ── _baseCP: oyun içi ham puan ────────────────────────────────────────
     private int _baseCP;
 
-    // CP artık baseCP ve eşyaların toplamıdır. Sadece okunabilir (get).
-    public int CP 
-    { 
-        get 
+    // CP = baseCP + tüm ekipman bonusları, kolye çarpanı dahil
+    public int CP
+    {
+        get
         {
             int total = _baseCP;
-            if (equippedWeapon != null) total += equippedWeapon.baseCPBonus;
-            if (equippedArmor != null) total += equippedArmor.baseCPBonus;
-            if (equippedPet != null) total += equippedPet.cpBonus;
-            return total;
-        } 
+            total += equippedWeapon   != null ? equippedWeapon.baseCPBonus   : 0;
+            total += equippedArmor    != null ? equippedArmor.baseCPBonus    : 0;
+            total += equippedShoulder != null ? equippedShoulder.baseCPBonus : 0;
+            total += equippedKnee     != null ? equippedKnee.baseCPBonus     : 0;
+            total += equippedNecklace != null ? equippedNecklace.baseCPBonus : 0;
+            total += equippedRing     != null ? equippedRing.baseCPBonus     : 0;
+            total += equippedPet      != null ? equippedPet.cpBonus          : 0;
+
+            // Kolye CP çarpanı (en son uygula)
+            float mult = equippedNecklace != null ? equippedNecklace.cpMultiplier : 1f;
+            if (equippedRing != null) mult *= equippedRing.cpMultiplier;
+            return Mathf.RoundToInt(total * mult);
+        }
+    }
+
+    /// <summary>Tüm ekipmandan gelen hasar azaltma toplamı (0-0.6 arası sınırlı).</summary>
+    public float TotalDamageReduction()
+    {
+        float dr = 0f;
+        dr += equippedArmor    != null ? equippedArmor.damageReduction    : 0f;
+        dr += equippedShoulder != null ? equippedShoulder.damageReduction : 0f;
+        dr += equippedKnee     != null ? equippedKnee.damageReduction     : 0f;
+        dr += equippedRing     != null ? equippedRing.damageReduction     : 0f;
+        dr += equippedPet      != null ? equippedPet.anchorDamageReduction: 0f;
+        return Mathf.Clamp(dr, 0f, 0.60f); // max %60 azaltma
+    }
+
+    /// <summary>Tüm ekipmandan gelen ekstra Komutan HP bonusu.</summary>
+    public int TotalEquipmentHPBonus()
+    {
+        int bonus = 0;
+        bonus += equippedArmor    != null ? equippedArmor.commanderHPBonus    : 0;
+        bonus += equippedShoulder != null ? equippedShoulder.commanderHPBonus : 0;
+        bonus += equippedKnee     != null ? equippedKnee.commanderHPBonus     : 0;
+        return bonus;
     }
 
     // Diğer her şey senin orijinal kodunla aynı
@@ -73,8 +107,12 @@ public class PlayerStats : MonoBehaviour
         if (Time.time - _lastDmgTime < invincibilityDuration) return;
         _lastDmgTime = Time.time;
 
-        CommanderHP = Mathf.Max(0, CommanderHP - amount);
-        GameEvents.OnCommanderDamaged?.Invoke(amount, CommanderHP);
+        // Ekipman + Pet hasar azaltma
+        float dr = TotalDamageReduction();
+        int finalAmount = Mathf.RoundToInt(amount * (1f - dr));
+
+        CommanderHP = Mathf.Max(0, CommanderHP - finalAmount);
+        GameEvents.OnCommanderDamaged?.Invoke(finalAmount, CommanderHP);
         GameEvents.OnPlayerDamaged?.Invoke(amount);  
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
 
@@ -227,7 +265,9 @@ public class PlayerStats : MonoBehaviour
     void OnTierChanged()
     {
         int oldMax = CommanderMaxHP;
-        CommanderMaxHP = COMMANDER_HP_BY_TIER[Mathf.Clamp(CurrentTier - 1, 0, 4)];
+        // Tier bazı + ekipman bonusu
+        CommanderMaxHP = COMMANDER_HP_BY_TIER[Mathf.Clamp(CurrentTier - 1, 0, 4)]
+                       + TotalEquipmentHPBonus();
         if (CommanderMaxHP > oldMax)
         {
             int bonus = CommanderMaxHP - oldMax;

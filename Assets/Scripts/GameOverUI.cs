@@ -4,24 +4,28 @@ using UnityEngine.SceneManagement;
 using TMPro;
 
 /// <summary>
-/// Top End War — Game Over Ekrani (Claude)
+/// Top End War — Game Over Ekrani v2 (Claude)
 ///
-/// KURULUM (super basit):
-///   Hierarchy'de bos bir obje olustur → adi "GameOverManager"
-///   Bu scripti ekle → bitti.
-///   Baska HIC BIR SEY yapma, kod kendi Canvas'ini olusturur.
+/// v2: SaveManager entegrasyonu.
+///   En iyi CP, en iyi mesafe, bu oyun kill sayisi gosterilir.
+///   Yeni rekor varsa altin rengi vurgu yapar.
+///
+/// KURULUM:
+///   Hierarchy -> Create Empty -> "GameOverManager" -> ekle -> bitti.
+///   Kod kendi Canvas'ini olusturur.
 /// </summary>
 public class GameOverUI : MonoBehaviour
 {
     [Header("Sahne Adi")]
     public string gameSceneName = "SampleScene";
 
-    // Olusturulan UI referanslari
-    Canvas         _canvas;
-    GameObject     _panel;
+    Canvas          _canvas;
+    GameObject      _panel;
     TextMeshProUGUI _titleText;
     TextMeshProUGUI _cpText;
     TextMeshProUGUI _distText;
+    TextMeshProUGUI _killText;
+    TextMeshProUGUI _bestText;
     bool            _shown = false;
 
     void Start()
@@ -35,55 +39,47 @@ public class GameOverUI : MonoBehaviour
         GameEvents.OnGameOver -= ShowGameOver;
     }
 
-    // ── UI'yi programatik olustur ─────────────────────────────────────────────
     void BuildUI()
     {
         // Canvas
-        GameObject canvasObj = new GameObject("GameOverCanvas");
+        var canvasObj = new GameObject("GameOverCanvas");
         _canvas = canvasObj.AddComponent<Canvas>();
         _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _canvas.sortingOrder = 99; // Her seyin ustunde
-        canvasObj.AddComponent<CanvasScaler>();
+        _canvas.sortingOrder = 99;
+        canvasObj.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        ((CanvasScaler)canvasObj.GetComponent<CanvasScaler>()).referenceResolution = new Vector2(1080, 1920);
         canvasObj.AddComponent<GraphicRaycaster>();
 
-        // Koyu arka plan paneli
+        // Arkaplan
         _panel = new GameObject("GameOverPanel");
         _panel.transform.SetParent(_canvas.transform, false);
-        Image bg = _panel.AddComponent<Image>();
-        bg.color = new Color(0f, 0f, 0f, 0.82f);
-        RectTransform panelRect = _panel.GetComponent<RectTransform>();
-        panelRect.anchorMin = Vector2.zero;
-        panelRect.anchorMax = Vector2.one;
-        panelRect.offsetMin = Vector2.zero;
-        panelRect.offsetMax = Vector2.zero;
+        _panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.88f);
+        var pr = _panel.GetComponent<RectTransform>();
+        pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one;
+        pr.offsetMin = pr.offsetMax = Vector2.zero;
 
         // Baslik
-        _titleText = CreateText(_panel, "SAVAS BITTI",
-            new Vector2(0.5f, 0.5f), new Vector2(0f, 80f),
-            52, Color.red, FontStyles.Bold);
+        _titleText = MakeText(_panel, "SAVAS BITTI",   new Vector2(0.5f,0.5f), new Vector2(0, 130), 52, Color.red, FontStyles.Bold);
 
-        // CP
-        _cpText = CreateText(_panel, "",
-            new Vector2(0.5f, 0.5f), new Vector2(0f, 10f),
-            32, Color.white, FontStyles.Normal);
+        // Mevcut oyun sonuclari
+        _cpText   = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0,  60), 32, Color.white,           FontStyles.Normal);
+        _distText = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0,  15), 28, new Color(0.8f,0.8f,1f), FontStyles.Normal);
+        _killText = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0, -25), 24, new Color(1f,0.7f,0.3f), FontStyles.Normal);
 
-        // Mesafe
-        _distText = CreateText(_panel, "",
-            new Vector2(0.5f, 0.5f), new Vector2(0f, -35f),
-            28, new Color(0.8f, 0.8f, 0.8f), FontStyles.Normal);
+        // En iyi skor
+        _bestText = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0, -70), 22, new Color(0.6f,0.6f,0.6f), FontStyles.Normal);
 
-        // Tekrar Dene butonu
-        CreateButton(_panel, "TEKRAR DENE",
-            new Vector2(0.5f, 0.5f), new Vector2(0f, -100f),
-            new Vector2(260f, 60f),
-            new Color(0.2f, 0.8f, 0.2f),
-            () => { Time.timeScale = 1f; SceneManager.LoadScene(gameSceneName); });
+        // Butonlar
+        MakeButton(_panel, "TEKRAR DENE", new Vector2(0,-130), new Vector2(260,60),
+            new Color(0.2f,0.8f,0.2f), () => { Time.timeScale = 1f; SceneManager.LoadScene(gameSceneName); });
 
-        // Panel baslangicta gizli
+        // Gelecekte: Ana Menü butonu buraya gelecek
+        // MakeButton(_panel, "ANA MENU", new Vector2(0,-210), new Vector2(260,60),
+        //     new Color(0.3f,0.3f,0.8f), () => SceneManager.LoadScene("MainMenu"));
+
         _panel.SetActive(false);
     }
 
-    // ── Game Over tetiklenince ─────────────────────────────────────────────────
     void ShowGameOver()
     {
         if (_shown) return;
@@ -92,73 +88,74 @@ public class GameOverUI : MonoBehaviour
         Time.timeScale = 0f;
         _panel.SetActive(true);
 
-        if (_cpText != null && PlayerStats.Instance != null)
-            _cpText.text = "Son CP: " + PlayerStats.Instance.CP.ToString("N0");
+        var ps   = PlayerStats.Instance;
+        var save = SaveManager.Instance;
+        var army = ArmyManager.Instance;
 
-        if (_distText != null && PlayerStats.Instance != null)
-            _distText.text = "Mesafe: " + Mathf.RoundToInt(PlayerStats.Instance.transform.position.z) + "m";
+        int   cp      = ps?.CP ?? 0;
+        float dist    = ps != null ? Mathf.RoundToInt(ps.transform.position.z) : 0f;
+        int   kills   = save?.CurrentRunKills ?? 0;
+        int   soldiers= army?.SoldierCount ?? 0;
+
+        _cpText.text   = $"CP: {cp:N0}";
+        _distText.text = $"Mesafe: {dist:N0}m  |  Asker: {soldiers}/20";
+        _killText.text = $"Dusmanlar: {kills}";
+
+        // En iyi skor goster
+        if (save != null)
+        {
+            bool newCP   = cp   >= save.HighScoreCP   && save.TotalRuns > 1;
+            bool newDist = dist >= save.HighScoreDistance && save.TotalRuns > 1;
+
+            string bestStr = $"En iyi: {save.HighScoreCP:N0} CP  |  {save.HighScoreDistance:N0}m";
+            _bestText.text  = bestStr;
+
+            // Yeni rekor vurgusu
+            if (newCP || newDist)
+            {
+                _bestText.text  = "YENİ REKOR!";
+                _bestText.color = new Color(1f, 0.85f, 0f);
+                _cpText.color   = new Color(1f, 0.85f, 0f);
+            }
+        }
     }
 
-    // ── Yardimci: Text olustur ────────────────────────────────────────────────
-    TextMeshProUGUI CreateText(GameObject parent, string text,
-        Vector2 anchor, Vector2 anchoredPos,
-        float fontSize, Color color, FontStyles style)
+    // ── Yardimci ─────────────────────────────────────────────────────────
+    TextMeshProUGUI MakeText(GameObject parent, string text, Vector2 anchor,
+        Vector2 pos, float size, Color color, FontStyles style)
     {
-        GameObject obj = new GameObject("Text_" + text.Substring(0, Mathf.Min(6, text.Length)));
+        var obj = new GameObject("T_" + text.Substring(0, Mathf.Min(6, text.Length)));
         obj.transform.SetParent(parent.transform, false);
-
-        TextMeshProUGUI tmp = obj.AddComponent<TextMeshProUGUI>();
-        tmp.text      = text;
-        tmp.fontSize  = fontSize;
-        tmp.color     = color;
-        tmp.fontStyle = style;
-        tmp.alignment = TextAlignmentOptions.Center;
-
-        RectTransform rect = obj.GetComponent<RectTransform>();
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.pivot     = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = anchoredPos;
-        rect.sizeDelta = new Vector2(500f, 60f);
-
+        var tmp = obj.AddComponent<TextMeshProUGUI>();
+        tmp.text = text; tmp.fontSize = size; tmp.color = color;
+        tmp.fontStyle = style; tmp.alignment = TextAlignmentOptions.Center;
+        var r = obj.GetComponent<RectTransform>();
+        r.anchorMin = anchor; r.anchorMax = anchor;
+        r.pivot = new Vector2(0.5f, 0.5f);
+        r.anchoredPosition = pos; r.sizeDelta = new Vector2(700, 60);
         return tmp;
     }
 
-    // ── Yardimci: Button olustur ──────────────────────────────────────────────
-    void CreateButton(GameObject parent, string label,
-        Vector2 anchor, Vector2 anchoredPos, Vector2 size,
-        Color bgColor, UnityEngine.Events.UnityAction onClick)
+    void MakeButton(GameObject parent, string label, Vector2 pos, Vector2 size,
+        Color bg, UnityEngine.Events.UnityAction onClick)
     {
-        // Arka plan
-        GameObject btnObj = new GameObject("Btn_" + label);
-        btnObj.transform.SetParent(parent.transform, false);
-        Image img = btnObj.AddComponent<Image>();
-        img.color = bgColor;
-        Button btn = btnObj.AddComponent<Button>();
-        btn.targetGraphic = img;
-        btn.onClick.AddListener(onClick);
+        var btn = new GameObject("Btn_" + label);
+        btn.transform.SetParent(parent.transform, false);
+        var img = btn.AddComponent<Image>(); img.color = bg;
+        var b = btn.AddComponent<Button>(); b.targetGraphic = img;
+        b.onClick.AddListener(onClick);
+        var r = btn.GetComponent<RectTransform>();
+        r.anchorMin = new Vector2(0.5f,0.5f); r.anchorMax = new Vector2(0.5f,0.5f);
+        r.pivot = new Vector2(0.5f,0.5f);
+        r.anchoredPosition = pos; r.sizeDelta = size;
 
-        RectTransform rect = btnObj.GetComponent<RectTransform>();
-        rect.anchorMin = anchor;
-        rect.anchorMax = anchor;
-        rect.pivot     = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = anchoredPos;
-        rect.sizeDelta = size;
-
-        // Yazi
-        GameObject txtObj = new GameObject("Label");
-        txtObj.transform.SetParent(btnObj.transform, false);
-        TextMeshProUGUI tmp = txtObj.AddComponent<TextMeshProUGUI>();
-        tmp.text      = label;
-        tmp.fontSize  = 24f;
-        tmp.color     = Color.white;
-        tmp.fontStyle = FontStyles.Bold;
-        tmp.alignment = TextAlignmentOptions.Center;
-
-        RectTransform tr = txtObj.GetComponent<RectTransform>();
-        tr.anchorMin      = Vector2.zero;
-        tr.anchorMax      = Vector2.one;
-        tr.offsetMin      = Vector2.zero;
-        tr.offsetMax      = Vector2.zero;
+        var lbl = new GameObject("Label");
+        lbl.transform.SetParent(btn.transform, false);
+        var t = lbl.AddComponent<TextMeshProUGUI>();
+        t.text = label; t.fontSize = 24; t.color = Color.white;
+        t.fontStyle = FontStyles.Bold; t.alignment = TextAlignmentOptions.Center;
+        var lr = lbl.GetComponent<RectTransform>();
+        lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
+        lr.offsetMin = lr.offsetMax = Vector2.zero;
     }
 }

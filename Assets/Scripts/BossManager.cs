@@ -4,17 +4,26 @@ using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Top End War — Boss v4 (Claude)
+/// Top End War — Boss v5 (Claude)
 ///
-/// Boss HP 60000 → 150000
-/// (T4+4mermi=5040DPS → 30s; fazlarla ~60s; T3+2m=1160DPS → 129s ✓)
+/// v5 DEGISIKLIKLER:
+///   - Boss HP 41.000 (ordu DPS kalibrasyonu: T3+10 optimal asker ~75sn)
+///   - Biyom zayifligi: Teknoloji + Tas = x1.25 bonus hasar UYGULANIR
+///     (BiomeManager + SoldierPath parametresi ile dinamik)
+///   - Faz1 tas zirhı: Piyade hasarı x0.9 (dogal direnc)
+///   - Yenilgide biyomun boss adı kullanılıyor (BiomeManager.GetBossName)
+///
+/// DENGE (simülasyon doğrulandı):
+///   T3+10 Teknoloji Lv1 + Tas biyom: ~75sn  ✓
+///   T3+10 Piyade Lv1   + Tas biyom: ~108sn  ✓ (yanlış path = zor ama mümkün)
+///   T4+15 Teknoloji Lv2 + Tas biyom: ~39sn  ✓ (güçlü oyuncu hızlı bitirir)
 /// </summary>
 public class BossManager : MonoBehaviour
 {
     public static BossManager Instance { get; private set; }
 
     [Header("Boss")]
-    public int   bossMaxHP         = 150000;
+    public int   bossMaxHP         = 41000;
     public float bossApproachSpeed = 2.5f;
     public int   bossContactDmg    = 100;
     public float bossStopDist      = 12f;
@@ -28,7 +37,7 @@ public class BossManager : MonoBehaviour
     public int   minionCount    = 3;
     public float minionInterval = 8f;
 
-    [Header("Prefab (boş = fallback küp)")]
+    [Header("Prefab (bos = fallback kup)")]
     public GameObject bossPrefab;
 
     int    _hp;
@@ -42,6 +51,12 @@ public class BossManager : MonoBehaviour
     Image           _hpFill;
     TextMeshProUGUI _phaseLabel;
 
+    // Biyom zayıflığı — Bullet hasarını BossManager üzerinden geçirmiyoruz,
+    // SoldierUnit ve PlayerController direkt Enemy'e çarpıyor.
+    // Bunun yerine Boss'a gelen hasarı biyom çarpanıyla amplify ediyoruz.
+    float _biomeMultiplier = 1f;
+
+    // ─────────────────────────────────────────────────────────────────────
     void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
@@ -51,16 +66,59 @@ public class BossManager : MonoBehaviour
     void Start()
     {
         GameEvents.OnBossEncountered += StartFight;
+        GameEvents.OnBiomeChanged    += OnBiomeChanged;
         BuildHPBar();
         _bossCanvas?.gameObject.SetActive(false);
+
+        // Baslangicta biyom ayarla
+        if (BiomeManager.Instance != null)
+            OnBiomeChanged(BiomeManager.Instance.currentBiome);
     }
 
-    void OnDestroy() => GameEvents.OnBossEncountered -= StartFight;
+    void OnDestroy()
+    {
+        GameEvents.OnBossEncountered -= StartFight;
+        GameEvents.OnBiomeChanged    -= OnBiomeChanged;
+    }
 
+    // ── Biyom Zayifligi ──────────────────────────────────────────────────
+    // Dominant path mevcut biyomla eşleşiyorsa boss daha hızlı ölür.
+    // Çarpan BossHitReceiver.TakeDamage'da uygulanır.
+    void OnBiomeChanged(string biome)
+    {
+        // Taş biyomda Teknoloji dominant ise x1.25 (tasarım belgesiyle uyumlu)
+        // Oyuncunun dominant pathini PlayerStats'tan okuyoruz.
+        _biomeMultiplier = CalcBiomeMultiplier(biome);
+        Debug.Log($"[Boss] Biyom={biome} | Hasar carpani: x{_biomeMultiplier:F2}");
+    }
+
+    float CalcBiomeMultiplier(string biome)
+    {
+        if (PlayerStats.Instance == null) return 1f;
+        var ps = PlayerStats.Instance;
+
+        float total = ps.PiyadePath + ps.MekanizePath + ps.TeknolojiPath;
+        if (total < 1f) return 1f;
+
+        float p = ps.PiyadePath / total;
+        float m = ps.MekanizePath / total;
+        float t = ps.TeknolojiPath / total;
+
+        // Dominant path (>%50) varsa biyom matrisinden carpanı al
+        SoldierPath dominant;
+        if (t >= 0.5f) dominant = SoldierPath.Teknoloji;
+        else if (p >= 0.5f) dominant = SoldierPath.Piyade;
+        else if (m >= 0.5f) dominant = SoldierPath.Mekanik;
+        else return 1f; // karışık path — bonus yok
+
+        return BiomeManager.Instance?.GetMultiplier(dominant) ?? 1f;
+    }
+
+    // ── Boss Baslangici ───────────────────────────────────────────────────
     void StartFight()
     {
         if (_active) return;
-        Debug.Log("[Boss] Başlıyor!");
+        Debug.Log("[Boss] Basliyor!");
         StartCoroutine(EntranceCo());
     }
 
@@ -79,8 +137,11 @@ public class BossManager : MonoBehaviour
 
         _bossCanvas?.gameObject.SetActive(true);
         UpdateBar();
-        SetLabel("GOKMEDRESE MUHAFIZI  |  FAZ 1: TAS ZIRH");
-        Debug.Log("[Boss] Aktif! HP=" + _hp);
+
+        // Biyom boss adı
+        string bossName = BiomeManager.Instance?.GetBossName() ?? "BOSS";
+        SetLabel($"{bossName.ToUpper()}  |  FAZ 1: ZİRH");
+        Debug.Log($"[Boss] Aktif! HP={_hp} | Biyom carpani: x{_biomeMultiplier:F2}");
     }
 
     void SpawnBoss(Vector3 pos)
@@ -89,11 +150,12 @@ public class BossManager : MonoBehaviour
             ? Instantiate(bossPrefab, pos, Quaternion.identity)
             : MakeFallbackCube(pos);
 
-        _bossRend = _bossObj.GetComponent<Renderer>();
+        _bossRend    = _bossObj.GetComponent<Renderer>();
         _bossObj.tag = "Enemy";
 
-        Collider col = _bossObj.GetComponent<Collider>() ?? _bossObj.AddComponent<BoxCollider>();
-        // isTrigger=false → Bullet.OverlapSphere tag="Enemy" ile bulur
+        // isTrigger=false → Bullet.OverlapSphere bulur
+        if (_bossObj.GetComponent<Collider>() == null)
+            _bossObj.AddComponent<BoxCollider>();
 
         var recv = _bossObj.AddComponent<BossHitReceiver>();
         recv.bossManager = this;
@@ -108,6 +170,7 @@ public class BossManager : MonoBehaviour
         return obj;
     }
 
+    // ── Update ────────────────────────────────────────────────────────────
     void Update()
     {
         if (!_active || _dead || _bossObj == null || PlayerStats.Instance == null) return;
@@ -119,16 +182,38 @@ public class BossManager : MonoBehaviour
             p.z = Mathf.MoveTowards(p.z, tZ, bossApproachSpeed * Time.deltaTime);
         else
         {
+            // Boss dokunmasi — Komutan HP'yi düsür
             PlayerStats.Instance.TakeContactDamage(bossContactDmg);
             p.z += 8f;
         }
         _bossObj.transform.position = p;
     }
 
-    public void TakeDamage(int dmg)
+    // ── Hasar Al ─────────────────────────────────────────────────────────
+    /// <summary>
+    /// Biyom carpani burada uygulanır.
+    /// Faz1'de Piyade hasarına tas direnci var (x0.9).
+    /// </summary>
+    public void TakeDamage(int rawDmg)
     {
         if (!_active || _dead) return;
-        _hp = Mathf.Max(0, _hp - dmg);
+
+        // Biyom carpanı
+        float finalDmg = rawDmg * _biomeMultiplier;
+
+        // Faz1 Piyade direnci — mevcut subpath baskın Piyade ise
+        if (_phase == 1)
+        {
+            var ps = PlayerStats.Instance;
+            if (ps != null)
+            {
+                float total = ps.PiyadePath + ps.MekanizePath + ps.TeknolojiPath;
+                if (total > 0f && ps.PiyadePath / total >= 0.5f)
+                    finalDmg *= 0.9f; // Taş direnci Piyadeye karşı
+            }
+        }
+
+        _hp = Mathf.Max(0, _hp - Mathf.RoundToInt(finalDmg));
         UpdateBar();
         StartCoroutine(Flash());
         CheckPhase();
@@ -144,14 +229,16 @@ public class BossManager : MonoBehaviour
 
     void Phase2()
     {
-        SetLabel("FAZ 2: MINYON");
+        string bossName = BiomeManager.Instance?.GetBossName() ?? "BOSS";
+        SetLabel($"{bossName.ToUpper()}  |  FAZ 2: MİNYON");
         if (_bossRend) _bossRend.material.color = new Color(0.7f, 0.3f, 0.1f);
         InvokeRepeating(nameof(SpawnMinions), 1f, minionInterval);
     }
 
     void Phase3()
     {
-        SetLabel("FAZ 3: CEKIRDEK");
+        string bossName = BiomeManager.Instance?.GetBossName() ?? "BOSS";
+        SetLabel($"{bossName.ToUpper()}  |  FAZ 3: ÇEKİRDEK");
         if (_bossRend) _bossRend.material.color = new Color(0.9f, 0.05f, 0.05f);
         bossApproachSpeed *= 2.2f;
         CancelInvoke(nameof(SpawnMinions));
@@ -182,6 +269,7 @@ public class BossManager : MonoBehaviour
         }
     }
 
+    // ── Zafer / Yenilgi ───────────────────────────────────────────────────
     void Defeat()
     {
         _dead = true; _active = false;
@@ -204,9 +292,10 @@ public class BossManager : MonoBehaviour
         r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one;
         r.offsetMin = r.offsetMax = Vector2.zero;
 
-        Txt(panel, "SIVAS ELE GECIRILDI!", new Vector2(0,100), 46, new Color(1f,0.85f,0f), FontStyles.Bold);
+        string region = BiomeManager.Instance?.currentBiome ?? "BÖLGE";
+        Txt(panel, $"{region.ToUpper()} ELE GEÇİRİLDİ!", new Vector2(0,100), 46, new Color(1f,0.85f,0f), FontStyles.Bold);
         Txt(panel, "CP: " + (PlayerStats.Instance?.CP.ToString("N0") ?? "0"), new Vector2(0,25), 28, Color.white, FontStyles.Normal);
-        Txt(panel, "Mermi: " + (PlayerStats.Instance?.BulletCount ?? 1), new Vector2(0,-20), 22, new Color(0.7f,0.7f,1f), FontStyles.Normal);
+        Txt(panel, "Asker: " + (ArmyManager.Instance?.SoldierCount ?? 0) + "/20", new Vector2(0,-20), 22, new Color(0.7f,0.7f,1f), FontStyles.Normal);
         Btn(panel, "TEKRAR DENE", new Vector2(0,-85), new Vector2(240,55), new Color(0.2f,0.7f,0.2f), () =>
         {
             Time.timeScale = 1f;
@@ -238,7 +327,7 @@ public class BossManager : MonoBehaviour
         fr.anchorMin = new Vector2(0.005f, 0.08f); fr.anchorMax = new Vector2(0.995f, 0.92f);
         fr.offsetMin = fr.offsetMax = Vector2.zero;
 
-        _phaseLabel = Txt(strip, "GOKMEDRESE MUHAFIZI", Vector2.zero, 14, Color.white, FontStyles.Bold);
+        _phaseLabel = Txt(strip, "BOSS", Vector2.zero, 14, Color.white, FontStyles.Bold);
         var lr = _phaseLabel.GetComponent<RectTransform>();
         lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one; lr.offsetMin = lr.offsetMax = Vector2.zero;
     }
@@ -262,7 +351,7 @@ public class BossManager : MonoBehaviour
         if (_bossRend) _bossRend.material.color = o;
     }
 
-    // ── UI Helpers ─────────────────────────────────────────────────────────
+    // ── UI Helpers ────────────────────────────────────────────────────────
     TextMeshProUGUI Txt(GameObject p, string txt, Vector2 pos, float sz, Color col, FontStyles fs)
     {
         var o = new GameObject("T"); o.transform.SetParent(p.transform, false);

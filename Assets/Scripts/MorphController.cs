@@ -21,33 +21,88 @@ public class MorphController : MonoBehaviour
     public float popDuration    = 0.35f;
     public float popPeak        = 1.35f;
 
-    [Header("Visual Components")]
-    [SerializeField] private Renderer characterRenderer; // Komutanın veya Askerin Mesh Renderer'ı
-    
-    // Performans için Property Block tanımlıyoruz
-    private MaterialPropertyBlock _propBlock;
+    [Header("Shader Renkleri (Commander_BiomeShader icin)")]
+    [SerializeField] Renderer characterRenderer;
 
-    // Shader referans ID'lerini (String yerine ID kullanmak çok daha hızlıdır) önbelleğe alıyoruz
-    private static readonly int TierColorID = Shader.PropertyToID("_TierColor");
-    private static readonly int BiomeTintID = Shader.PropertyToID("_BiomeTint");
+    // Tier renkleri (T1=gri → T5=altin)
+    static readonly Color[] TIER_COLORS =
+    {
+        new Color(0.55f, 0.55f, 0.55f), // T1 Gri
+        new Color(0.20f, 0.45f, 0.90f), // T2 Mavi
+        new Color(0.90f, 0.50f, 0.10f), // T3 Turuncu
+        new Color(0.65f, 0.10f, 0.90f), // T4 Mor
+        new Color(1.00f, 0.80f, 0.10f), // T5 Altin
+    };
 
-    // Tum tier modelleri onceden olusturulur, sadece aktif/pasif yapilir
+    // Biyom renkleri (BiomeManager currentBiome ile eslenik)
+    static readonly System.Collections.Generic.Dictionary<string, Color> BIOME_COLORS =
+        new System.Collections.Generic.Dictionary<string, Color>
+    {
+        ["Tas"]   = new Color(0.55f, 0.52f, 0.48f),
+        ["Orman"] = new Color(0.20f, 0.60f, 0.20f),
+        ["Cul"]   = new Color(0.85f, 0.70f, 0.30f),
+        ["Karli"] = new Color(0.80f, 0.90f, 1.00f),
+        ["Tarim"] = new Color(0.60f, 0.80f, 0.30f),
+    };
+
+    MaterialPropertyBlock _propBlock;
+    static readonly int TierColorID = Shader.PropertyToID("_TierColor");
+    static readonly int BiomeTintID = Shader.PropertyToID("_BiomeTint");
+
     GameObject[] _spawnedModels;
     int          _currentTierIndex = -1;
     bool         _isMorphing       = false;
 
+    // ─────────────────────────────────────────────────────────────────────
+    void Awake()
+    {
+        _propBlock = new MaterialPropertyBlock();
+    }
+
     void Start()
     {
         PrewarmModels();
-        GameEvents.OnTierChanged += HandleTierChange;
+        GameEvents.OnTierChanged  += HandleTierChange;
+        GameEvents.OnBiomeChanged += HandleBiomeChange;
         ActivateTier(0);
+        RefreshShader(1, BiomeManager.Instance?.currentBiome ?? "Tas");
     }
 
     void OnDestroy()
     {
-        GameEvents.OnTierChanged -= HandleTierChange;
+        GameEvents.OnTierChanged  -= HandleTierChange;
+        GameEvents.OnBiomeChanged -= HandleBiomeChange;
     }
 
+    // ── Shader Guncelleme ─────────────────────────────────────────────────
+    /// <summary>Tier ve biyom degistiginde Commander_BiomeShader'i gunceller.</summary>
+    public void RefreshShader(int tier, string biome)
+    {
+        if (characterRenderer == null) return;
+
+        Color tc = TIER_COLORS[Mathf.Clamp(tier - 1, 0, TIER_COLORS.Length - 1)];
+        Color bc = BIOME_COLORS.TryGetValue(biome, out Color found) ? found : Color.white;
+
+        characterRenderer.GetPropertyBlock(_propBlock);
+        _propBlock.SetColor(TierColorID, tc);
+        _propBlock.SetColor(BiomeTintID, bc);
+        characterRenderer.SetPropertyBlock(_propBlock);
+    }
+
+    void HandleTierChange(int newTier)
+    {
+        int index = Mathf.Clamp(newTier - 1, 0, _spawnedModels.Length - 1);
+        RefreshShader(newTier, BiomeManager.Instance?.currentBiome ?? "Tas");
+        if (index == _currentTierIndex || _isMorphing) return;
+        StartCoroutine(MorphCoroutine(index));
+    }
+
+    void HandleBiomeChange(string biome)
+    {
+        RefreshShader(PlayerStats.Instance?.CurrentTier ?? 1, biome);
+    }
+
+    // ── Model Yonetimi ────────────────────────────────────────────────────
     void PrewarmModels()
     {
         int count = tierPrefabs != null ? tierPrefabs.Length : 5;
@@ -76,18 +131,10 @@ public class MorphController : MonoBehaviour
         }
     }
 
-    void HandleTierChange(int newTier)
-    {
-        int index = Mathf.Clamp(newTier - 1, 0, _spawnedModels.Length - 1);
-        if (index == _currentTierIndex || _isMorphing) return;
-        StartCoroutine(MorphCoroutine(index));
-    }
-
     IEnumerator MorphCoroutine(int targetIndex)
     {
         _isMorphing = true;
 
-        // Mevcut modeli kucult
         if (_currentTierIndex >= 0 && _currentTierIndex < _spawnedModels.Length)
         {
             GameObject prev = _spawnedModels[_currentTierIndex];
@@ -121,33 +168,10 @@ public class MorphController : MonoBehaviour
             .OnComplete(() =>
             {
                 if (model != null)
-                    model.transform.DOScale(Vector3.one, popDuration * 0.5f).SetEase(Ease.InOutQuad);
+                    model.transform.DOScale(Vector3.one, popDuration * 0.5f)
+                        .SetEase(Ease.InOutQuad);
             });
 
         _currentTierIndex = index;
     }
-private void Awake()
-    {
-        // Bellek tahsisini oyun başında sadece bir kere yapıyoruz (Garbage Collector'ı yormamak için)
-        _propBlock = new MaterialPropertyBlock();
-    }
-
-    /// <summary>
-    /// Karakterin görsel renklerini günceller. Tier atladığında veya Biyom değiştiğinde çağrılır.
-    /// </summary>
-    public void UpdateVisuals(Color tierColor, Color biomeTint)
-    {
-        if (characterRenderer == null) return;
-
-        // 1. O anki render ayarlarını bloğa al
-        characterRenderer.GetPropertyBlock(_propBlock);
-        
-        // 2. Yeni renkleri bloğa işle
-        _propBlock.SetColor(TierColorID, tierColor);
-        _propBlock.SetColor(BiomeTintID, biomeTint);
-        
-        // 3. Bloğu tekrar renderer'a geri ver (Materyal kopyalanmadan renk değişir!)
-        characterRenderer.SetPropertyBlock(_propBlock);
-    }
-
 }
