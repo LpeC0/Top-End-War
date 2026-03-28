@@ -96,26 +96,26 @@ public class GameHUD : MonoBehaviour
             go.AddComponent<CanvasScaler>(); go.AddComponent<GraphicRaycaster>();
         }
 
-        if (cpText   == null) cpText   = MakeText(canvas.gameObject, "CP", new Vector2(0.5f,1f), new Vector2(0,-35),  36, Color.white);
-        if (tierText == null) tierText = MakeText(canvas.gameObject, "TIER 1", new Vector2(0.5f,1f), new Vector2(0,-75), 26, Color.yellow);
-        if (popupText== null) popupText= MakeText(canvas.gameObject, "", new Vector2(0.5f,0.5f), new Vector2(0,60), 40, Color.cyan);
+        if (cpText   == null) cpText   = MakeText(canvas.gameObject, "CP", new Vector2(0.5f,1f), new Vector2(0,-50),  52, Color.white);
+        if (tierText == null) tierText = MakeText(canvas.gameObject, "TIER 1", new Vector2(0.5f,1f), new Vector2(0,-105), 32, Color.yellow);
+        if (popupText== null) popupText= MakeText(canvas.gameObject, "", new Vector2(0.5f,0.5f), new Vector2(0,80), 52, Color.cyan);
 
         // ── Komutan HP Bar ────────────────────────────────────────────────
         // Unity Slider standart yapısı: Slider → Background + Fill Area → Fill
         if (commanderHPSlider == null)
             commanderHPSlider = BuildHPBar(canvas,
-                new Vector2(0.05f, 0.94f), new Vector2(0.75f, 0.99f),
+                new Vector2(0.03f, 0.90f), new Vector2(0.72f, 0.96f),
                 new Color(0.2f, 0.8f, 0.2f), "KomutanHP");
 
         // HP text (slider'ın yanında)
         if (commanderHPText == null)
             commanderHPText = MakeText(canvas.gameObject, "HP",
-                new Vector2(0.77f, 0.965f), Vector2.zero, 18, Color.white);
+                new Vector2(0.74f, 0.93f), Vector2.zero, 24, Color.white);
 
         // ── Asker Sayısı ──────────────────────────────────────────────────
         if (soldierCountText == null)
             soldierCountText = MakeText(canvas.gameObject, "Asker: 0/20",
-                new Vector2(0.0f, 0.93f), new Vector2(80, 0), 20, new Color(0.9f,0.9f,0.9f));
+                new Vector2(0.0f, 0.88f), new Vector2(100, 0), 28, new Color(0.9f,0.9f,0.9f));
 
         // ── Hasar Flash ───────────────────────────────────────────────────
         if (damageFlashImage == null)

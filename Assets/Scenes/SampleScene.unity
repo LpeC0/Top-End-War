@@ -2285,6 +2285,56 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -80}
   m_SizeDelta: {x: 400, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1164048807
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1164048808}
+  - component: {fileID: 1164048809}
+  m_Layer: 0
+  m_Name: EquipmentUIManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1164048808
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1164048807}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1164048809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1164048807}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 41a00274a43ca764d9605b0a3d02d1f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::EquipmentUI
+  availableWeapons:
+  - {fileID: 0}
+  availableArmors:
+  - {fileID: 0}
+  availableAccessories:
+  - {fileID: 0}
 --- !u!1 &1185041038 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 179161563940366066, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
@@ -2717,6 +2767,9 @@ MonoBehaviour:
   pools:
   - tag: Bullet
     prefab: {fileID: 1185041038}
+    size: 30
+  - tag: DamagePopup
+    prefab: {fileID: 0}
     size: 30
 --- !u!4 &1401933232
 Transform:
@@ -3760,3 +3813,4 @@ SceneRoots:
   - {fileID: 815099115}
   - {fileID: 2061683027}
   - {fileID: 517830055}
+  - {fileID: 1164048808}

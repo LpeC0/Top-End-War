@@ -121,13 +121,19 @@ public class Enemy : MonoBehaviour
         return count > 0 ? (sep / count) * 3.5f : Vector3.zero;
     }
 
-    public void TakeDamage(int dmg)
+    public void TakeDamage(int dmg, Color? hitColor = null)
     {
         if (_isDead) return;
         _currentHealth -= dmg;
         _hpBar?.UpdateBar(_currentHealth);
         if (_bodyRenderer != null) _bodyRenderer.material.color = Color.red;
         Invoke(nameof(ResetColor), 0.1f);
+
+        // Floating damage popup
+        bool isCrit = dmg > 200;
+        Color popupColor = hitColor ?? DamagePopup.GetColor("Commander");
+        DamagePopup.Show(transform.position, dmg, popupColor, isCrit);
+
         if (_currentHealth <= 0) Die();
     }
 
@@ -150,11 +156,13 @@ public class Enemy : MonoBehaviour
     {
         if (_isDead) return;
 
-        // --- Askere carparsa ---
-        if (other.CompareTag("Soldier"))
+        // --- Askere carparsa (tag yok, GetComponent kullan) ---
+        SoldierUnit soldier = other.GetComponent<SoldierUnit>();
+        if (soldier != null)
         {
-            other.GetComponent<SoldierUnit>()?.TakeDamage(_contactDamage);
-            Die(); // dusman da olur
+            // Pozisyon bazlı hasar: asker düşman ile temas edince düşer
+            soldier.TakeDamage(_contactDamage);
+            Die();
             return;
         }
 

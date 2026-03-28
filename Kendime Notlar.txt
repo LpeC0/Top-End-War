@@ -9,3 +9,15 @@ Oyuncu Hp'si hala gözükmüyor bunun için de bir Healthbar cs'i gerekir mi?Mev
 Askerlerimizin HPsi var fakat bir işe yarıyor mu asker HP'sine heal veren kapımız da var çünkü bu konuda da bir arkaplan matematiği gerekebilir.
 
 Mobları zor öldürüyoruz sürekli kaçmak zorunda kalıyoruz doğru kapıları seçsek bile bu durumda asker hp'miz olması oyunu kötü etkileyebilir ama onlara hasar gelmemesi de boşluk hissi yaratır mı?
+
+
+++yukarıdakiler claudeye yazıldı ve halledildi.
+-------------------------------------------------------------------------------------------
+Kamera sabit kalmalı oyuncuyla hareket edip ona bakmamalı daha düzgün kamera açısı lazım.
+
+şuanda zorluğu düzelttik doğru kapı seçimi ile güzel bir oyun sağlanıyor ama üstünde çalışılacak.
+
+mermiler bizi geçen geride kalmış düşmanlara gitmemeli.
+
+equipment loadui cs dosyasıyla loadout oluşturuldu fakat player.cste bu kısım mevcut değil.
+

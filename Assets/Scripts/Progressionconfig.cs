@@ -19,7 +19,7 @@ public class ProgressionConfig : ScriptableObject
     public int   baseEnemyDamage       = 25;
     public float baseEnemySpeed        = 4.0f;
     public float enemyMaxSpeed         = 7.5f;
-    [Range(0.5f, 1.5f)] public float playerCPScalingFactor = 0.9f;
+    [Range(0.1f, 1.0f)] public float playerCPScalingFactor = 0.5f; // 0.9→0.5: güçlü oyuncuya ceza azaldı
 
     [Header("Kapi")]
     public float gateValueGrowthRate   = 1.12f;

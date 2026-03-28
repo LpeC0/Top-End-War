@@ -6,7 +6,7 @@ public class PlayerStats : MonoBehaviour
     public static PlayerStats Instance { get; private set; }
 
     [Header("Baslangic Ayarlari")]
-    public int   startCP               = 200;
+    public int   startCP               = 350; // Başlangıç CP artırıldı
     public float invincibilityDuration = 0.8f;
 
     // ── Kuşanılmış Ekipmanlar ────────────────────────────────────────────
@@ -81,7 +81,7 @@ public class PlayerStats : MonoBehaviour
     int   _riskBonusLeft  = 0;
     float _expectedCP     = 200f;
 
-    static readonly int[]    TIER_CP    = { 0, 500, 1500, 4000, 9000 };
+    static readonly int[]    TIER_CP    = { 0, 300, 900, 2500, 6000 }; // Daha hızlı tier atla
     static readonly string[] TIER_NAMES = { "Gonullu Er", "Elit Komando", "Gatling Timi", "Hava Indirme", "Suru Drone" };
     static readonly int[]    COMMANDER_HP_BY_TIER = { 500, 700, 950, 1200, 1500 };
     const  int MAX_BULLETS = 5;
@@ -162,7 +162,7 @@ public class PlayerStats : MonoBehaviour
                 ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade);
                 break;
             case GateEffectType.Merge:
-                HandleMerge();
+                HandleMerge(_riskBonusLeft > 0);
                 break;
             case GateEffectType.PathBoost_Piyade:
                 _baseCP += Mathf.RoundToInt(data.effectValue * scale * bonus);
@@ -189,25 +189,55 @@ public class PlayerStats : MonoBehaviour
                 GameEvents.OnRiskBonusActivated?.Invoke(_riskBonusLeft);
                 break;
             case GateEffectType.AddSoldier_Piyade:
-                ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade, count: 2);
-                _baseCP += Mathf.RoundToInt(data.effectValue * scale * bonus);
+            {
+                // Risk aktifse +1 ekstra asker (2 yerine 3)
+                int soldierCount = _riskBonusLeft > 0 ? 3 : 2;
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade, count: soldierCount);
+                _baseCP += Mathf.RoundToInt(data.effectValue * scale);
+                if (_riskBonusLeft > 0) ShowPopupMessage("RISK: +3 Piyade!");
                 break;
+            }
             case GateEffectType.AddSoldier_Mekanik:
-                ArmyManager.Instance?.AddSoldier(SoldierPath.Mekanik, count: 2);
-                _baseCP += Mathf.RoundToInt(data.effectValue * scale * bonus);
+            {
+                int soldierCount = _riskBonusLeft > 0 ? 3 : 2;
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Mekanik, count: soldierCount);
+                _baseCP += Mathf.RoundToInt(data.effectValue * scale);
+                if (_riskBonusLeft > 0) ShowPopupMessage("RISK: +3 Mekanik!");
                 break;
+            }
             case GateEffectType.AddSoldier_Teknoloji:
-                ArmyManager.Instance?.AddSoldier(SoldierPath.Teknoloji, count: 2);
-                _baseCP += Mathf.RoundToInt(data.effectValue * scale * bonus);
+            {
+                int soldierCount = _riskBonusLeft > 0 ? 3 : 2;
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Teknoloji, count: soldierCount);
+                _baseCP += Mathf.RoundToInt(data.effectValue * scale);
+                if (_riskBonusLeft > 0) ShowPopupMessage("RISK: +3 Teknoloji!");
                 break;
+            }
             case GateEffectType.HealCommander:
-                HealCommander(Mathf.RoundToInt(data.effectValue));
+            {
+                // Risk aktifse +kalıcı MaxHP bonusu da verir
+                int healAmt = Mathf.RoundToInt(data.effectValue);
+                HealCommander(healAmt);
+                if (_riskBonusLeft > 0)
+                {
+                    CommanderMaxHP += 100; // kalıcı max HP artışı
+                    CommanderHP = Mathf.Min(CommanderHP + 50, CommanderMaxHP);
+                    GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
+                    ShowPopupMessage("RISK: +100 MaxHP!");
+                }
                 break;
+            }
             case GateEffectType.HealSoldiers:
-                float healPct = Mathf.Clamp(data.effectValue, 0f, 1f);
+            {
+                // Risk aktifse tam heal (%100) + bir sonraki düşman dalgasını ertele (flag)
+                float healPct = _riskBonusLeft > 0 ? 1.0f : Mathf.Clamp(data.effectValue, 0f, 1f);
                 ArmyManager.Instance?.HealAll(healPct);
-                ShowPopupMessage($"ASKER +%{Mathf.RoundToInt(healPct * 100)}");
+                if (_riskBonusLeft > 0)
+                    ShowPopupMessage("RISK: Asker FULL HP!");
+                else
+                    ShowPopupMessage($"Asker +%{Mathf.RoundToInt(healPct * 100)}");
                 break;
+            }
         }
 
         if (_riskBonusLeft > 0 &&
@@ -232,7 +262,7 @@ public class PlayerStats : MonoBehaviour
             GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
     }
 
-    void HandleMerge()
+    void HandleMerge(bool riskActive = false)
     {
         bool mergeOccurred = ArmyManager.Instance != null &&
                              ArmyManager.Instance.TryMerge();
@@ -241,7 +271,11 @@ public class PlayerStats : MonoBehaviour
         float multiplier;
         string role = "none";
 
-        if (total < 1f) multiplier = 1.1f;
+        // Risk aktifse tüm çarpanlar +0.2 artar
+        float riskBonus = riskActive ? 0.2f : 0f;
+        if (riskActive) ShowPopupMessage("RISK: Merge Güçlendi!");
+
+        if (total < 1f) multiplier = 1.1f + riskBonus;
         else
         {
             float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;

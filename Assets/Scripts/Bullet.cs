@@ -14,8 +14,10 @@ using UnityEngine;
 /// </summary>
 public class Bullet : MonoBehaviour
 {
-    public int   damage      = 60;
-    public Color bulletColor = new Color(0.6f, 0.1f, 1.0f);
+    public int    damage      = 60;
+    public Color  bulletColor = new Color(0.6f, 0.1f, 1.0f);
+    [HideInInspector]
+    public string hitterPath  = "Commander"; // "Commander","Piyade","Mekanik","Teknoloji" 
 
     const float HIT_RADIUS = 0.4f;
     const float LIFETIME   = 1.8f;
@@ -51,9 +53,15 @@ public class Bullet : MonoBehaviour
 
             BossHitReceiver bossRecv = col.GetComponent<BossHitReceiver>();
             if (bossRecv != null)
+            {
                 bossRecv.bossManager?.TakeDamage(damage);
+                DamagePopup.Show(col.transform.position, damage,
+                    DamagePopup.GetColor(hitterPath), damage > 500);
+            }
             else
-                col.GetComponent<Enemy>()?.TakeDamage(damage);
+            {
+                col.GetComponent<Enemy>()?.TakeDamage(damage, DamagePopup.GetColor(hitterPath));
+            }
 
             Hit();
             return;

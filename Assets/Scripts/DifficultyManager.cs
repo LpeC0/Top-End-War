@@ -18,10 +18,10 @@ public class DifficultyManager : MonoBehaviour
 
     // Dahili sabitler (config yoksa)
     const float BASE_HP     = 100f;
-    const float BASE_DMG    = 25f;
-    const float BASE_SPEED  = 4.0f;
-    const float MAX_SPEED   = 7.5f;
-    const float BASE_REWARD = 15f;
+    const float BASE_DMG    = 20f;  // 25 → 20: biraz daha cömertti
+    const float BASE_SPEED  = 3.5f; // 4.0 → 3.5: başlangıçta daha yavaş
+    const float MAX_SPEED   = 6.5f; // 7.5 → 6.5: max hız biraz düşük
+    const float BASE_REWARD = 18f;  // 15 → 18: kill başı biraz daha CP
 
     public float CurrentDifficultyMultiplier { get; private set; } = 1f;
     public float PlayerPowerRatio            { get; private set; } = 1f;
@@ -72,7 +72,7 @@ public class DifficultyManager : MonoBehaviour
     void Recalculate()
     {
         float norm = _currentZ / 1000f;
-        CurrentDifficultyMultiplier = 1f + Mathf.Pow(norm, 1.3f);
+        CurrentDifficultyMultiplier = 1f + Mathf.Pow(norm, 1.1f); // 1.3→1.1: daha yavaş artış
 
         int   expected = config != null
             ? config.CalculateExpectedCP(_currentZ)
@@ -80,7 +80,7 @@ public class DifficultyManager : MonoBehaviour
 
         int   actual   = PlayerStats.Instance?.CP ?? 200;
         float raw      = (float)actual / Mathf.Max(1, expected);
-        PlayerPowerRatio = Mathf.Lerp(PlayerPowerRatio, raw, 0.08f);
+        PlayerPowerRatio = Mathf.Lerp(PlayerPowerRatio, raw, 0.15f); // 0.08→0.15: DDA daha hızlı adapte
 
         PlayerStats.Instance?.SetExpectedCP(expected);
         GameEvents.OnDifficultyChanged?.Invoke(CurrentDifficultyMultiplier, PlayerPowerRatio);
@@ -89,9 +89,10 @@ public class DifficultyManager : MonoBehaviour
     public EnemyStats GetScaledEnemyStats()
     {
         float diff  = CurrentDifficultyMultiplier;
-        float pScale= config != null
-            ? Mathf.Lerp(1f, PlayerPowerRatio, config.playerCPScalingFactor)
-            : Mathf.Lerp(1f, PlayerPowerRatio, 0.7f);
+        // pScale: oyuncu güçlüyse düşman biraz artar ama çok fazla değil
+        // 0.5f = oyuncu 2x güçlüyse düşman sadece 1.5x güçlü (eskisi 1.9x idi!)
+        float scaleFactor = config != null ? config.playerCPScalingFactor : 0.5f;
+        float pScale = Mathf.Lerp(1f, Mathf.Min(PlayerPowerRatio, 1.5f), scaleFactor);
         float final = diff * pScale;
 
         float bH    = config != null ? config.baseEnemyHealth : BASE_HP;

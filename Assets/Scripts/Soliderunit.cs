@@ -113,6 +113,10 @@ public class SoldierUnit : MonoBehaviour
 
         Rigidbody rb = b.GetComponent<Rigidbody>();
         if (rb) rb.linearVelocity = dir * 32f;
+
+        // Asker path'ini Bullet'a kaydet (popup rengi için)
+        Bullet blt = b.GetComponent<Bullet>();
+        if (blt != null) blt.hitterPath = path.ToString();
     }
 
     // ── Hasar / Heal ──────────────────────────────────────────────────────
