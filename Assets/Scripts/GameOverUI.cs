@@ -16,8 +16,9 @@ using TMPro;
 /// </summary>
 public class GameOverUI : MonoBehaviour
 {
-    [Header("Sahne Adi")]
+    [Header("Sahne Adlari")]
     public string gameSceneName = "SampleScene";
+    public string mainMenuScene = "MainMenu";
 
     Canvas          _canvas;
     GameObject      _panel;
@@ -72,6 +73,9 @@ public class GameOverUI : MonoBehaviour
         // Butonlar
         MakeButton(_panel, "TEKRAR DENE", new Vector2(0,-130), new Vector2(260,60),
             new Color(0.2f,0.8f,0.2f), () => { Time.timeScale = 1f; SceneManager.LoadScene(gameSceneName); });
+
+        MakeButton(_panel, "ANA MENU", new Vector2(0,-210), new Vector2(260,55),
+            new Color(0.2f,0.3f,0.75f), () => { Time.timeScale = 1f; SceneManager.LoadScene(mainMenuScene); });
 
         // Gelecekte: Ana Menü butonu buraya gelecek
         // MakeButton(_panel, "ANA MENU", new Vector2(0,-210), new Vector2(260,60),

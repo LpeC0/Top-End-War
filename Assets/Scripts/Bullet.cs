@@ -51,6 +51,13 @@ public class Bullet : MonoBehaviour
         {
             if (!col.CompareTag("Enemy")) continue;
 
+            // Geride kalan düşmana gitme — oyuncunun en az 2 birim gerisinde olan enemy'i atla
+            if (PlayerStats.Instance != null)
+            {
+                float playerZ = PlayerStats.Instance.transform.position.z;
+                if (col.transform.position.z < playerZ - 2f) continue;
+            }
+
             BossHitReceiver bossRecv = col.GetComponent<BossHitReceiver>();
             if (bossRecv != null)
             {

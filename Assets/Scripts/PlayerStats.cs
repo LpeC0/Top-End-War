@@ -9,8 +9,13 @@ public class PlayerStats : MonoBehaviour
     public int   startCP               = 350; // Başlangıç CP artırıldı
     public float invincibilityDuration = 0.8f;
 
-    // ── Kuşanılmış Ekipmanlar ────────────────────────────────────────────
-    [Header("Kuşanılmış Ekipmanlar")]
+    // ── Ekipman Seti (tek SO — hepsini bir arada tutar) ─────────────────
+    [Header("Ekipman Seti (EquipmentLoadout SO)")]
+    [Tooltip("Assets → Create → TopEndWar → Equipment Loadout. Doldur ve buraya sur.")]
+    public EquipmentLoadout equippedLoadout;
+
+    // ── Tek tek slotlar (Loadout yoksa veya override için) ───────────────
+    [Header("Tekil Ekipmanlar (Loadout varsa otomatik dolar)")]
     public EquipmentData equippedWeapon;    // ateş hızı + hasar
     public EquipmentData equippedArmor;     // HP + hasar azaltma
     public EquipmentData equippedShoulder;  // CP + küçük hasar
@@ -90,9 +95,12 @@ public class PlayerStats : MonoBehaviour
     {
         if (Instance != null) { Destroy(gameObject); return; }
         Instance = this;
-        
-        _baseCP        = startCP; // startCP'yi baseCP'ye atıyoruz
-        CommanderMaxHP = COMMANDER_HP_BY_TIER[0];
+
+        // Loadout SO varsa tekil slotlara uygula
+        equippedLoadout?.ApplyTo(this);
+
+        _baseCP        = startCP;
+        CommanderMaxHP = COMMANDER_HP_BY_TIER[0] + TotalEquipmentHPBonus();
         CommanderHP    = CommanderMaxHP;
     }
 

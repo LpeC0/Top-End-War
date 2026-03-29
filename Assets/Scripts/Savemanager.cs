@@ -1,57 +1,61 @@
 using UnityEngine;
+using System.IO;
 
 /// <summary>
-/// Top End War — Kayit/Yukle Sistemi (Claude)
+/// Top End War — Kayit/Yukle v2 (Claude)
 ///
-/// UNITY KURULUM:
-///   Hierarchy -> Create Empty -> "SaveManager" -> bu scripti ekle.
-///   Baska hicbir sey yapma.
+/// v2: PlayerPrefs → JSON dosyası.
+///   Kalıcı veri: highCP, highDist, totalRuns, totalKills
+///   Ekipman seti: EquipmentLoadout SO adını kaydeder (isim bazlı)
 ///
-/// NE KAYDEDER:
-///   - En iyi CP (highScore)
-///   - En iyi mesafe (highDistance)
-///   - Toplam oynama sayisi
-///   - Toplam düsman oldurme
+/// DOSYA KONUMU: Application.persistentDataPath/tew_save.json
+///   Android: /data/data/<package>/files/
+///   PC:      %APPDATA%/../LocalLow/<company>/<product>/
 ///
-/// NE KAYDETMEZ (sezon bazli, her oyunda sifirlanir):
-///   - Askerler, mevcut CP, tier
-///
-/// GELECEK:
-///   - Equipment/Pet secimi kalici olacak (JSON'a gecince)
-///   - Bölge ilerleme haritasi (hangi sehir ele gecirildi)
+/// KURULUM:
+///   Hierarchy → Create Empty → "SaveManager" → ekle. Bitti.
 /// </summary>
 public class SaveManager : MonoBehaviour
 {
     public static SaveManager Instance { get; private set; }
 
-    // ── Save Anahtarlari ──────────────────────────────────────────────────
-    const string KEY_HIGH_CP       = "tew_high_cp";
-    const string KEY_HIGH_DIST     = "tew_high_dist";
-    const string KEY_TOTAL_RUNS    = "tew_total_runs";
-    const string KEY_TOTAL_KILLS   = "tew_total_kills";
-    const string KEY_BEST_SOLDIERS = "tew_best_soldiers";
+    // ── Save yapısı ───────────────────────────────────────────────────────
+    [System.Serializable]
+    class SaveData
+    {
+        public int   highScoreCP       = 0;
+        public float highScoreDistance = 0f;
+        public int   totalRuns         = 0;
+        public int   totalKills        = 0;
+        public int   bestSoldierCount  = 0;
+        public string loadoutName      = ""; // EquipmentLoadout SO adı
+    }
 
-    // ── Mevcut Skor (o anki oyun icin) ───────────────────────────────────
-    public int   CurrentRunKills    { get; private set; } = 0;
-    public float CurrentRunStartTime{ get; private set; }
+    SaveData _data = new SaveData();
+    string   _savePath;
 
-    // ── Cached Degerler ───────────────────────────────────────────────────
-    public int   HighScoreCP       { get; private set; }
-    public float HighScoreDistance { get; private set; }
-    public int   TotalRuns         { get; private set; }
-    public int   TotalKills        { get; private set; }
-    public int   BestSoldierCount  { get; private set; }
+    // Mevcut oyun
+    public int   CurrentRunKills     { get; private set; } = 0;
+    public float CurrentRunStartTime { get; private set; }
+
+    // Okunabilir özellikler
+    public int   HighScoreCP       => _data.highScoreCP;
+    public float HighScoreDistance => _data.highScoreDistance;
+    public int   TotalRuns         => _data.totalRuns;
+    public int   TotalKills        => _data.totalKills;
+    public int   BestSoldierCount  => _data.bestSoldierCount;
 
     // ─────────────────────────────────────────────────────────────────────
     void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
         Instance = this;
-        DontDestroyOnLoad(gameObject); // sahne degisince kaybolmasin
+        DontDestroyOnLoad(gameObject);
 
-        Load();
+        _savePath         = Path.Combine(Application.persistentDataPath, "tew_save.json");
         CurrentRunStartTime = Time.time;
-        Debug.Log($"[Save] Yukle tamam | En iyi CP: {HighScoreCP:N0} | En iyi mesafe: {HighScoreDistance:N0}m");
+        Load();
+        Debug.Log($"[Save] Yukle OK | Best CP: {_data.highScoreCP:N0} | Runs: {_data.totalRuns}");
     }
 
     void Start()
@@ -62,63 +66,75 @@ public class SaveManager : MonoBehaviour
     void OnDestroy()
     {
         GameEvents.OnGameOver -= OnGameOver;
+        if (Instance == this) Instance = null;
     }
 
-    // ── Kaydet ───────────────────────────────────────────────────────────
+    // ── Game Over ────────────────────────────────────────────────────────
     void OnGameOver()
     {
         int   cp   = PlayerStats.Instance?.CP ?? 0;
         float dist = PlayerStats.Instance?.transform.position.z ?? 0f;
-        int   soldiers = ArmyManager.Instance?.SoldierCount ?? 0;
+        int   sol  = ArmyManager.Instance?.SoldierCount ?? 0;
 
-        // En iyi skorlari guncelle
-        bool newCPRecord   = cp   > HighScoreCP;
-        bool newDistRecord = dist > HighScoreDistance;
+        bool newCP   = cp   > _data.highScoreCP;
+        bool newDist = dist > _data.highScoreDistance;
 
-        if (newCPRecord)       HighScoreCP       = cp;
-        if (newDistRecord)     HighScoreDistance = dist;
-        if (soldiers > BestSoldierCount) BestSoldierCount = soldiers;
+        if (newCP)   _data.highScoreCP       = cp;
+        if (newDist) _data.highScoreDistance = dist;
+        if (sol > _data.bestSoldierCount) _data.bestSoldierCount = sol;
 
-        TotalRuns++;
-        TotalKills += CurrentRunKills;
+        _data.totalRuns++;
+        _data.totalKills += CurrentRunKills;
+
+        // Loadout adını kaydet
+        if (PlayerStats.Instance?.equippedLoadout != null)
+            _data.loadoutName = PlayerStats.Instance.equippedLoadout.name;
 
         Save();
 
-        // Event'leri tetikle (GameOverUI bunlari dinleyecek)
-        if (newCPRecord)
+        if (newCP || newDist)
             GameEvents.OnSynergyFound?.Invoke($"YENİ REKOR: {cp:N0} CP!");
 
-        Debug.Log($"[Save] Run bitti | CP={cp} | Dist={dist:N0}m | Runs={TotalRuns}");
+        Debug.Log($"[Save] Run bitti | CP={cp} | Dist={dist:N0}m | Runs={_data.totalRuns}");
     }
 
-    // ── Dusmanı Say ──────────────────────────────────────────────────────
+    // ── Kill sayacı ───────────────────────────────────────────────────────
     public void RegisterKill() => CurrentRunKills++;
 
-    // ── PlayerPrefs IO ───────────────────────────────────────────────────
+    // ── IO ────────────────────────────────────────────────────────────────
     public void Save()
     {
-        PlayerPrefs.SetInt(KEY_HIGH_CP,       HighScoreCP);
-        PlayerPrefs.SetFloat(KEY_HIGH_DIST,   HighScoreDistance);
-        PlayerPrefs.SetInt(KEY_TOTAL_RUNS,    TotalRuns);
-        PlayerPrefs.SetInt(KEY_TOTAL_KILLS,   TotalKills);
-        PlayerPrefs.SetInt(KEY_BEST_SOLDIERS, BestSoldierCount);
-        PlayerPrefs.Save();
+        try
+        {
+            string json = JsonUtility.ToJson(_data, prettyPrint: true);
+            File.WriteAllText(_savePath, json);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[Save] Kayıt başarısız: " + e.Message);
+        }
     }
 
     public void Load()
     {
-        HighScoreCP       = PlayerPrefs.GetInt(KEY_HIGH_CP,       0);
-        HighScoreDistance = PlayerPrefs.GetFloat(KEY_HIGH_DIST,   0f);
-        TotalRuns         = PlayerPrefs.GetInt(KEY_TOTAL_RUNS,    0);
-        TotalKills        = PlayerPrefs.GetInt(KEY_TOTAL_KILLS,   0);
-        BestSoldierCount  = PlayerPrefs.GetInt(KEY_BEST_SOLDIERS, 0);
+        try
+        {
+            if (File.Exists(_savePath))
+            {
+                string json = File.ReadAllText(_savePath);
+                _data = JsonUtility.FromJson<SaveData>(json) ?? new SaveData();
+            }
+        }
+        catch
+        {
+            _data = new SaveData();
+        }
     }
 
-    /// <summary>Tum kayitlari sil (debug/test icin).</summary>
     public void ResetAll()
     {
-        PlayerPrefs.DeleteAll();
-        Load();
-        Debug.Log("[Save] Tum veriler silindi.");
+        _data = new SaveData();
+        Save();
+        Debug.Log("[Save] Sıfırlandı.");
     }
 }

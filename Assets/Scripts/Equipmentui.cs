@@ -255,6 +255,10 @@ public class EquipmentUI : MonoBehaviour
 
         _pickPanel.SetActive(false);
         RefreshAll();
+
+        // Loadout SO varsa değişikliği oraya da yaz (save için)
+        ps.equippedLoadout?.ReadFrom(ps);
+
         GameEvents.OnCPUpdated?.Invoke(ps.CP);
         GameEvents.OnCommanderHPChanged?.Invoke(ps.CommanderHP, ps.CommanderMaxHP);
     }
