@@ -1,46 +1,45 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Ilerleme Konfigurasyonu (Claude)
-/// Assets → Create → TopEndWar → Progression Config
-/// DifficultyManager'a bagla. Baglamazsan DifficultyManager dahili sabitlerle calisir.
-/// NAMESPACE YOK — eski GPT kodlari namespace kullaniyordu, biz kullanmiyoruz.
+/// Top End War — Ilerleme Konfigurasyonu v2 (Claude)
+///
+/// v2 degisiklikleri:
+///   difficultyExponent varsayilan:    1.3 → 1.1
+///   playerCPScalingFactor varsayilan: 0.9 → 0.5
+///   minPowerAdjust / maxPowerAdjust eklendi (carpan siniri)
+///
+/// Assets > Create > TopEndWar > ProgressionConfig ile olustur.
+/// DifficultyManager bu SO'yu okur.
 /// </summary>
-[CreateAssetMenu(fileName = "ProgressionConfig", menuName = "TopEndWar/Progression Config")]
+[CreateAssetMenu(fileName = "ProgressionConfig", menuName = "TopEndWar/ProgressionConfig")]
 public class ProgressionConfig : ScriptableObject
 {
-    [Header("Ilerleme")]
-    [Range(1.05f, 1.5f)] public float growthRate          = 1.15f;
-    [Range(1.0f,  3.0f)] public float difficultyExponent  = 1.3f;
-    public int baseStartCP = 200;
+    [Header("Zorluk Egrisi")]
+    [Tooltip("Mesafeye gore zorluk artis ussu. 1.1 = yavash artar, 1.5 = agresif")]
+    [Range(0.8f, 2.0f)]
+    public float difficultyExponent = 1.1f;
 
-    [Header("Dusman")]
-    public int   baseEnemyHealth       = 100;
-    public int   baseEnemyDamage       = 25;
-    public float baseEnemySpeed        = 4.0f;
-    public float enemyMaxSpeed         = 7.5f;
-    [Range(0.1f, 1.0f)] public float playerCPScalingFactor = 0.5f; // 0.9→0.5: güçlü oyuncuya ceza azaldı
+    [Tooltip("Mesafe olcegi. Kucuk = daha erken zorlasmaya baslar")]
+    public float distanceScale = 1000f;
 
-    [Header("Kapi")]
-    public float gateValueGrowthRate   = 1.12f;
-    public int   minGateValue          = 20;
-    public int   maxGateValue          = 500;
-    public float noBadGateZoneBeforeBoss = 200f;
+    [Header("Oyuncu Gucu Uyumu")]
+    [Tooltip(
+        "Oyuncunun gucune gore zorluk ne kadar uyum saglar?\n" +
+        "0.0 = hic uyum yok (saf Fixed Difficulty)\n" +
+        "0.5 = orta uyum (oyuncu cok gucluyse hafif zorlar)\n" +
+        "1.0 = tam uyum (kostu bandi — onerilmez)")]
+    [Range(0f, 1f)]
+    public float playerCPScalingFactor = 0.5f;
 
-    [Header("Tier Eslikleri")]
-    public int[] tierThresholds = { 0, 300, 800, 2000, 5000 };
+    [Tooltip("Guc ayari alt siniri (oyuncuyu asiri kolaylastirmaz)")]
+    [Range(0.5f, 1f)]
+    public float minPowerAdjust = 0.7f;
 
-    public int CalculateExpectedCP(float d)
-        => Mathf.RoundToInt(baseStartCP * Mathf.Pow(growthRate, d / 100f));
+    [Tooltip("Guc ayari ust siniri (oyuncuyu asiri cezalandirmaz)")]
+    [Range(1f, 2f)]
+    public float maxPowerAdjust = 1.4f;
 
-    public float CalculateDifficultyMultiplier(float d)
-        => 1f + Mathf.Pow(d / 1000f, difficultyExponent);
-
-    public int ScaleGateValue(int v, float d)
-    {
-        int s = Mathf.RoundToInt(v * Mathf.Pow(gateValueGrowthRate, d / 150f));
-        if (s < minGateValue) return minGateValue;
-        if (s > maxGateValue) return maxGateValue;
-        return s;
-    }
+    [Header("Beklenen CP (SpawnManager kullanir)")]
+    [Tooltip("Her 1000 unitede beklenen CP artisi")]
+    public float expectedCPGrowthPerKm = 150f;
 }

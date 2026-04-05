@@ -1,17 +1,24 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Hareketi v4 (Claude)
+/// Top End War — Oyuncu Hareketi v5 (Claude)
 ///
-/// v4: EquipmentData.fireRateMultiplier ateş hızına uygulanıyor.
-///     Komutan kuşandığı silahın hızını otomatik alıyor.
+/// v5 degisiklikleri:
+///   + AutoShoot: bulletDamage = GetTotalDPS() / (GetBaseFireRate() * BulletCount)
+///   + DAMAGE[] ve BASE_FIRE_RATES[] dizileri KALDIRILDI — PlayerStats'ten gelir
+///   + staticFire degiskeni kaldirildi
+///   Onceki mantik (v4) aynen korundu: FindTarget, drag, spread, anchor.
 ///
-/// Anchor Modu: OnAnchorModeChanged(true) gelince forwardSpeed=0,
-///   oyuncu sadece X ekseninde hareket eder, boss ile savaşır.
+/// HASAR FORMULU (Degismez Kural):
+///   TotalDPS = BaseDMG[tier] * WeaponMult * SlotMult * RarityMult * GlobalMult
+///   BulletDamage = TotalDPS / (FireRate * BulletCount)
 ///
-/// Spread formation (V şekli):
-///   1 mermi: düz, 2: ±8°, 3: -12° 0° +12°,
-///   4: -18° -6° +6° +18°, 5: -22° -11° 0° +11° +22°
+///   NEDEN BulletCount boluyor:
+///   5 mermi ayni hasar verirse toplam hasar 5x DPS olur.
+///   Spread = daha genis alan, toplam hasar degil.
+///
+/// Spread formation (V sekli):
+///   1 mermi: duz, 2: +-8, 3: -12 0 +12, 4: -18 -6 +6 +18, 5: -22 -11 0 +11 +22
 /// </summary>
 public class PlayerController : MonoBehaviour
 {
@@ -26,25 +33,24 @@ public class PlayerController : MonoBehaviour
     public GameObject bulletPrefab;
     public float      detectRange = 35f;
 
-    // Tier bazlı temel değerler
-    static readonly float[] BASE_FIRE_RATES = { 1.5f, 2.5f, 4.0f, 6.0f, 8.5f };
-    static readonly int[]   DAMAGE          = { 60,   95,   145,  210,  300  };
-
-    static readonly float[][] SPREAD = {
-        new float[]{ 0f },
-        new float[]{ -8f, 8f },
-        new float[]{ -12f, 0f, 12f },
-        new float[]{ -18f, -6f, 6f, 18f },
-        new float[]{ -22f, -11f, 0f, 11f, 22f },
+    // ── Spread Tablosu ────────────────────────────────────────────────────
+    static readonly float[][] SPREAD =
+    {
+        new[] {  0f },
+        new[] { -8f,  8f },
+        new[] { -12f, 0f, 12f },
+        new[] { -18f, -6f, 6f, 18f },
+        new[] { -22f, -11f, 0f, 11f, 22f },
     };
 
+    // ── Dahili Durum ──────────────────────────────────────────────────────
     float _targetX    = 0f;
     float _nextFire   = 0f;
     bool  _dragging   = false;
     float _lastMouseX;
     bool  _anchorMode = false;
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Start()
     {
         transform.position = new Vector3(0f, 1.2f, 0f);
@@ -56,7 +62,7 @@ public class PlayerController : MonoBehaviour
 
     void OnAnchorMode(bool active)
     {
-        _anchorMode = active;
+        _anchorMode  = active;
         forwardSpeed = active ? 0f : 10f;
         if (active) Debug.Log("[Player] Anchor modu aktif.");
     }
@@ -75,6 +81,7 @@ public class PlayerController : MonoBehaviour
         AutoShoot();
     }
 
+    // ── Surukle / Hareket ─────────────────────────────────────────────────
     void HandleDrag()
     {
         if (Input.GetKey(KeyCode.LeftArrow))
@@ -83,7 +90,7 @@ public class PlayerController : MonoBehaviour
             _targetX = Mathf.Clamp(_targetX + 10f * Time.deltaTime, -xLimit, xLimit);
 
         if (Input.GetMouseButtonDown(0)) { _dragging = true; _lastMouseX = Input.mousePosition.x; }
-        if (Input.GetMouseButtonUp(0))   _dragging = false;
+        if (Input.GetMouseButtonUp(0))    _dragging = false;
 
         if (_dragging)
         {
@@ -102,44 +109,39 @@ public class PlayerController : MonoBehaviour
         transform.position = p;
     }
 
+    // ── Otomatik Ates ─────────────────────────────────────────────────────
     void AutoShoot()
     {
-        if (!firePoint || Time.time < _nextFire) return;
+        if (!firePoint || Time.time < _nextFire || PlayerStats.Instance == null) return;
 
-        int tier   = PlayerStats.Instance != null ? PlayerStats.Instance.CurrentTier : 1;
-        int bCount = PlayerStats.Instance != null ? PlayerStats.Instance.BulletCount  : 1;
-        int idx    = Mathf.Clamp(tier - 1, 0, 4);
+        // ── Atis Hizi ────────────────────────────────────────────────────
+        float finalFireRate = PlayerStats.Instance.GetBaseFireRate();
 
-        // ── EquipmentData ateş hızı çarpanı ──────────────────────────────
-        // Kuşanılan silah BASE_FIRE_RATES'i çarpar — silah yoksa 1x.
-        float equipMult = 1f;
-        if (PlayerStats.Instance?.equippedWeapon != null)
-            equipMult = PlayerStats.Instance.equippedWeapon.fireRateMultiplier;
+        // ── Hasar Hesabi (v5 formulu) ────────────────────────────────────
+        // TotalDPS PlayerStats tarafindan hesaplandi:
+        //   BaseDMG[tier] * WeaponMult * SlotMult * RarityMult * GlobalMult
+        // BulletDamage = DPS / (FireRate * BulletCount)
+        // BulletCount icin boluyoruz: 5 mermi = genis alan, toplam hasar x5 olmaz.
+        int bCount      = PlayerStats.Instance.BulletCount;
+        float totalDPS  = PlayerStats.Instance.GetTotalDPS();
+        int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDPS / (finalFireRate * bCount)));
 
-        float fireRate = BASE_FIRE_RATES[idx] * equipMult;
-
-        // Silah hasar çarpanı
-        float dmgMult = 1f;
-        if (PlayerStats.Instance?.equippedWeapon != null)
-            dmgMult = PlayerStats.Instance.equippedWeapon.damageMultiplier;
-        int finalDamage = Mathf.RoundToInt(DAMAGE[idx] * dmgMult);
-
-        // Hedef bul
+        // ── Hedef Bul ────────────────────────────────────────────────────
         Transform target = FindTarget();
         if (target == null) return;
 
-        Vector3 aimPos = target.position;
+        Vector3 aimPos  = target.position;
         Vector3 baseDir = (aimPos - firePoint.position).normalized;
 
-        // Spread
+        // ── Spread ile Ates ──────────────────────────────────────────────
         int spreadIdx = Mathf.Clamp(bCount - 1, 0, SPREAD.Length - 1);
         foreach (float angle in SPREAD[spreadIdx])
         {
             Vector3 dir = Quaternion.Euler(0f, angle, 0f) * baseDir;
-            FireOne(firePoint.position, dir.normalized, finalDamage);
+            FireOne(firePoint.position, dir.normalized, bulletDamage);
         }
 
-        _nextFire = Time.time + 1f / fireRate;
+        _nextFire = Time.time + 1f / finalFireRate;
     }
 
     void FireOne(Vector3 pos, Vector3 dir, int dmg)
@@ -157,9 +159,10 @@ public class PlayerController : MonoBehaviour
         if (rb) rb.linearVelocity = dir * 30f;
     }
 
+    // ── Hedef Bulma ───────────────────────────────────────────────────────
     /// <summary>
-    /// En yakın Enemy'i bulur.
-    /// Normal modda BoxCast (serit tarama), Anchor modda OverlapSphere (360 — boss kesin bulunur).
+    /// Normal modda BoxCast (serit tarama).
+    /// Anchor modda OverlapSphere 70 birim (boss kesin yakalanir).
     /// </summary>
     Transform FindTarget()
     {

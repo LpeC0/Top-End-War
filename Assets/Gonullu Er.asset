@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f89c66156d7abe4479485f3f4bfe77d9, type: 3}
+  m_Name: Gonullu Er
+  m_EditorClassIdentifier: Assembly-CSharp::CommanderData
+  commanderName: Gonullu Er
+  portrait: {fileID: 0}
+  lore: 
+  baseDMG:
+  - 60
+  - 95
+  - 145
+  - 210
+  - 300
+  baseFireRate:
+  - 1.5
+  - 2.5
+  - 4
+  - 6
+  - 8.5
+  baseHP: f4010000bc020000b6030000b0040000dc050000
+  specialty: 0
+  armySynergy: 3
+  armyDamageMultiplier: 1
+  requiredWorldID: 0
+  tierModels: []
+  tierAuras: []

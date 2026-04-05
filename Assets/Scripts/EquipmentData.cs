@@ -1,132 +1,137 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Ekipman Verisi v2 (Claude)
+/// Top End War — Ekipman Verisi v3 (Claude)
 ///
-/// SILAH TÜRLERİ VE GERÇEKÇİ ÖZELLİKLER:
-///
-///   Tabanca     — Hızlı atış, kısa menzil, hafif    
-///   Tüfek       — Dengeli, orta menzil, tek atış
-///   Otomatik    — Yüksek DPS, kısa/orta menzil, düşük isabet
-///   Keskin nişancı — Yüksek hasar, uzun menzil, çok yavaş atış
-///   Pompalı     — Çok hasar yakın, düşük menzil, yavaş
-///
-/// ZIRH TÜRLERİ:
-///   Hafif zırh  — Az koruma, yüksek mobilite (gelecek: hız bonusu)
-///   Orta zırh   — Dengeli
-///   Ağır zırh   — Yüksek koruma, yavaş (gelecek: hız cezası)
-///   Kalkan      — Hasar azaltma bonusu
-///
-/// AKSESUAR (kolye, yüzük, omuzluk, vb.):
-///   Çeşitli bonuslar — CP, ateş hızı, hasar, çoğaltıcı vb.
+/// v3 degisiklikleri:
+///   + globalDmgMultiplier eklendi (Yuzuk/Kolye icin DPS carpani)
+///   - cpMultiplier artik SADECE CP Gear Score icin kullanilir, DPS hesabinda YOK
+///   ArmorType enum yorumlari duzeltildi (enum sadece kategori, gercek deger fieldlarda)
 ///
 /// KURULUM:
-///   Assets → Create → TopEndWar → Equipment
-///   Tipi seç, değerleri doldur → PlayerStats'e sürükle.
+///   Assets > Create > TopEndWar > Equipment
+///   Slot sec, degerleri doldur, PlayerStats'e surukle.
 /// </summary>
 
 public enum EquipmentSlot
 {
-    Weapon,         // Silah — ateş hızı + hasar
-    Armor,          // Zırh — HP + hasar azaltma
-    Shoulder,       // Omuzluk — CP bonus + küçük hasar
-    Knee,           // Dizlik — hafif HP + hareket
-    Boots,          // Ayakkabı — hareket bonusu (gelecek)
-    Necklace,       // Kolye — CP çarpanı
-    Ring,           // Yüzük — genel buff
+    Weapon,      // Silah    — atisHizi + hasar
+    Armor,       // Zirh     — HP + hasarAzaltma
+    Shoulder,    // Omuzluk  — CP bonus + kucuk DR
+    Knee,        // Dizlik   — hafif HP bonus
+    Boots,       // Ayakkabi — hareket bonusu (gelecek)
+    Necklace,    // Kolye    — CP carpani + globalDmg
+    Ring,        // Yuzuk    — globalDmgMultiplier
 }
 
 public enum WeaponType
 {
-    None,           // Silah değil
-    Pistol,         // Tabanca: atış/s ×1.5, hasar ×0.7, spread dar
-    Rifle,          // Tüfek: atış/s ×1.0 (base), hasar ×1.0
-    Automatic,      // Otomatik: atış/s ×2.2, hasar ×0.6, spread geniş
-    Sniper,         // Keskin: atış/s ×0.35, hasar ×3.5, tek mermi
-    Shotgun,        // Pompalı: atış/s ×0.5, hasar ×2.0, spread çok geniş yakında
+    None,
+    Pistol,      // Tabanca:    atisHizi x1.5, hasar x0.7
+    Rifle,       // Tufek:      atisHizi x1.0, hasar x1.0  (standart)
+    Automatic,   // Otomatik:   atisHizi x2.2, hasar x0.6
+    Sniper,      // Nishanci:   atisHizi x0.35, hasar x3.5
+    Shotgun,     // Pompa:      atisHizi x0.5,  hasar x2.0
 }
 
 public enum ArmorType
 {
     None,
-    Light,          // Hafif: HP +%20, hasar azaltma +%5
-    Medium,         // Orta: HP +%40, hasar azaltma +%12
-    Heavy,          // Ağır: HP +%70, hasar azaltma +%22
-    Shield,         // Kalkan: HP +%30, hasar azaltma +%30 (en iyi DR)
+    Light,       // Genelde dusuk DR, dusuk HP bonusu
+    Medium,      // Dengeli
+    Heavy,       // Yuksek HP bonusu, orta DR
+    Shield,      // En yuksek DR odakli
 }
 
 [CreateAssetMenu(fileName = "NewEquipment", menuName = "TopEndWar/Equipment")]
 public class EquipmentData : ScriptableObject
 {
+    // ── Kimlik ────────────────────────────────────────────────────────────
     [Header("Kimlik")]
     public string        equipmentName = "Yeni Ekipman";
     public EquipmentSlot slot          = EquipmentSlot.Weapon;
     public Sprite        icon;
-    [TextArea(2,4)]
+    [TextArea(2, 4)]
     public string        description   = "";
 
-    [Header("Silah Ayarlari (slot=Weapon ise doldur)")]
+    // ── Tur ───────────────────────────────────────────────────────────────
+    [Header("Silah Turu (sadece Weapon slot)")]
     public WeaponType weaponType = WeaponType.None;
 
-    [Header("Zirh Ayarlari (slot=Armor/Shoulder/Knee ise)")]
+    [Header("Zirh Turu (sadece Armor/Shoulder/Knee)")]
     public ArmorType armorType = ArmorType.None;
 
-    // ── Temel Bonuslar ───────────────────────────────────────────────────
-    [Header("CP Bonusu")]
-    [Tooltip("Kuşanılınca CP'ye düz eklenir")]
+    // ── CP Gear Score (Meta-Hub gostergesi) ───────────────────────────────
+    [Header("CP Gear Score Bonusu")]
+    [Tooltip("Kusanilinca CP Gear Score'una duz eklenir. DPS ile ilgisi yoktur.")]
     public int baseCPBonus = 0;
 
-    [Header("Ates Hizi Carpani (sadece silahlar)")]
-    [Tooltip("1.0 = base, 1.5 = %50 hızlı, 0.5 = %50 yavaş")]
+    /// <summary>
+    /// CP carpani — SADECE Gear Score icin. DPS hesabinda KULLANILMAZ.
+    /// DPS icin globalDmgMultiplier kullan.
+    /// </summary>
+    [Header("CP Carpani (kolye/yuzuk — Gear Score icin)")]
+    [Tooltip("1.0 = etki yok. DPS etkilemez, sadece CP puanini carpar.")]
+    [Range(1f, 2f)]
+    public float cpMultiplier = 1f;
+
+    // ── Silah Statistikleri ────────────────────────────────────────────────
+    [Header("Atis Hizi Carpani (sadece silahlar)")]
+    [Tooltip("1.0 = base, 2.2 = %120 daha hizli")]
     [Range(0.2f, 3.0f)]
     public float fireRateMultiplier = 1f;
 
     [Header("Hasar Carpani (sadece silahlar)")]
-    [Tooltip("1.0 = base, 1.5 = %50 daha fazla hasar")]
+    [Tooltip("1.0 = base, 3.5 = keskin nisanci")]
     [Range(0.2f, 5.0f)]
     public float damageMultiplier = 1f;
 
+    // ── Global DPS Carpani (Yuzuk / Kolye) ───────────────────────────────
+    [Header("Global Hasar Carpani (yuzuk/kolye — DPS'e etki eder)")]
+    [Tooltip(
+        "1.0 = etki yok. Bu alan DPS formulundeki GlobalMult'tur.\n" +
+        "cpMultiplier'dan FARKLIDIR — o sadece Gear Score icindir.\n" +
+        "Ornekler: Yuzuk 1.1 = DPS %10 artar. Necklace 1.05 = DPS %5 artar.")]
+    [Range(1f, 2f)]
+    public float globalDmgMultiplier = 1f;
+
+    // ── Zirh / Savunma ─────────────────────────────────────────────────────
     [Header("Hasar Azaltma (zirh/aksesuar)")]
-    [Tooltip("0.0 - 0.5 arası. 0.2 = düşman hasarı %20 azalır")]
+    [Tooltip("0.0-0.5. Toplam max %60 (PlayerStats.TotalDamageReduction() ile sinirli)")]
     [Range(0f, 0.5f)]
     public float damageReduction = 0f;
 
     [Header("Komutan HP Bonusu (zirh/aksesuar)")]
-    [Tooltip("Maks HP'ye eklenen değer")]
+    [Tooltip("Maks HP'ye duz eklenir")]
     public int commanderHPBonus = 0;
 
-    [Header("CP Carpani (kolye/yuzuk)")]
-    [Tooltip("1.0 = etki yok, 1.1 = CP %10 daha fazla")]
-    [Range(1f, 2f)]
-    public float cpMultiplier = 1f;
-
+    // ── Diger ────────────────────────────────────────────────────────────
     [Header("Mermi Spread Bonusu (sadece silahlar)")]
-    [Tooltip("Ek mermi yayılma açısı: 0 = yok, 10 = +10 derece")]
     [Range(0f, 25f)]
     public float spreadBonus = 0f;
 
-    // ── Hesaplanmış özellikler (oyun içinde salt okunur) ─────────────────
-    [Header("Nadir (rarity) 1=Common 2=Uncommon 3=Rare 4=Epic 5=Legendary)")]
-    [Range(1,5)]
+    [Header("Nadir (rarity) 1=Gri 2=Yesil 3=Mavi 4=Mor 5=Altin")]
+    [Range(1, 5)]
     public int rarity = 1;
 
-    /// <summary>Silah tipine göre gerçekçi önerilen değerler için açıklama döndürür.</summary>
+    // ── Yardimci ─────────────────────────────────────────────────────────
+    /// <summary>Silah/zirh turune gore kisa aciklama dondurur (Inspector icin).</summary>
     public string GetTypeDescription()
     {
         return weaponType switch
         {
-            WeaponType.Pistol    => "Tabanca: Hızlı, kısa menzilli",
-            WeaponType.Rifle     => "Tüfek: Dengeli, çok yönlü",
-            WeaponType.Automatic => "Otomatik: Yüksek DPS, geniş spread",
-            WeaponType.Sniper    => "Keskin Nişancı: Dev hasar, yavaş",
-            WeaponType.Shotgun   => "Pompalı: Yakın mesafe katili",
+            WeaponType.Pistol    => "Tabanca: Hizli, kisa menzilli",
+            WeaponType.Rifle     => "Tufek: Dengeli, cok yonlu",
+            WeaponType.Automatic => "Otomatik: Yuksek DPS, genis spread",
+            WeaponType.Sniper    => "Keskin Nisanci: Dev hasar, yavash",
+            WeaponType.Shotgun   => "Pompa: Yakin mesafe katili",
             _ => armorType switch
             {
-                ArmorType.Light  => "Hafif Zırh: Hızlı ama az korumalı",
-                ArmorType.Medium => "Orta Zırh: Dengeli savunma",
-                ArmorType.Heavy  => "Ağır Zırh: Max korumalı",
-                ArmorType.Shield => "Kalkan: Hasar azaltmada uzman",
-                _ => "Aksesuar: Özel bonus"
+                ArmorType.Light  => "Hafif Zirh: Dusuk DR, dusuk HP",
+                ArmorType.Medium => "Orta Zirh: Dengeli savunma",
+                ArmorType.Heavy  => "Agir Zirh: Yuksek HP, orta DR",
+                ArmorType.Shield => "Kalkan: En yuksek DR",
+                _                => "Aksesuar",
             }
         };
     }

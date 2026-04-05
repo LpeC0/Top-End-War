@@ -1,45 +1,53 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dinamik Zorluk Yoneticisi (Claude)
-/// ProgressionConfig OLMADAN da calisir — dahili sabitler kullanilir.
-/// Her 50 birimde hesaplama yapar (her frame degil).
-/// NAMESPACE YOK.
+/// Top End War — Zorluk Yoneticisi v3 (Claude)
+///
+/// v3: exponent 1.3→1.1, cpScalingFactor 0.9→0.5
+/// EnemyStats field isimleri Enemy.cs ve SpawnManager ile eslestirild:
+///   Health, Damage, Speed, CPReward
+/// IsInPityZone() ve PlayerPowerRatio eklendi (SpawnManager kullanir).
+/// OnDifficultyChanged(float mult, float powerRatio) — 2 parametre.
 /// </summary>
 public class DifficultyManager : MonoBehaviour
 {
     public static DifficultyManager Instance { get; private set; }
 
-    [Header("Config (Opsiyonel)")]
-    public ProgressionConfig config;
-
-    [Header("Guncelleme Araligi")]
-    public float updateInterval = 50f;
-
-    // Dahili sabitler (config yoksa)
-    const float BASE_HP     = 100f;
-    const float BASE_DMG    = 20f;  // 25 → 20: biraz daha cömertti
-    const float BASE_SPEED  = 3.5f; // 4.0 → 3.5: başlangıçta daha yavaş
-    const float MAX_SPEED   = 6.5f; // 7.5 → 6.5: max hız biraz düşük
-    const float BASE_REWARD = 18f;  // 15 → 18: kill başı biraz daha CP
-
-    public float CurrentDifficultyMultiplier { get; private set; } = 1f;
-    public float PlayerPowerRatio            { get; private set; } = 1f;
-
-    // GC-friendly struct — allocation yok
-    public readonly struct EnemyStats
+    // ── EnemyStats — Enemy.cs ve SpawnManager tarafindan kullanilir ───────
+    public struct EnemyStats
     {
-        public readonly int   Health;
-        public readonly int   Damage;
-        public readonly float Speed;
-        public readonly int   CPReward;
-        public EnemyStats(int h, int d, float s, int r)
-        { Health=h; Damage=d; Speed=s; CPReward=r; }
+        public int   Health;
+        public int   Damage;
+        public float Speed;
+        public int   CPReward;
+
+        public EnemyStats(int health, int damage, float speed, int cpReward)
+        {
+            Health   = health;
+            Damage   = damage;
+            Speed    = speed;
+            CPReward = cpReward;
+        }
     }
 
-    Transform _player;
-    float     _lastUpdateZ = -9999f;
-    float     _currentZ    = 0f;
+    // ── Konfigurasyon ─────────────────────────────────────────────────────
+    [Header("Konfigurasyon (ProgressionConfig SO)")]
+    public ProgressionConfig config;
+
+    [Header("Temel Dusman Degerleri (Config yoksa yedek)")]
+    public float baseEnemyHP     = 1100f;
+    public float baseEnemySpeed  = 4.5f;
+    public float baseEnemyDamage = 30f;
+    public int   baseEnemyReward = 15;
+
+    [Header("Pity Zone (boss oncesi kotu kapi engeli)")]
+    [Tooltip("Boss mesafesinin yuzde kaci kala kotu kapilari engelle (0.15 = %15)")]
+    [Range(0f, 0.3f)]
+    public float pityZoneFraction = 0.15f;
+
+    [Header("Debug (Salt Okunur)")]
+    [SerializeField] private float _currentMultiplier  = 1f;
+    [SerializeField] private float _smoothedPowerRatio = 1f;
 
     void Awake()
     {
@@ -47,71 +55,69 @@ public class DifficultyManager : MonoBehaviour
         Instance = this;
     }
 
-    void Start()
+    // ── Zorluk Carpani ────────────────────────────────────────────────────
+    public float CalculateMultiplier(float z, int playerCP, float expectedCP)
     {
-        if (PlayerStats.Instance != null)
-            _player = PlayerStats.Instance.transform;
+        float exp   = config != null ? config.difficultyExponent    : 1.1f;
+        float scale = config != null ? config.distanceScale         : 1000f;
+        float cpSF  = config != null ? config.playerCPScalingFactor : 0.5f;
+        float minPA = config != null ? config.minPowerAdjust        : 0.7f;
+        float maxPA = config != null ? config.maxPowerAdjust        : 1.4f;
+
+        float distanceFactor = 1f + Mathf.Pow(z / scale, exp);
+
+        float rawRatio       = expectedCP > 0f ? (float)playerCP / expectedCP : 1f;
+        _smoothedPowerRatio  = Mathf.Lerp(_smoothedPowerRatio, rawRatio, 0.08f);
+
+        float powerAdjust    = 1f + (_smoothedPowerRatio - 1f) * cpSF;
+        powerAdjust          = Mathf.Clamp(powerAdjust, minPA, maxPA);
+
+        _currentMultiplier   = distanceFactor * powerAdjust;
+
+        // 2 parametre: SpawnManager (m, r) olarak abone
+        GameEvents.OnDifficultyChanged?.Invoke(_currentMultiplier, _smoothedPowerRatio);
+        return _currentMultiplier;
     }
 
-    void Update()
-    {
-        if (_player == null) { TryFindPlayer(); return; }
-        _currentZ = _player.position.z;
-        if (Mathf.Abs(_currentZ - _lastUpdateZ) >= updateInterval)
-        {
-            Recalculate();
-            _lastUpdateZ = _currentZ;
-        }
-    }
-
-    void TryFindPlayer()
-    {
-        if (PlayerStats.Instance != null) _player = PlayerStats.Instance.transform;
-    }
-
-    void Recalculate()
-    {
-        float norm = _currentZ / 1000f;
-        CurrentDifficultyMultiplier = 1f + Mathf.Pow(norm, 1.1f); // 1.3→1.1: daha yavaş artış
-
-        int   expected = config != null
-            ? config.CalculateExpectedCP(_currentZ)
-            : Mathf.RoundToInt(200f * Mathf.Pow(1.15f, _currentZ / 100f));
-
-        int   actual   = PlayerStats.Instance?.CP ?? 200;
-        float raw      = (float)actual / Mathf.Max(1, expected);
-        PlayerPowerRatio = Mathf.Lerp(PlayerPowerRatio, raw, 0.15f); // 0.08→0.15: DDA daha hızlı adapte
-
-        PlayerStats.Instance?.SetExpectedCP(expected);
-        GameEvents.OnDifficultyChanged?.Invoke(CurrentDifficultyMultiplier, PlayerPowerRatio);
-    }
-
+    // ── Dusman Istatistikleri ─────────────────────────────────────────────
     public EnemyStats GetScaledEnemyStats()
     {
-        float diff  = CurrentDifficultyMultiplier;
-        // pScale: oyuncu güçlüyse düşman biraz artar ama çok fazla değil
-        // 0.5f = oyuncu 2x güçlüyse düşman sadece 1.5x güçlü (eskisi 1.9x idi!)
-        float scaleFactor = config != null ? config.playerCPScalingFactor : 0.5f;
-        float pScale = Mathf.Lerp(1f, Mathf.Min(PlayerPowerRatio, 1.5f), scaleFactor);
-        float final = diff * pScale;
-
-        float bH    = config != null ? config.baseEnemyHealth : BASE_HP;
-        float bD    = config != null ? config.baseEnemyDamage : BASE_DMG;
-        float bS    = config != null ? config.baseEnemySpeed  : BASE_SPEED;
-        float maxS  = config != null ? config.enemyMaxSpeed   : MAX_SPEED;
-
+        float m = _currentMultiplier;
         return new EnemyStats(
-            Mathf.RoundToInt(bH * final),
-            Mathf.RoundToInt(bD * final),
-            Mathf.Min(bS * (1f + (diff - 1f) * 0.35f), maxS),
-            Mathf.RoundToInt(BASE_REWARD * diff));
+            health:   Mathf.RoundToInt(baseEnemyHP     * m),
+            damage:   Mathf.RoundToInt(baseEnemyDamage * m),
+            speed:    Mathf.Min(baseEnemySpeed + (m - 1f) * 1.4f, 7.5f),
+            cpReward: Mathf.RoundToInt(baseEnemyReward * m)
+        );
     }
 
+    // ── SpawnManager'in Kullandigi Yardimcilar ────────────────────────────
+
+    /// <summary>
+    /// Boss mesafesine yakin midir?
+    /// SpawnManager pity=true olunca kotu kapilari listeden cikarir.
+    /// </summary>
     public bool IsInPityZone(float bossDistance)
     {
-        float zone = config != null ? config.noBadGateZoneBeforeBoss : 200f;
-        return _currentZ >= bossDistance - zone;
+        if (PlayerStats.Instance == null) return false;
+        float z          = PlayerStats.Instance.transform.position.z;
+        float pityStart  = bossDistance * (1f - pityZoneFraction);
+        return z >= pityStart;
     }
 
-    void OnDestroy() { if (Instance == this) Instance = null; }
+    /// <summary>
+    /// Oyuncunun guc orani (SmoothedPowerRatio).
+    /// SpawnManager dalga sertlestirmede kullanir.
+    /// </summary>
+    public float PlayerPowerRatio => _smoothedPowerRatio;
+
+    // ── Diger Yardimcilar ─────────────────────────────────────────────────
+    public float GetCurrentMultiplier()  => _currentMultiplier;
+    public float GetSmoothedPowerRatio() => _smoothedPowerRatio;
+
+    public void SetExpectedCP(float expected)
+    {
+        if (PlayerStats.Instance != null)
+            PlayerStats.Instance.SetExpectedCP(expected);
+    }
 }

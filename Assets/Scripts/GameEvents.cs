@@ -1,37 +1,55 @@
 using System;
 
 /// <summary>
-/// Top End War — Global Event Merkezi v4
-/// KURAL: Raise...() metod YOK. Kullanim: GameEvents.OnXxx?.Invoke(param);
-/// v4: Komutan HP + Asker + Biyom eventleri eklendi.
+/// Top End War — Oyun Olaylari v5 (Claude)
+/// Tum v4 eventleri korundu + Boss/Dunya eventleri eklendi.
+/// KURAL: Raise() yok — dogrudan ?.Invoke() kullan.
 /// </summary>
 public static class GameEvents
 {
-    // ── Temel ─────────────────────────────────────────────────────────────
-    public static Action<int>          OnCPUpdated;
-    public static Action<int>          OnTierChanged;
-    public static Action<int>          OnBulletCountChanged;
-    public static Action<string>       OnPathBoosted;
-    public static Action               OnMergeTriggered;
-    public static Action<string>       OnSynergyFound;
-    public static Action<int>          OnPlayerDamaged;       // flash icin
-    public static Action               OnGameOver;
-    public static Action<int>          OnRiskBonusActivated;
-    public static Action<float, float> OnDifficultyChanged;
-    public static Action               OnBossEncountered;
-    public static Action<bool>         OnAnchorModeChanged;   // true=boss sahnesi
+    // ── Oyuncu / Komutan ─────────────────────────────────────────────────
+    public static Action<int>        OnCPUpdated;
+    public static Action<int>        OnBulletCountChanged;
+    public static Action<int>        OnTierChanged;
+    public static Action<int, int>   OnCommanderHPChanged;    // (current, max)
+    public static Action<int, int>   OnCommanderDamaged;      // (finalDmg, currentHP)
+    public static Action<int>        OnCommanderHealed;
+    public static Action<int>        OnPlayerDamaged;
 
-    // ── Komutan HP (v4) ──────────────────────────────────────────────────
-    public static Action<int, int>     OnCommanderDamaged;    // (hasar, kalanHP)
-    public static Action<int>          OnCommanderHealed;     // kalanHP
-    public static Action<int, int>     OnCommanderHPChanged;  // (current, max)
+    // ── Ordu ────────────────────────────────────────────────────────────
+    public static Action<int>        OnSoldierAdded;          // (toplam asker sayisi)
+    public static Action<int>        OnSoldierRemoved;        // (toplam asker sayisi)
+    public static Action<string,int> OnSoldierMerged;         // (path adı, yeni level) ← DUZELTILDI
+    public static Action<int>        OnSoldierHPRestored;
+    public static Action<int>        OnSoldierCountChanged;
 
-    // ── Asker (v4) ───────────────────────────────────────────────────────
-    public static Action<int>          OnSoldierAdded;        // toplam asker sayisi
-    public static Action<int>          OnSoldierRemoved;      // toplam asker sayisi
-    public static Action<string, int>  OnSoldierMerged;       // (path, yeni level)
-    public static Action<int>          OnSoldierHPRestored;   // geri yuklenen HP toplami
+    // ── Yol / Sinerji ────────────────────────────────────────────────────
+    public static Action             OnMergeTriggered;
+    public static Action<string>     OnPathBoosted;
+    public static Action<string>     OnSynergyFound;
 
-    // ── Biyom (v4) ───────────────────────────────────────────────────────
-    public static Action<string>       OnBiomeChanged;        // "Tas", "Orman" vb.
+    // ── Kapi / Risk ──────────────────────────────────────────────────────
+    public static Action<int>        OnRiskBonusActivated;
+
+    // ── Zorluk / Spawn ───────────────────────────────────────────────────
+    // SpawnManager (float multiplier, float powerRatio) olarak kullaniyor
+    public static Action<float,float> OnDifficultyChanged;    // ← DUZELTILDI (2 param)
+    public static Action              OnBossEncountered;
+
+    // ── Anchor / Boss ────────────────────────────────────────────────────
+    public static Action<bool>       OnAnchorModeChanged;
+    public static Action<int, int>   OnBossHPChanged;         // (current, max)
+    public static Action<int>        OnBossPhaseShield;       // (gelen faz: 2 veya 3)
+    public static Action<int>        OnBossPhaseChanged;
+    public static Action<float>      OnBossEnraged;
+    public static Action             OnBossDefeated;
+
+    // ── Oyun Akisi ────────────────────────────────────────────────────────
+    public static Action             OnGameOver;
+    public static Action             OnVictory;
+
+    // ── Biyom / Dunya ────────────────────────────────────────────────────
+    public static Action<string>     OnBiomeChanged;
+    public static Action<int>        OnWorldChanged;
+    public static Action<int, int>   OnStageChanged;          // (worldID, stageID)
 }
