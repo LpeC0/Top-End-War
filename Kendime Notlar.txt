@@ -21,3 +21,10 @@ mermiler bizi geçen geride kalmış düşmanlara gitmemeli.
 
 equipment loadui cs dosyasıyla loadout oluşturuldu fakat player.cste bu kısım mevcut değil.
 
+-------------------------------------------------------------------------------------------
+
+kamera eski haline dönse? telefon üzerinde oyuncu kayboluyor kaydırırken çünkü kamera sabit sağa sola bakmadan oyuncuyu takip mi etmeli?
+
+her CP alımında dotween ile player büyüyor kapıdan geçerken de büyüyor garip bir görünüm oluyor oyuncu 6-7 tane enemy kesince.
+
+kapılar heyecan verici değil. +45 ve +80 kapıları özellikle.Asker ekleme kapıları da cp oranına göre ayarlanmalı ve o asker kaç savaş gücü veriyorsa bize ona göre eklemeli.(CP kısmını saniye başı hasara mı dönüştürsek? mantıklı olur mu daha anlaşılır bir şey olabilir böylelikle karakterlerin ve askerlerin gücünü daha iyi hesaplayıp daha mantıklı ilerleriz.)
