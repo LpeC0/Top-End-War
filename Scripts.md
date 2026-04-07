@@ -500,393 +500,234 @@ public class BiomeVisuals : MonoBehaviour
 }
 ```
 
+Bosshitreceiver.cs
+
+```csharp
+using UnityEngine;
+
+/// <summary>
+/// Top End War — Boss Isabet Alici (Claude)
+/// Boss prefab'ine eklenir. Bullet.cs bu componenti bulur.
+///
+/// KURULUM:
+///   Boss GameObject'ine ekle.
+///   Inspector'dan bossManager alanina BossManager objesini sur.
+///   (bos birakılırsa Instance'tan alir — fallback)
+/// </summary>
+public class BossHitReceiver : MonoBehaviour
+{
+    [Tooltip("BossManager objesi. Bos birakılırsa BossManager.Instance kullanilir.")]
+    public BossManager bossManager;   // ← Bullet.cs bu field'i ariyordu
+
+    void Awake()
+    {
+        if (bossManager == null)
+            bossManager = BossManager.Instance;
+    }
+
+    /// <summary>Bullet.cs bu metodu cagirir.</summary>
+    public void TakeDamage(int dmg)
+    {
+        if (bossManager == null) bossManager = BossManager.Instance;
+        bossManager?.TakeDamage(dmg);
+    }
+}
+```
+
 BossManager.cs
 
 ```csharp
 using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
 using System.Collections;
 
 /// <summary>
-/// Top End War — Boss v5 (Claude)
+/// Top End War — Boss Yoneticisi v6 (Claude)
 ///
-/// v5 DEGISIKLIKLER:
-///   - Boss HP 41.000 (ordu DPS kalibrasyonu: T3+10 optimal asker ~75sn)
-///   - Biyom zayifligi: Teknoloji + Tas = x1.25 bonus hasar UYGULANIR
-///     (BiomeManager + SoldierPath parametresi ile dinamik)
-///   - Faz1 tas zirhı: Piyade hasarı x0.9 (dogal direnc)
-///   - Yenilgide biyomun boss adı kullanılıyor (BiomeManager.GetBossName)
+/// v6 degisiklikleri:
+///   + Phase Shield: HP %60 ve %30'da 2sn dokunulmazlik
+///   + Faz gecisleri coroutine ile yonetilir
+///   + BossHitReceiver ayri component olarak ayrildi (Bullet.cs uyumu)
+///   - Enemy.SetHP() bagimliligı kaldirildi (minyon spawn sadece ObjectPooler kullanir)
 ///
-/// DENGE (simülasyon doğrulandı):
-///   T3+10 Teknoloji Lv1 + Tas biyom: ~75sn  ✓
-///   T3+10 Piyade Lv1   + Tas biyom: ~108sn  ✓ (yanlış path = zor ama mümkün)
-///   T4+15 Teknoloji Lv2 + Tas biyom: ~39sn  ✓ (güçlü oyuncu hızlı bitirir)
+/// KURULUM:
+///   1. Hierarchy'de bir Boss GameObject olustur.
+///   2. BossHitReceiver.cs'i bu objeye ekle (Bullet.cs bunu arar).
+///   3. BossManager.cs ayri bir sahne objesine (BossManager) ekle.
+///   4. Inspector'dan bossMaxHP ayarla veya StageManager.SetupBoss() kullan.
 /// </summary>
 public class BossManager : MonoBehaviour
 {
     public static BossManager Instance { get; private set; }
 
-    [Header("Boss")]
-    public int   bossMaxHP         = 41000;
-    public float bossApproachSpeed = 2.5f;
-    public int   bossContactDmg    = 100;
-    public float bossStopDist      = 12f;
+    [Header("Boss Ayarlari")]
+    public int   bossMaxHP           = 41000;
+    public float phaseShieldDuration = 2f;
+    public float enrageSpeedMult     = 2.2f;
 
-    [Header("Fazlar")]
-    [Range(0,1)] public float phase2At = 0.60f;
-    [Range(0,1)] public float phase3At = 0.30f;
+    [Header("Minyon Spawn (Faz 2)")]
+    [Tooltip("ObjectPooler 'Enemy' havuzundan cekilir. Pool bos ise spawn edilmez.")]
+    public int   minionsPerWave  = 4;
+    public float minionInterval  = 8f;
+    [Tooltip("Minyon spawn pozisyonu icin bos referans noktalari (opsiyonel)")]
+    public Transform[] minionSpawnPoints;
 
-    [Header("Minyon (Faz2)")]
-    public GameObject minionPrefab;
-    public int   minionCount    = 3;
-    public float minionInterval = 8f;
+    [Header("Debug (Salt Okunur)")]
+    [SerializeField] private int  _currentHP;
+    [SerializeField] private int  _currentPhase;   // 1=normal, 2=minyon, 3=enrage
+    [SerializeField] private bool _invulnerable;
+    [SerializeField] private bool _phase2Triggered;
+    [SerializeField] private bool _phase3Triggered;
+    [SerializeField] private bool _active;
 
-    [Header("Prefab (bos = fallback kup)")]
-    public GameObject bossPrefab;
+    Coroutine _minionCoroutine;
+    Coroutine _shieldCoroutine;
 
-    int    _hp;
-    int    _phase  = 0;
-    bool   _active = false;
-    bool   _dead   = false;
-
-    GameObject      _bossObj;
-    Renderer        _bossRend;
-    Canvas          _bossCanvas;
-    Image           _hpFill;
-    TextMeshProUGUI _phaseLabel;
-
-    // Biyom zayıflığı — Bullet hasarını BossManager üzerinden geçirmiyoruz,
-    // SoldierUnit ve PlayerController direkt Enemy'e çarpıyor.
-    // Bunun yerine Boss'a gelen hasarı biyom çarpanıyla amplify ediyoruz.
-    float _biomeMultiplier = 1f;
-
-    // ─────────────────────────────────────────────────────────────────────
+    // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
         Instance = this;
     }
 
-    void Start()
+    // ── Boss Baslatma ─────────────────────────────────────────────────────
+    /// <summary>
+    /// SpawnManager veya StageManager bu metodu cagirir.
+    /// hp = -1 ise Inspector'daki bossMaxHP kullanilir.
+    /// </summary>
+    public void StartBoss(int hp = -1)
     {
-        GameEvents.OnBossEncountered += StartFight;
-        GameEvents.OnBiomeChanged    += OnBiomeChanged;
-        BuildHPBar();
-        _bossCanvas?.gameObject.SetActive(false);
+        if (hp > 0) bossMaxHP = hp;
 
-        // Baslangicta biyom ayarla
-        if (BiomeManager.Instance != null)
-            OnBiomeChanged(BiomeManager.Instance.currentBiome);
-    }
+        _currentHP       = bossMaxHP;
+        _currentPhase    = 1;
+        _invulnerable    = false;
+        _phase2Triggered = false;
+        _phase3Triggered = false;
+        _active          = true;
 
-    void OnDestroy()
-    {
-        GameEvents.OnBossEncountered -= StartFight;
-        GameEvents.OnBiomeChanged    -= OnBiomeChanged;
-    }
-
-    // ── Biyom Zayifligi ──────────────────────────────────────────────────
-    // Dominant path mevcut biyomla eşleşiyorsa boss daha hızlı ölür.
-    // Çarpan BossHitReceiver.TakeDamage'da uygulanır.
-    void OnBiomeChanged(string biome)
-    {
-        // Taş biyomda Teknoloji dominant ise x1.25 (tasarım belgesiyle uyumlu)
-        // Oyuncunun dominant pathini PlayerStats'tan okuyoruz.
-        _biomeMultiplier = CalcBiomeMultiplier(biome);
-        Debug.Log($"[Boss] Biyom={biome} | Hasar carpani: x{_biomeMultiplier:F2}");
-    }
-
-    float CalcBiomeMultiplier(string biome)
-    {
-        if (PlayerStats.Instance == null) return 1f;
-        var ps = PlayerStats.Instance;
-
-        float total = ps.PiyadePath + ps.MekanizePath + ps.TeknolojiPath;
-        if (total < 1f) return 1f;
-
-        float p = ps.PiyadePath / total;
-        float m = ps.MekanizePath / total;
-        float t = ps.TeknolojiPath / total;
-
-        // Dominant path (>%50) varsa biyom matrisinden carpanı al
-        SoldierPath dominant;
-        if (t >= 0.5f) dominant = SoldierPath.Teknoloji;
-        else if (p >= 0.5f) dominant = SoldierPath.Piyade;
-        else if (m >= 0.5f) dominant = SoldierPath.Mekanik;
-        else return 1f; // karışık path — bonus yok
-
-        return BiomeManager.Instance?.GetMultiplier(dominant) ?? 1f;
-    }
-
-    // ── Boss Baslangici ───────────────────────────────────────────────────
-    void StartFight()
-    {
-        if (_active) return;
-        Debug.Log("[Boss] Basliyor!");
-        StartCoroutine(EntranceCo());
-    }
-
-    IEnumerator EntranceCo()
-    {
+        GameEvents.OnBossHPChanged?.Invoke(_currentHP, bossMaxHP);
+        GameEvents.OnBossEncountered?.Invoke();
         GameEvents.OnAnchorModeChanged?.Invoke(true);
-        yield return new WaitForSeconds(0.5f);
 
-        Vector3 spawnPos = new Vector3(0f, 1.2f,
-            (PlayerStats.Instance?.transform.position.z ?? 0f) + 45f);
-        SpawnBoss(spawnPos);
-
-        _hp     = bossMaxHP;
-        _phase  = 1;
-        _active = true;
-
-        _bossCanvas?.gameObject.SetActive(true);
-        UpdateBar();
-
-        // Biyom boss adı
-        string bossName = BiomeManager.Instance?.GetBossName() ?? "BOSS";
-        SetLabel($"{bossName.ToUpper()}  |  FAZ 1: ZİRH");
-        Debug.Log($"[Boss] Aktif! HP={_hp} | Biyom carpani: x{_biomeMultiplier:F2}");
-    }
-
-    void SpawnBoss(Vector3 pos)
-    {
-        _bossObj = bossPrefab != null
-            ? Instantiate(bossPrefab, pos, Quaternion.identity)
-            : MakeFallbackCube(pos);
-
-        _bossRend    = _bossObj.GetComponent<Renderer>();
-        _bossObj.tag = "Enemy";
-
-        // isTrigger=false → Bullet.OverlapSphere bulur
-        if (_bossObj.GetComponent<Collider>() == null)
-            _bossObj.AddComponent<BoxCollider>();
-
-        var recv = _bossObj.AddComponent<BossHitReceiver>();
-        recv.bossManager = this;
-    }
-
-    GameObject MakeFallbackCube(Vector3 pos)
-    {
-        var obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        obj.transform.position   = pos;
-        obj.transform.localScale = new Vector3(5f, 7f, 5f);
-        obj.GetComponent<Renderer>().material.color = new Color(0.55f, 0f, 0f);
-        return obj;
-    }
-
-    // ── Update ────────────────────────────────────────────────────────────
-    void Update()
-    {
-        if (!_active || _dead || _bossObj == null || PlayerStats.Instance == null) return;
-
-        float tZ  = PlayerStats.Instance.transform.position.z + bossStopDist;
-        Vector3 p = _bossObj.transform.position;
-
-        if (p.z > tZ)
-            p.z = Mathf.MoveTowards(p.z, tZ, bossApproachSpeed * Time.deltaTime);
-        else
-        {
-            // Boss dokunmasi — Komutan HP'yi düsür
-            PlayerStats.Instance.TakeContactDamage(bossContactDmg);
-            p.z += 8f;
-        }
-        _bossObj.transform.position = p;
+        Debug.Log($"[BossManager] Basliyor. HP: {bossMaxHP}");
     }
 
     // ── Hasar Al ─────────────────────────────────────────────────────────
-    /// <summary>
-    /// Biyom carpani burada uygulanır.
-    /// Faz1'de Piyade hasarına tas direnci var (x0.9).
-    /// </summary>
-    public void TakeDamage(int rawDmg)
+    /// <summary>BossHitReceiver bu metodu cagirir.</summary>
+    public void TakeDamage(int dmg)
     {
-        if (!_active || _dead) return;
+        if (!_active || _invulnerable || _currentHP <= 0) return;
 
-        // Biyom carpanı
-        float finalDmg = rawDmg * _biomeMultiplier;
+        _currentHP = Mathf.Max(0, _currentHP - dmg);
+        GameEvents.OnBossHPChanged?.Invoke(_currentHP, bossMaxHP);
 
-        // Faz1 Piyade direnci — mevcut subpath baskın Piyade ise
-        if (_phase == 1)
+        CheckPhaseTransitions();
+
+        if (_currentHP <= 0) OnBossDefeated();
+    }
+
+    // ── Faz Kontrolu ─────────────────────────────────────────────────────
+    void CheckPhaseTransitions()
+    {
+        float ratio = (float)_currentHP / bossMaxHP;
+
+        if (!_phase2Triggered && ratio <= 0.60f)
         {
-            var ps = PlayerStats.Instance;
-            if (ps != null)
-            {
-                float total = ps.PiyadePath + ps.MekanizePath + ps.TeknolojiPath;
-                if (total > 0f && ps.PiyadePath / total >= 0.5f)
-                    finalDmg *= 0.9f; // Taş direnci Piyadeye karşı
-            }
+            _phase2Triggered = true;
+            if (_shieldCoroutine != null) StopCoroutine(_shieldCoroutine);
+            _shieldCoroutine = StartCoroutine(PhaseShieldRoutine(toPhase: 2));
         }
 
-        _hp = Mathf.Max(0, _hp - Mathf.RoundToInt(finalDmg));
-        UpdateBar();
-        StartCoroutine(Flash());
-        CheckPhase();
-        if (_hp <= 0) Defeat();
+        if (!_phase3Triggered && ratio <= 0.30f)
+        {
+            _phase3Triggered = true;
+            if (_shieldCoroutine != null) StopCoroutine(_shieldCoroutine);
+            _shieldCoroutine = StartCoroutine(PhaseShieldRoutine(toPhase: 3));
+        }
     }
 
-    void CheckPhase()
+    // ── Phase Shield ─────────────────────────────────────────────────────
+    IEnumerator PhaseShieldRoutine(int toPhase)
     {
-        float r = (float)_hp / bossMaxHP;
-        if      (_phase == 1 && r <= phase2At) { _phase = 2; Phase2(); }
-        else if (_phase == 2 && r <= phase3At) { _phase = 3; Phase3(); }
+        _invulnerable = true;
+        Debug.Log($"[BossManager] Phase Shield aktif — Faz {toPhase} geliyor...");
+        GameEvents.OnBossPhaseShield?.Invoke(toPhase);
+
+        yield return new WaitForSeconds(phaseShieldDuration);
+
+        _invulnerable = false;
+        Debug.Log($"[BossManager] Phase Shield bitti — Faz {toPhase} aktif.");
+
+        if      (toPhase == 2) EnterPhase2();
+        else if (toPhase == 3) EnterPhase3();
     }
 
-    void Phase2()
+    // ── Faz 2: Minyon Dalgasi ────────────────────────────────────────────
+    void EnterPhase2()
     {
-        string bossName = BiomeManager.Instance?.GetBossName() ?? "BOSS";
-        SetLabel($"{bossName.ToUpper()}  |  FAZ 2: MİNYON");
-        if (_bossRend) _bossRend.material.color = new Color(0.7f, 0.3f, 0.1f);
-        InvokeRepeating(nameof(SpawnMinions), 1f, minionInterval);
+        _currentPhase = 2;
+        GameEvents.OnBossPhaseChanged?.Invoke(2);
+
+        if (_minionCoroutine != null) StopCoroutine(_minionCoroutine);
+        _minionCoroutine = StartCoroutine(MinionWaveRoutine());
     }
 
-    void Phase3()
+    IEnumerator MinionWaveRoutine()
     {
-        string bossName = BiomeManager.Instance?.GetBossName() ?? "BOSS";
-        SetLabel($"{bossName.ToUpper()}  |  FAZ 3: ÇEKİRDEK");
-        if (_bossRend) _bossRend.material.color = new Color(0.9f, 0.05f, 0.05f);
-        bossApproachSpeed *= 2.2f;
-        CancelInvoke(nameof(SpawnMinions));
+        while (_active && _currentPhase == 2)
+        {
+            SpawnMinions();
+            yield return new WaitForSeconds(minionInterval);
+        }
     }
 
     void SpawnMinions()
     {
-        if (!_active || _dead || PlayerStats.Instance == null) return;
-        Vector3 center = PlayerStats.Instance.transform.position + Vector3.forward * 10f;
-        for (int i = 0; i < minionCount; i++)
+        if (!_active || ObjectPooler.Instance == null) return;
+
+        for (int i = 0; i < minionsPerWave; i++)
         {
-            Vector3 p = center + new Vector3(Random.Range(-6f, 6f), 0f, Random.Range(2f, 12f));
-            GameObject min;
-            if (minionPrefab != null) min = Instantiate(minionPrefab, p, Quaternion.identity);
+            Vector3 spawnPos;
+
+            if (minionSpawnPoints != null && minionSpawnPoints.Length > 0)
+                spawnPos = minionSpawnPoints[i % minionSpawnPoints.Length].position;
             else
-            {
-                min = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                min.transform.position   = p;
-                min.transform.localScale = Vector3.one * 0.7f;
-                Destroy(min.GetComponent<Collider>());
-                var cc = min.AddComponent<CapsuleCollider>(); cc.isTrigger = true;
-                var rb = min.AddComponent<Rigidbody>(); rb.isKinematic = true;
-                min.tag = "Enemy";
-                min.AddComponent<Enemy>();
-            }
-            min.GetComponent<Enemy>()?.Initialize(
-                new DifficultyManager.EnemyStats(300, 60, 5f, 10));
+                spawnPos = transform.position + new Vector3(
+                    Random.Range(-5f, 5f), 0f, Random.Range(-3f, 3f));
+
+            ObjectPooler.Instance.SpawnFromPool("Enemy", spawnPos, Quaternion.identity);
         }
+
+        Debug.Log($"[BossManager] {minionsPerWave} minyon spawn edildi.");
     }
 
-    // ── Zafer / Yenilgi ───────────────────────────────────────────────────
-    void Defeat()
+    // ── Faz 3: Enrage ────────────────────────────────────────────────────
+    void EnterPhase3()
     {
-        _dead = true; _active = false;
-        CancelInvoke();
-        PlayerStats.Instance?.AddCPFromKill(2000);
-        if (_bossObj) Destroy(_bossObj);
-        _bossCanvas?.gameObject.SetActive(false);
+        _currentPhase = 3;
+        if (_minionCoroutine != null) { StopCoroutine(_minionCoroutine); _minionCoroutine = null; }
+
+        GameEvents.OnBossPhaseChanged?.Invoke(3);
+        GameEvents.OnBossEnraged?.Invoke(enrageSpeedMult);
+        Debug.Log($"[BossManager] Faz 3: Enrage! Hiz x{enrageSpeedMult}");
+    }
+
+    // ── Boss Yenildi ─────────────────────────────────────────────────────
+    void OnBossDefeated()
+    {
+        _active = false;
+        if (_minionCoroutine != null) StopCoroutine(_minionCoroutine);
+        if (_shieldCoroutine != null) StopCoroutine(_shieldCoroutine);
+
+        GameEvents.OnBossDefeated?.Invoke();
         GameEvents.OnAnchorModeChanged?.Invoke(false);
-        StartCoroutine(VictoryCo());
+        Debug.Log("[BossManager] Boss yenildi!");
     }
 
-    IEnumerator VictoryCo() { yield return new WaitForSeconds(1.5f); Victory(); }
-
-    void Victory()
-    {
-        Canvas c = FindFirstObjectByType<Canvas>(); if (!c) return;
-        var panel = new GameObject("Victory"); panel.transform.SetParent(c.transform, false);
-        panel.AddComponent<Image>().color = new Color(0,0,0,0.88f);
-        var r = panel.GetComponent<RectTransform>();
-        r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one;
-        r.offsetMin = r.offsetMax = Vector2.zero;
-
-        string region = BiomeManager.Instance?.currentBiome ?? "BÖLGE";
-        Txt(panel, $"{region.ToUpper()} ELE GEÇİRİLDİ!", new Vector2(0,100), 46, new Color(1f,0.85f,0f), FontStyles.Bold);
-        Txt(panel, "CP: " + (PlayerStats.Instance?.CP.ToString("N0") ?? "0"), new Vector2(0,25), 28, Color.white, FontStyles.Normal);
-        Txt(panel, "Asker: " + (ArmyManager.Instance?.SoldierCount ?? 0) + "/20", new Vector2(0,-20), 22, new Color(0.7f,0.7f,1f), FontStyles.Normal);
-        Btn(panel, "TEKRAR DENE", new Vector2(0,-85), new Vector2(240,55), new Color(0.2f,0.7f,0.2f), () =>
-        {
-            Time.timeScale = 1f;
-            UnityEngine.SceneManagement.SceneManager.LoadScene(
-                UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
-        });
-    }
-
-    // ── HP Bar ────────────────────────────────────────────────────────────
-    void BuildHPBar()
-    {
-        var co = new GameObject("BossHPCanvas");
-        _bossCanvas = co.AddComponent<Canvas>();
-        _bossCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _bossCanvas.sortingOrder = 50;
-        co.AddComponent<CanvasScaler>(); co.AddComponent<GraphicRaycaster>();
-
-        var strip = new GameObject("S"); strip.transform.SetParent(co.transform, false);
-        strip.AddComponent<Image>().color = new Color(0,0,0,0.78f);
-        var sr = strip.GetComponent<RectTransform>();
-        sr.anchorMin = new Vector2(0.04f, 0.90f); sr.anchorMax = new Vector2(0.96f, 0.97f);
-        sr.offsetMin = sr.offsetMax = Vector2.zero;
-
-        var fo = new GameObject("F"); fo.transform.SetParent(strip.transform, false);
-        _hpFill = fo.AddComponent<Image>();
-        _hpFill.type = Image.Type.Filled; _hpFill.fillMethod = Image.FillMethod.Horizontal;
-        _hpFill.color = new Color(0.2f,0.85f,0.2f);
-        var fr = fo.GetComponent<RectTransform>();
-        fr.anchorMin = new Vector2(0.005f, 0.08f); fr.anchorMax = new Vector2(0.995f, 0.92f);
-        fr.offsetMin = fr.offsetMax = Vector2.zero;
-
-        _phaseLabel = Txt(strip, "BOSS", Vector2.zero, 14, Color.white, FontStyles.Bold);
-        var lr = _phaseLabel.GetComponent<RectTransform>();
-        lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one; lr.offsetMin = lr.offsetMax = Vector2.zero;
-    }
-
-    void UpdateBar()
-    {
-        if (!_hpFill) return;
-        float r = (float)_hp / bossMaxHP;
-        _hpFill.fillAmount = r;
-        _hpFill.color = r > 0.6f ? new Color(0.2f,0.85f,0.2f) : r > 0.3f ? new Color(1f,0.7f,0f) : new Color(0.9f,0.1f,0.1f);
-    }
-
-    void SetLabel(string s) { if (_phaseLabel) _phaseLabel.text = s; }
-
-    IEnumerator Flash()
-    {
-        if (!_bossRend) yield break;
-        Color o = _bossRend.material.color;
-        _bossRend.material.color = Color.white;
-        yield return new WaitForSeconds(0.07f);
-        if (_bossRend) _bossRend.material.color = o;
-    }
-
-    // ── UI Helpers ────────────────────────────────────────────────────────
-    TextMeshProUGUI Txt(GameObject p, string txt, Vector2 pos, float sz, Color col, FontStyles fs)
-    {
-        var o = new GameObject("T"); o.transform.SetParent(p.transform, false);
-        var t = o.AddComponent<TextMeshProUGUI>();
-        t.text=txt; t.fontSize=sz; t.color=col; t.fontStyle=fs; t.alignment=TextAlignmentOptions.Center;
-        var r = o.GetComponent<RectTransform>();
-        r.anchorMin = new Vector2(0.5f,0.5f); r.anchorMax = new Vector2(0.5f,0.5f);
-        r.pivot = new Vector2(0.5f,0.5f); r.anchoredPosition=pos; r.sizeDelta=new Vector2(600,60);
-        return t;
-    }
-
-    void Btn(GameObject p, string lbl, Vector2 pos, Vector2 sz, Color bg, UnityEngine.Events.UnityAction onClick)
-    {
-        var bo = new GameObject("B"); bo.transform.SetParent(p.transform, false);
-        var im = bo.AddComponent<Image>(); im.color=bg;
-        var bt = bo.AddComponent<Button>(); bt.targetGraphic=im; bt.onClick.AddListener(onClick);
-        var r = bo.GetComponent<RectTransform>();
-        r.anchorMin=new Vector2(0.5f,0.5f); r.anchorMax=new Vector2(0.5f,0.5f);
-        r.pivot=new Vector2(0.5f,0.5f); r.anchoredPosition=pos; r.sizeDelta=sz;
-        var lo = new GameObject("L"); lo.transform.SetParent(bo.transform, false);
-        var lt = lo.AddComponent<TextMeshProUGUI>();
-        lt.text=lbl; lt.fontSize=20; lt.color=Color.white; lt.fontStyle=FontStyles.Bold; lt.alignment=TextAlignmentOptions.Center;
-        var lr = lo.GetComponent<RectTransform>();
-        lr.anchorMin=Vector2.zero; lr.anchorMax=Vector2.one; lr.offsetMin=lr.offsetMax=Vector2.zero;
-    }
-}
-
-public class BossHitReceiver : MonoBehaviour
-{
-    public BossManager bossManager;
+    // ── Yardimcilar ───────────────────────────────────────────────────────
+    public float GetHPRatio() => bossMaxHP > 0 ? (float)_currentHP / bossMaxHP : 0f;
+    public bool  IsActive()   => _active;
+    public bool  IsInvulnerable() => _invulnerable;
 }
 ```
 
@@ -1046,6 +887,86 @@ public class ChunkManager : MonoBehaviour
         Destroy(activeChunks.Dequeue());
     }
 }
+
+```
+
+Commanderdata.cs
+
+```csharp
+using UnityEngine;
+
+/// <summary>
+/// Top End War — Komutan Verisi v1 (Claude)
+///
+/// Her komutan bir ScriptableObject'tir.
+/// Assets > Create > TopEndWar > CommanderData
+///
+/// PlayerStats bu dosyadan stat okur.
+/// Tier tabloları burada tutulur — PlayerController'daki sabit diziler kaldırıldı.
+/// </summary>
+[CreateAssetMenu(fileName = "Commander_", menuName = "TopEndWar/CommanderData")]
+public class CommanderData : ScriptableObject
+{
+    [Header("Kimlik")]
+    public string commanderName   = "Gonullu Er";
+    public Sprite portrait;
+    [TextArea(2, 4)]
+    public string lore            = "";
+
+    [Header("Tier Bazli Istatistikler (5 deger = Tier 1-5)")]
+    [Tooltip("Tier 1'den 5'e temel hasar degerleri")]
+    public float[] baseDMG        = { 60f, 95f, 145f, 210f, 300f };
+
+    [Tooltip("Tier 1'den 5'e atisHizi (atis/saniye)")]
+    public float[] baseFireRate   = { 1.5f, 2.5f, 4.0f, 6.0f, 8.5f };
+
+    [Tooltip("Tier 1'den 5'e temel HP")]
+    public int[]   baseHP         = { 500, 700, 950, 1200, 1500 };
+
+    [Header("Ozel Mekanik")]
+    public CommanderSpecialty specialty = CommanderSpecialty.Assault;
+    public ArmySynergy armySynergy     = ArmySynergy.Hybrid;
+
+    [Tooltip("Komutan sinerjisi: asker turune gore hasar carpani")]
+    [Range(1f, 1.5f)]
+    public float armyDamageMultiplier  = 1.0f;
+
+    [Header("Kilit Kosulu")]
+    [Tooltip("Hangi dunya bitmeli? 0 = baslangictan acik")]
+    public int requiredWorldID         = 0;
+
+    [Header("Gorsel Evrim (Tier basi model/aura)")]
+    public GameObject[] tierModels;        // 5 eleman, Tier 1-5
+    public ParticleSystem[] tierAuras;     // 5 eleman
+
+    /// <summary>Verilen tier icin guveli temel hasar degerini dondurur.</summary>
+    public float GetBaseDMG(int tier)
+        => baseDMG[Mathf.Clamp(tier - 1, 0, 4)];
+
+    /// <summary>Verilen tier icin temel atis hizini dondurur.</summary>
+    public float GetBaseFireRate(int tier)
+        => baseFireRate[Mathf.Clamp(tier - 1, 0, 4)];
+
+    /// <summary>Verilen tier icin temel HP'yi dondurur.</summary>
+    public int GetBaseHP(int tier)
+        => baseHP[Mathf.Clamp(tier - 1, 0, 4)];
+}
+
+public enum CommanderSpecialty
+{
+    Assault,    // Dengeli — baslangic komutani
+    Sniper,     // Yuksek hasar, yavash atis
+    Support,    // Yuksek HP, dusuk hasar, ordu guclendirir
+    Swarm,      // Cok mermi, dusuk tek mermi hasari
+}
+
+public enum ArmySynergy
+{
+    Piyade,
+    Mekanik,
+    Teknoloji,
+    Hybrid,
+}
 ```
 
 # Damagepopup.cs
@@ -1187,45 +1108,53 @@ DifficultyManager.cs
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dinamik Zorluk Yoneticisi (Claude)
-/// ProgressionConfig OLMADAN da calisir — dahili sabitler kullanilir.
-/// Her 50 birimde hesaplama yapar (her frame degil).
-/// NAMESPACE YOK.
+/// Top End War — Zorluk Yoneticisi v3 (Claude)
+///
+/// v3: exponent 1.3→1.1, cpScalingFactor 0.9→0.5
+/// EnemyStats field isimleri Enemy.cs ve SpawnManager ile eslestirild:
+///   Health, Damage, Speed, CPReward
+/// IsInPityZone() ve PlayerPowerRatio eklendi (SpawnManager kullanir).
+/// OnDifficultyChanged(float mult, float powerRatio) — 2 parametre.
 /// </summary>
 public class DifficultyManager : MonoBehaviour
 {
     public static DifficultyManager Instance { get; private set; }
 
-    [Header("Config (Opsiyonel)")]
-    public ProgressionConfig config;
-
-    [Header("Guncelleme Araligi")]
-    public float updateInterval = 50f;
-
-    // Dahili sabitler (config yoksa)
-    const float BASE_HP     = 100f;
-    const float BASE_DMG    = 20f;  // 25 → 20: biraz daha cömertti
-    const float BASE_SPEED  = 3.5f; // 4.0 → 3.5: başlangıçta daha yavaş
-    const float MAX_SPEED   = 6.5f; // 7.5 → 6.5: max hız biraz düşük
-    const float BASE_REWARD = 18f;  // 15 → 18: kill başı biraz daha CP
-
-    public float CurrentDifficultyMultiplier { get; private set; } = 1f;
-    public float PlayerPowerRatio            { get; private set; } = 1f;
-
-    // GC-friendly struct — allocation yok
-    public readonly struct EnemyStats
+    // ── EnemyStats — Enemy.cs ve SpawnManager tarafindan kullanilir ───────
+    public struct EnemyStats
     {
-        public readonly int   Health;
-        public readonly int   Damage;
-        public readonly float Speed;
-        public readonly int   CPReward;
-        public EnemyStats(int h, int d, float s, int r)
-        { Health=h; Damage=d; Speed=s; CPReward=r; }
+        public int   Health;
+        public int   Damage;
+        public float Speed;
+        public int   CPReward;
+
+        public EnemyStats(int health, int damage, float speed, int cpReward)
+        {
+            Health   = health;
+            Damage   = damage;
+            Speed    = speed;
+            CPReward = cpReward;
+        }
     }
 
-    Transform _player;
-    float     _lastUpdateZ = -9999f;
-    float     _currentZ    = 0f;
+    // ── Konfigurasyon ─────────────────────────────────────────────────────
+    [Header("Konfigurasyon (ProgressionConfig SO)")]
+    public ProgressionConfig config;
+
+    [Header("Temel Dusman Degerleri (Config yoksa yedek)")]
+    public float baseEnemyHP     = 1100f;
+    public float baseEnemySpeed  = 4.5f;
+    public float baseEnemyDamage = 30f;
+    public int   baseEnemyReward = 15;
+
+    [Header("Pity Zone (boss oncesi kotu kapi engeli)")]
+    [Tooltip("Boss mesafesinin yuzde kaci kala kotu kapilari engelle (0.15 = %15)")]
+    [Range(0f, 0.3f)]
+    public float pityZoneFraction = 0.15f;
+
+    [Header("Debug (Salt Okunur)")]
+    [SerializeField] private float _currentMultiplier  = 1f;
+    [SerializeField] private float _smoothedPowerRatio = 1f;
 
     void Awake()
     {
@@ -1233,74 +1162,473 @@ public class DifficultyManager : MonoBehaviour
         Instance = this;
     }
 
-    void Start()
+    // ── Zorluk Carpani ────────────────────────────────────────────────────
+    public float CalculateMultiplier(float z, int playerCP, float expectedCP)
     {
-        if (PlayerStats.Instance != null)
-            _player = PlayerStats.Instance.transform;
+        float exp   = config != null ? config.difficultyExponent    : 1.1f;
+        float scale = config != null ? config.distanceScale         : 1000f;
+        float cpSF  = config != null ? config.playerCPScalingFactor : 0.5f;
+        float minPA = config != null ? config.minPowerAdjust        : 0.7f;
+        float maxPA = config != null ? config.maxPowerAdjust        : 1.4f;
+
+        float distanceFactor = 1f + Mathf.Pow(z / scale, exp);
+
+        float rawRatio       = expectedCP > 0f ? (float)playerCP / expectedCP : 1f;
+        _smoothedPowerRatio  = Mathf.Lerp(_smoothedPowerRatio, rawRatio, 0.08f);
+
+        float powerAdjust    = 1f + (_smoothedPowerRatio - 1f) * cpSF;
+        powerAdjust          = Mathf.Clamp(powerAdjust, minPA, maxPA);
+
+        _currentMultiplier   = distanceFactor * powerAdjust;
+
+        // 2 parametre: SpawnManager (m, r) olarak abone
+        GameEvents.OnDifficultyChanged?.Invoke(_currentMultiplier, _smoothedPowerRatio);
+        return _currentMultiplier;
     }
 
-    void Update()
+    // ── Dusman Istatistikleri ─────────────────────────────────────────────
+    public EnemyStats GetScaledEnemyStats()
     {
-        if (_player == null) { TryFindPlayer(); return; }
-        _currentZ = _player.position.z;
-        if (Mathf.Abs(_currentZ - _lastUpdateZ) >= updateInterval)
+        float m = _currentMultiplier;
+        return new EnemyStats(
+            health:   Mathf.RoundToInt(baseEnemyHP     * m),
+            damage:   Mathf.RoundToInt(baseEnemyDamage * m),
+            speed:    Mathf.Min(baseEnemySpeed + (m - 1f) * 1.4f, 7.5f),
+            cpReward: Mathf.RoundToInt(baseEnemyReward * m)
+        );
+    }
+
+    // ── SpawnManager'in Kullandigi Yardimcilar ────────────────────────────
+
+    /// <summary>
+    /// Boss mesafesine yakin midir?
+    /// SpawnManager pity=true olunca kotu kapilari listeden cikarir.
+    /// </summary>
+    public bool IsInPityZone(float bossDistance)
+    {
+        if (PlayerStats.Instance == null) return false;
+        float z          = PlayerStats.Instance.transform.position.z;
+        float pityStart  = bossDistance * (1f - pityZoneFraction);
+        return z >= pityStart;
+    }
+
+    /// <summary>
+    /// Oyuncunun guc orani (SmoothedPowerRatio).
+    /// SpawnManager dalga sertlestirmede kullanir.
+    /// </summary>
+    public float PlayerPowerRatio => _smoothedPowerRatio;
+
+    // ── Diger Yardimcilar ─────────────────────────────────────────────────
+    public float GetCurrentMultiplier()  => _currentMultiplier;
+    public float GetSmoothedPowerRatio() => _smoothedPowerRatio;
+
+    public void SetExpectedCP(float expected)
+    {
+        if (PlayerStats.Instance != null)
+            PlayerStats.Instance.SetExpectedCP(expected);
+    }
+}
+```
+
+Economyconfig.cs
+
+```csharp
+using UnityEngine;
+
+/// <summary>
+/// Top End War — Ekonomi Konfigurasyonu v1 (Claude)
+///
+/// Tum ekonomi formullerini tek bir SO'da toplar.
+/// ChatGPT canonical JSON'undan turetildi.
+///
+/// FORMÜLLER:
+///   SlotGoldCost(level)     = round(180 * 1.22^(level-1))
+///   GoldReward(stage,dps)   = round(120 + 10*stage + 0.20*targetDps)
+///   MidLootGold             = round(goldReward * 0.35)
+///
+/// TECH CORE BANTLARI:
+///   Level 1-5   → 1 TC
+///   Level 6-10  → 2 TC
+///   Level 11-15 → 3 TC
+///   Level 16-20 → 4 TC
+///   Level 21-30 → 5 TC
+///   Level 31-50 → 7 TC
+///
+/// ASSETS: Create > TopEndWar > EconomyConfig
+/// EconomyManager bu SO'yu okur.
+/// </summary>
+[CreateAssetMenu(fileName = "EconomyConfig", menuName = "TopEndWar/EconomyConfig")]
+public class EconomyConfig : ScriptableObject
+{
+    // ── Slot Gold Maliyeti ────────────────────────────────────────────────
+    [Header("Slot Yukseltme — Altin Maliyeti")]
+    [Tooltip("Temel maliyet (level 1). Her seviye 1.22x artar.")]
+    public float slotGoldCostBase    = 180f;
+
+    [Tooltip("Buyume katsayisi. 1.22 = her seviye %22 pahali.")]
+    public float slotGoldCostGrowth  = 1.22f;
+
+    // ── Slot Tech Core Maliyeti (Bantli) ─────────────────────────────────
+    [Header("Slot Yukseltme — Tech Core Maliyeti (Bantli)")]
+    [Tooltip("Level aralik baslangici")]
+    public int[] tcBandFromLevel     = { 1,  6, 11, 16, 21, 31 };
+    [Tooltip("Level aralik bitis (kapsamli)")]
+    public int[] tcBandToLevel       = { 5, 10, 15, 20, 30, 50 };
+    [Tooltip("Her banttaki Tech Core maliyeti")]
+    public int[] tcBandCost          = { 1,  2,  3,  4,  5,  7 };
+
+    // ── Stage Altin Odulu ─────────────────────────────────────────────────
+    [Header("Stage Odulu Formulü")]
+    [Tooltip("Baz altin: round(goldBase + goldPerStage*stage + goldDpsFactor*targetDps)")]
+    public float goldBase            = 120f;
+    public float goldPerStage        = 10f;
+    public float goldDpsFactor       = 0.20f;
+
+    [Tooltip("Stage ortasi micro-loot orani (0.35 = odulun %35'i)")]
+    [Range(0f, 1f)]
+    public float midLootFraction     = 0.35f;
+
+    // ── Offline Gelir ─────────────────────────────────────────────────────
+    [Header("Offline Gelir")]
+    public int   baseOfflineRate     = 50;     // Altin / saat (baslangic)
+    [Range(8f, 24f)]
+    public float offlineCapHours     = 15f;
+
+    // ── Reklam Sinirlamalari ──────────────────────────────────────────────
+    [Header("Reklam Politikasi")]
+    public int   reviveAdsPerRun     = 1;
+    public int   doubleGoldAdsDaily  = 3;
+    public int   bonusChestAdsDaily  = 4;
+    // techCoreAds ve hardCurrencyAds kapalı — kod seviyesinde bypass yok
+
+    // ── Pity Timer ────────────────────────────────────────────────────────
+    [Header("Pity Timer (Acima Sayaci)")]
+    [Tooltip("Kac bos stage sonra Basic Scroll garantilenir")]
+    public int   pityStagThreshold   = 20;
+
+    // ── API ───────────────────────────────────────────────────────────────
+
+    /// <summary>Belirtilen seviyenin slot yükseltme altin maliyetini dondurur.</summary>
+    public int GetSlotGoldCost(int level)
+    {
+        level = Mathf.Clamp(level, 1, 50);
+        return Mathf.RoundToInt(slotGoldCostBase * Mathf.Pow(slotGoldCostGrowth, level - 1));
+    }
+
+    /// <summary>Belirtilen seviyenin Tech Core maliyetini dondurur.</summary>
+    public int GetSlotTechCoreCost(int level)
+    {
+        level = Mathf.Clamp(level, 1, 50);
+        for (int i = 0; i < tcBandFromLevel.Length; i++)
+            if (level >= tcBandFromLevel[i] && level <= tcBandToLevel[i])
+                return tcBandCost[i];
+        return tcBandCost[tcBandCost.Length - 1];
+    }
+
+    /// <summary>Stage altin odulunu hesaplar.</summary>
+    public int GetGoldReward(int stageNumber, float targetDps)
+        => Mathf.RoundToInt(goldBase + goldPerStage * stageNumber + goldDpsFactor * targetDps);
+
+    /// <summary>Stage ortasi micro-loot altinini hesaplar.</summary>
+    public int GetMidLootGold(int stageNumber, float targetDps)
+        => Mathf.RoundToInt(GetGoldReward(stageNumber, targetDps) * midLootFraction);
+}
+```
+
+EconomyManager.cs
+
+```csharp
+using UnityEngine;
+using System;
+
+/// <summary>
+/// Top End War — Ekonomi Yoneticisi v2 (Claude)
+///
+/// v2: EconomyConfig SO entegre edildi.
+///   SlotUpgrade() — Gold + TechCore harcar, basarili ise true dondurur.
+///   Pity timer — N bos stage sonra Basic Scroll garantisi.
+///   Reklam politikasi — TechCore ve Hard Currency reklamla bypass edilemez.
+///
+/// Para birimleri: Altin (Soft) | TechCore (Skill-based) | Kristal (Hard)
+/// </summary>
+public class EconomyManager : MonoBehaviour
+{
+    public static EconomyManager Instance { get; private set; }
+
+    [Header("Konfigurasyon")]
+    public EconomyConfig config;
+
+    // ── Para Birimleri ────────────────────────────────────────────────────
+    public int Gold      { get; private set; }
+    public int TechCore  { get; private set; }
+    public int Crystal   { get; private set; }
+
+    // ── Offline Gelir ─────────────────────────────────────────────────────
+    private int _bonusOfflineRate = 0;
+
+    // ── Pity Sayaci ───────────────────────────────────────────────────────
+    private int _emptyStageCount = 0;  // Scroll dusmeyen stage sayisi
+
+    // ── Gunluk Reklam Sayaclari ───────────────────────────────────────────
+    private int  _doubleGoldAdsToday = 0;
+    private int  _bonusChestAdsToday = 0;
+    private string _lastAdResetDate  = "";
+
+    // ── PlayerPrefs Anahtarlari ───────────────────────────────────────────
+    const string KEY_GOLD         = "Economy_Gold";
+    const string KEY_TECHCORE     = "Economy_TechCore";
+    const string KEY_CRYSTAL      = "Economy_Crystal";
+    const string KEY_BONUS_RATE   = "Economy_BonusRate";
+    const string KEY_LAST_SAVE    = "Economy_LastSaveTime";
+    const string KEY_PITY         = "Economy_PityCount";
+    const string KEY_AD_DATE      = "Economy_AdResetDate";
+    const string KEY_AD_DGOLD     = "Economy_DoubleGoldAds";
+    const string KEY_AD_CHEST     = "Economy_BonusChestAds";
+
+    // ── Yasamdongüsü ──────────────────────────────────────────────────────
+    void Awake()
+    {
+        if (Instance != null) { Destroy(gameObject); return; }
+        Instance = this;
+        Load();
+        ResetDailyAdsIfNeeded();
+        CollectOfflineEarnings();
+    }
+
+    void OnApplicationPause(bool paused) { if (paused) SaveLastTime(); }
+    void OnApplicationQuit()             { SaveLastTime(); }
+
+    // ── Altin ─────────────────────────────────────────────────────────────
+    public void AddGold(int amount)
+    {
+        Gold = Mathf.Max(0, Gold + amount);
+        Save();
+        OnEconomyChanged?.Invoke();
+    }
+
+    public bool SpendGold(int amount)
+    {
+        if (Gold < amount) return false;
+        Gold -= amount;
+        Save();
+        OnEconomyChanged?.Invoke();
+        return true;
+    }
+
+    // ── TechCore ─────────────────────────────────────────────────────────
+    public void AddTechCore(int amount)
+    {
+        TechCore = Mathf.Max(0, TechCore + amount);
+        Save();
+        OnEconomyChanged?.Invoke();
+    }
+
+    public bool SpendTechCore(int amount)
+    {
+        if (TechCore < amount) return false;
+        TechCore -= amount;
+        Save();
+        OnEconomyChanged?.Invoke();
+        return true;
+    }
+
+    // ── Kristal ───────────────────────────────────────────────────────────
+    public void AddCrystal(int amount)
+    {
+        Crystal = Mathf.Max(0, Crystal + amount);
+        Save();
+        OnEconomyChanged?.Invoke();
+    }
+
+    public bool SpendCrystal(int amount)
+    {
+        if (Crystal < amount) return false;
+        Crystal -= amount;
+        Save();
+        OnEconomyChanged?.Invoke();
+        return true;
+    }
+
+    // ── Slot Yukseltme ────────────────────────────────────────────────────
+    /// <summary>
+    /// Belirtilen slot seviyesi icin Gold + TechCore harcar.
+    /// EconomyConfig formulune gore maliyet hesaplanir.
+    /// Basarili ise true, yetersiz kaynak ise false dondurur.
+    ///
+    /// currentLevel: MEVCUT seviye. Yeni seviye = currentLevel + 1.
+    /// </summary>
+    public bool TryUpgradeSlot(int currentLevel, out string failReason)
+    {
+        failReason = "";
+        if (config == null) { failReason = "EconomyConfig atanmamis."; return false; }
+
+        int nextLevel = currentLevel + 1;
+        if (nextLevel > 50) { failReason = "Maksimum slot seviyesi."; return false; }
+
+        int goldCost = config.GetSlotGoldCost(currentLevel);      // mevcut level maliyeti
+        int tcCost   = config.GetSlotTechCoreCost(currentLevel);
+
+        if (Gold < goldCost)
         {
-            Recalculate();
-            _lastUpdateZ = _currentZ;
+            failReason = $"Yetersiz altin. Gerekli: {goldCost}, Mevcut: {Gold}";
+            return false;
+        }
+        if (TechCore < tcCost)
+        {
+            failReason = $"Yetersiz TechCore. Gerekli: {tcCost}, Mevcut: {TechCore}";
+            return false;
+        }
+
+        Gold     -= goldCost;
+        TechCore -= tcCost;
+        Save();
+        OnEconomyChanged?.Invoke();
+        Debug.Log($"[Economy] Slot Lv{currentLevel}→{nextLevel} | -{goldCost}G -{tcCost}TC");
+        return true;
+    }
+
+    /// <summary>Bir sonraki slot yukseltmesinin maliyetini dondurur (bilgi icin).</summary>
+    public (int gold, int tc) GetUpgradeCost(int currentLevel)
+    {
+        if (config == null) return (0, 0);
+        return (config.GetSlotGoldCost(currentLevel), config.GetSlotTechCoreCost(currentLevel));
+    }
+
+    // ── Pity Timer ────────────────────────────────────────────────────────
+    /// <summary>
+    /// Scroll dusmeyen her stage'de cagirilir.
+    /// Esige ulasilirsa Basic Scroll garantisi tetiklenir.
+    /// </summary>
+    public void RegisterEmptyStage()
+    {
+        _emptyStageCount++;
+        int threshold = config != null ? config.pityStagThreshold : 20;
+
+        if (_emptyStageCount >= threshold)
+        {
+            _emptyStageCount = 0;
+            OnGuaranteedScroll?.Invoke();
+            Debug.Log("[Economy] Pity Timer: Guaranteed Basic Scroll!");
+        }
+
+        PlayerPrefs.SetInt(KEY_PITY, _emptyStageCount);
+        PlayerPrefs.Save();
+    }
+
+    public void ResetPityCounter()
+    {
+        _emptyStageCount = 0;
+        PlayerPrefs.SetInt(KEY_PITY, 0);
+    }
+
+    // ── Reklam ───────────────────────────────────────────────────────────
+    public bool TryDoubleGoldAd()
+    {
+        int limit = config != null ? config.doubleGoldAdsDaily : 3;
+        if (_doubleGoldAdsToday >= limit) return false;
+        _doubleGoldAdsToday++;
+        SaveAds();
+        return true;
+    }
+
+    public bool TryBonusChestAd()
+    {
+        int limit = config != null ? config.bonusChestAdsDaily : 4;
+        if (_bonusChestAdsToday >= limit) return false;
+        _bonusChestAdsToday++;
+        SaveAds();
+        return true;
+    }
+
+    // TechCore reklamla alinamaz — bu metot kasitli olarak yok.
+
+    // ── Offline Gelir ─────────────────────────────────────────────────────
+    public void AddOfflineRate(int amountPerHour)
+    {
+        _bonusOfflineRate += amountPerHour;
+        PlayerPrefs.SetInt(KEY_BONUS_RATE, _bonusOfflineRate);
+        PlayerPrefs.Save();
+    }
+
+    public int GetTotalOfflineRate()
+    {
+        int baseRate = config != null ? config.baseOfflineRate : 50;
+        return baseRate + _bonusOfflineRate;
+    }
+
+    void CollectOfflineEarnings()
+    {
+        string savedTime = PlayerPrefs.GetString(KEY_LAST_SAVE, "");
+        if (string.IsNullOrEmpty(savedTime)) return;
+        if (!DateTime.TryParse(savedTime, out DateTime lastSave)) return;
+
+        float capHours = config != null ? config.offlineCapHours : 15f;
+        double hoursGone = Mathf.Min((float)(DateTime.UtcNow - lastSave).TotalHours, capHours);
+        if (hoursGone < 0.01f) return;
+
+        int earned = Mathf.RoundToInt((float)hoursGone * GetTotalOfflineRate());
+        if (earned <= 0) return;
+
+        Gold += earned;
+        Save();
+        Debug.Log($"[Economy] Offline: +{earned} Altin ({hoursGone:F1} saat)");
+        OnOfflineEarningCollected?.Invoke(earned);
+    }
+
+    void SaveLastTime()
+    {
+        PlayerPrefs.SetString(KEY_LAST_SAVE, DateTime.UtcNow.ToString("o"));
+        PlayerPrefs.Save();
+    }
+
+    // ── Gunluk Reklam Sifirla ─────────────────────────────────────────────
+    void ResetDailyAdsIfNeeded()
+    {
+        string today = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
+        if (_lastAdResetDate != today)
+        {
+            _doubleGoldAdsToday = 0;
+            _bonusChestAdsToday = 0;
+            _lastAdResetDate    = today;
+            SaveAds();
         }
     }
 
-    void TryFindPlayer()
+    void SaveAds()
     {
-        if (PlayerStats.Instance != null) _player = PlayerStats.Instance.transform;
+        PlayerPrefs.SetString(KEY_AD_DATE,  _lastAdResetDate);
+        PlayerPrefs.SetInt(KEY_AD_DGOLD,    _doubleGoldAdsToday);
+        PlayerPrefs.SetInt(KEY_AD_CHEST,    _bonusChestAdsToday);
+        PlayerPrefs.Save();
     }
 
-    void Recalculate()
+    // ── Save / Load ───────────────────────────────────────────────────────
+    void Save()
     {
-        float norm = _currentZ / 1000f;
-        CurrentDifficultyMultiplier = 1f + Mathf.Pow(norm, 1.1f); // 1.3→1.1: daha yavaş artış
-
-        int   expected = config != null
-            ? config.CalculateExpectedCP(_currentZ)
-            : Mathf.RoundToInt(200f * Mathf.Pow(1.15f, _currentZ / 100f));
-
-        int   actual   = PlayerStats.Instance?.CP ?? 200;
-        float raw      = (float)actual / Mathf.Max(1, expected);
-        PlayerPowerRatio = Mathf.Lerp(PlayerPowerRatio, raw, 0.15f); // 0.08→0.15: DDA daha hızlı adapte
-
-        PlayerStats.Instance?.SetExpectedCP(expected);
-        GameEvents.OnDifficultyChanged?.Invoke(CurrentDifficultyMultiplier, PlayerPowerRatio);
+        PlayerPrefs.SetInt(KEY_GOLD,       Gold);
+        PlayerPrefs.SetInt(KEY_TECHCORE,   TechCore);
+        PlayerPrefs.SetInt(KEY_CRYSTAL,    Crystal);
+        PlayerPrefs.SetInt(KEY_BONUS_RATE, _bonusOfflineRate);
+        PlayerPrefs.Save();
     }
 
-    public EnemyStats GetScaledEnemyStats()
+    void Load()
     {
-        float diff  = CurrentDifficultyMultiplier;
-        // pScale: oyuncu güçlüyse düşman biraz artar ama çok fazla değil
-        // 0.5f = oyuncu 2x güçlüyse düşman sadece 1.5x güçlü (eskisi 1.9x idi!)
-        float scaleFactor = config != null ? config.playerCPScalingFactor : 0.5f;
-        float pScale = Mathf.Lerp(1f, Mathf.Min(PlayerPowerRatio, 1.5f), scaleFactor);
-        float final = diff * pScale;
-
-        float bH    = config != null ? config.baseEnemyHealth : BASE_HP;
-        float bD    = config != null ? config.baseEnemyDamage : BASE_DMG;
-        float bS    = config != null ? config.baseEnemySpeed  : BASE_SPEED;
-        float maxS  = config != null ? config.enemyMaxSpeed   : MAX_SPEED;
-
-        return new EnemyStats(
-            Mathf.RoundToInt(bH * final),
-            Mathf.RoundToInt(bD * final),
-            Mathf.Min(bS * (1f + (diff - 1f) * 0.35f), maxS),
-            Mathf.RoundToInt(BASE_REWARD * diff));
+        Gold              = PlayerPrefs.GetInt(KEY_GOLD,       0);
+        TechCore          = PlayerPrefs.GetInt(KEY_TECHCORE,   0);
+        Crystal           = PlayerPrefs.GetInt(KEY_CRYSTAL,    0);
+        _bonusOfflineRate = PlayerPrefs.GetInt(KEY_BONUS_RATE, 0);
+        _emptyStageCount  = PlayerPrefs.GetInt(KEY_PITY,       0);
+        _lastAdResetDate  = PlayerPrefs.GetString(KEY_AD_DATE, "");
+        _doubleGoldAdsToday = PlayerPrefs.GetInt(KEY_AD_DGOLD, 0);
+        _bonusChestAdsToday = PlayerPrefs.GetInt(KEY_AD_CHEST, 0);
     }
 
-    public bool IsInPityZone(float bossDistance)
-    {
-        float zone = config != null ? config.noBadGateZoneBeforeBoss : 200f;
-
- return _currentZ >= bossDistance - zone;
-    }
-
-    void OnDestroy() { if (Instance == this) Instance = null; }}
+    // ── Olaylar ───────────────────────────────────────────────────────────
+    public static Action      OnEconomyChanged;
+    public static Action<int> OnOfflineEarningCollected;
+    public static Action      OnGuaranteedScroll;
+}
 ```
 
 Enemy.cs
@@ -1578,6 +1906,7 @@ public class EnemyHealthBar : MonoBehaviour
         fillR.offsetMin = Vector2.zero; fillR.offsetMax = Vector2.zero;
     }
 }
+
 ```
 
 EquipmentData.cs
@@ -1586,132 +1915,137 @@ EquipmentData.cs
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Ekipman Verisi v2 (Claude)
+/// Top End War — Ekipman Verisi v3 (Claude)
 ///
-/// SILAH TÜRLERİ VE GERÇEKÇİ ÖZELLİKLER:
-///
-///   Tabanca     — Hızlı atış, kısa menzil, hafif    
-///   Tüfek       — Dengeli, orta menzil, tek atış
-///   Otomatik    — Yüksek DPS, kısa/orta menzil, düşük isabet
-///   Keskin nişancı — Yüksek hasar, uzun menzil, çok yavaş atış
-///   Pompalı     — Çok hasar yakın, düşük menzil, yavaş
-///
-/// ZIRH TÜRLERİ:
-///   Hafif zırh  — Az koruma, yüksek mobilite (gelecek: hız bonusu)
-///   Orta zırh   — Dengeli
-///   Ağır zırh   — Yüksek koruma, yavaş (gelecek: hız cezası)
-///   Kalkan      — Hasar azaltma bonusu
-///
-/// AKSESUAR (kolye, yüzük, omuzluk, vb.):
-///   Çeşitli bonuslar — CP, ateş hızı, hasar, çoğaltıcı vb.
+/// v3 degisiklikleri:
+///   + globalDmgMultiplier eklendi (Yuzuk/Kolye icin DPS carpani)
+///   - cpMultiplier artik SADECE CP Gear Score icin kullanilir, DPS hesabinda YOK
+///   ArmorType enum yorumlari duzeltildi (enum sadece kategori, gercek deger fieldlarda)
 ///
 /// KURULUM:
-///   Assets → Create → TopEndWar → Equipment
-///   Tipi seç, değerleri doldur → PlayerStats'e sürükle.
+///   Assets > Create > TopEndWar > Equipment
+///   Slot sec, degerleri doldur, PlayerStats'e surukle.
 /// </summary>
 
 public enum EquipmentSlot
 {
-    Weapon,         // Silah — ateş hızı + hasar
-    Armor,          // Zırh — HP + hasar azaltma
-    Shoulder,       // Omuzluk — CP bonus + küçük hasar
-    Knee,           // Dizlik — hafif HP + hareket
-    Boots,          // Ayakkabı — hareket bonusu (gelecek)
-    Necklace,       // Kolye — CP çarpanı
-    Ring,           // Yüzük — genel buff
+    Weapon,      // Silah    — atisHizi + hasar
+    Armor,       // Zirh     — HP + hasarAzaltma
+    Shoulder,    // Omuzluk  — CP bonus + kucuk DR
+    Knee,        // Dizlik   — hafif HP bonus
+    Boots,       // Ayakkabi — hareket bonusu (gelecek)
+    Necklace,    // Kolye    — CP carpani + globalDmg
+    Ring,        // Yuzuk    — globalDmgMultiplier
 }
 
 public enum WeaponType
 {
-    None,           // Silah değil
-    Pistol,         // Tabanca: atış/s ×1.5, hasar ×0.7, spread dar
-    Rifle,          // Tüfek: atış/s ×1.0 (base), hasar ×1.0
-    Automatic,      // Otomatik: atış/s ×2.2, hasar ×0.6, spread geniş
-    Sniper,         // Keskin: atış/s ×0.35, hasar ×3.5, tek mermi
-    Shotgun,        // Pompalı: atış/s ×0.5, hasar ×2.0, spread çok geniş yakında
+    None,
+    Pistol,      // Tabanca:    atisHizi x1.5, hasar x0.7
+    Rifle,       // Tufek:      atisHizi x1.0, hasar x1.0  (standart)
+    Automatic,   // Otomatik:   atisHizi x2.2, hasar x0.6
+    Sniper,      // Nishanci:   atisHizi x0.35, hasar x3.5
+    Shotgun,     // Pompa:      atisHizi x0.5,  hasar x2.0
 }
 
 public enum ArmorType
 {
     None,
-    Light,          // Hafif: HP +%20, hasar azaltma +%5
-    Medium,         // Orta: HP +%40, hasar azaltma +%12
-    Heavy,          // Ağır: HP +%70, hasar azaltma +%22
-    Shield,         // Kalkan: HP +%30, hasar azaltma +%30 (en iyi DR)
+    Light,       // Genelde dusuk DR, dusuk HP bonusu
+    Medium,      // Dengeli
+    Heavy,       // Yuksek HP bonusu, orta DR
+    Shield,      // En yuksek DR odakli
 }
 
 [CreateAssetMenu(fileName = "NewEquipment", menuName = "TopEndWar/Equipment")]
 public class EquipmentData : ScriptableObject
 {
+    // ── Kimlik ────────────────────────────────────────────────────────────
     [Header("Kimlik")]
     public string        equipmentName = "Yeni Ekipman";
     public EquipmentSlot slot          = EquipmentSlot.Weapon;
     public Sprite        icon;
-    [TextArea(2,4)]
+    [TextArea(2, 4)]
     public string        description   = "";
 
-    [Header("Silah Ayarlari (slot=Weapon ise doldur)")]
+    // ── Tur ───────────────────────────────────────────────────────────────
+    [Header("Silah Turu (sadece Weapon slot)")]
     public WeaponType weaponType = WeaponType.None;
 
-    [Header("Zirh Ayarlari (slot=Armor/Shoulder/Knee ise)")]
+    [Header("Zirh Turu (sadece Armor/Shoulder/Knee)")]
     public ArmorType armorType = ArmorType.None;
 
-    // ── Temel Bonuslar ───────────────────────────────────────────────────
-    [Header("CP Bonusu")]
-    [Tooltip("Kuşanılınca CP'ye düz eklenir")]
+    // ── CP Gear Score (Meta-Hub gostergesi) ───────────────────────────────
+    [Header("CP Gear Score Bonusu")]
+    [Tooltip("Kusanilinca CP Gear Score'una duz eklenir. DPS ile ilgisi yoktur.")]
     public int baseCPBonus = 0;
 
-    [Header("Ates Hizi Carpani (sadece silahlar)")]
-    [Tooltip("1.0 = base, 1.5 = %50 hızlı, 0.5 = %50 yavaş")]
+    /// <summary>
+    /// CP carpani — SADECE Gear Score icin. DPS hesabinda KULLANILMAZ.
+    /// DPS icin globalDmgMultiplier kullan.
+    /// </summary>
+    [Header("CP Carpani (kolye/yuzuk — Gear Score icin)")]
+    [Tooltip("1.0 = etki yok. DPS etkilemez, sadece CP puanini carpar.")]
+    [Range(1f, 2f)]
+    public float cpMultiplier = 1f;
+
+    // ── Silah Statistikleri ────────────────────────────────────────────────
+    [Header("Atis Hizi Carpani (sadece silahlar)")]
+    [Tooltip("1.0 = base, 2.2 = %120 daha hizli")]
     [Range(0.2f, 3.0f)]
     public float fireRateMultiplier = 1f;
 
     [Header("Hasar Carpani (sadece silahlar)")]
-    [Tooltip("1.0 = base, 1.5 = %50 daha fazla hasar")]
+    [Tooltip("1.0 = base, 3.5 = keskin nisanci")]
     [Range(0.2f, 5.0f)]
     public float damageMultiplier = 1f;
 
+    // ── Global DPS Carpani (Yuzuk / Kolye) ───────────────────────────────
+    [Header("Global Hasar Carpani (yuzuk/kolye — DPS'e etki eder)")]
+    [Tooltip(
+        "1.0 = etki yok. Bu alan DPS formulundeki GlobalMult'tur.\n" +
+        "cpMultiplier'dan FARKLIDIR — o sadece Gear Score icindir.\n" +
+        "Ornekler: Yuzuk 1.1 = DPS %10 artar. Necklace 1.05 = DPS %5 artar.")]
+    [Range(1f, 2f)]
+    public float globalDmgMultiplier = 1f;
+
+    // ── Zirh / Savunma ─────────────────────────────────────────────────────
     [Header("Hasar Azaltma (zirh/aksesuar)")]
-    [Tooltip("0.0 - 0.5 arası. 0.2 = düşman hasarı %20 azalır")]
+    [Tooltip("0.0-0.5. Toplam max %60 (PlayerStats.TotalDamageReduction() ile sinirli)")]
     [Range(0f, 0.5f)]
     public float damageReduction = 0f;
 
     [Header("Komutan HP Bonusu (zirh/aksesuar)")]
-    [Tooltip("Maks HP'ye eklenen değer")]
+    [Tooltip("Maks HP'ye duz eklenir")]
     public int commanderHPBonus = 0;
 
-    [Header("CP Carpani (kolye/yuzuk)")]
-    [Tooltip("1.0 = etki yok, 1.1 = CP %10 daha fazla")]
-    [Range(1f, 2f)]
-    public float cpMultiplier = 1f;
-
+    // ── Diger ────────────────────────────────────────────────────────────
     [Header("Mermi Spread Bonusu (sadece silahlar)")]
-    [Tooltip("Ek mermi yayılma açısı: 0 = yok, 10 = +10 derece")]
     [Range(0f, 25f)]
     public float spreadBonus = 0f;
 
-    // ── Hesaplanmış özellikler (oyun içinde salt okunur) ─────────────────
-    [Header("Nadir (rarity) 1=Common 2=Uncommon 3=Rare 4=Epic 5=Legendary)")]
-    [Range(1,5)]
+    [Header("Nadir (rarity) 1=Gri 2=Yesil 3=Mavi 4=Mor 5=Altin")]
+    [Range(1, 5)]
     public int rarity = 1;
 
-    /// <summary>Silah tipine göre gerçekçi önerilen değerler için açıklama döndürür.</summary>
+    // ── Yardimci ─────────────────────────────────────────────────────────
+    /// <summary>Silah/zirh turune gore kisa aciklama dondurur (Inspector icin).</summary>
     public string GetTypeDescription()
     {
         return weaponType switch
         {
-            WeaponType.Pistol    => "Tabanca: Hızlı, kısa menzilli",
-            WeaponType.Rifle     => "Tüfek: Dengeli, çok yönlü",
-            WeaponType.Automatic => "Otomatik: Yüksek DPS, geniş spread",
-            WeaponType.Sniper    => "Keskin Nişancı: Dev hasar, yavaş",
-            WeaponType.Shotgun   => "Pompalı: Yakın mesafe katili",
+            WeaponType.Pistol    => "Tabanca: Hizli, kisa menzilli",
+            WeaponType.Rifle     => "Tufek: Dengeli, cok yonlu",
+            WeaponType.Automatic => "Otomatik: Yuksek DPS, genis spread",
+            WeaponType.Sniper    => "Keskin Nisanci: Dev hasar, yavash",
+            WeaponType.Shotgun   => "Pompa: Yakin mesafe katili",
             _ => armorType switch
             {
-                ArmorType.Light  => "Hafif Zırh: Hızlı ama az korumalı",
-                ArmorType.Medium => "Orta Zırh: Dengeli savunma",
-                ArmorType.Heavy  => "Ağır Zırh: Max korumalı",
-                ArmorType.Shield => "Kalkan: Hasar azaltmada uzman",
-                _ => "Aksesuar: Özel bonus"
+                ArmorType.Light  => "Hafif Zirh: Dusuk DR, dusuk HP",
+                ArmorType.Medium => "Orta Zirh: Dengeli savunma",
+                ArmorType.Heavy  => "Agir Zirh: Yuksek HP, orta DR",
+                ArmorType.Shield => "Kalkan: En yuksek DR",
+                _                => "Aksesuar",
             }
         };
     }
@@ -2138,39 +2472,57 @@ GameEvents.cs
 using System;
 
 /// <summary>
-/// Top End War — Global Event Merkezi v4
-/// KURAL: Raise...() metod YOK. Kullanim: GameEvents.OnXxx?.Invoke(param);
-/// v4: Komutan HP + Asker + Biyom eventleri eklendi.
+/// Top End War — Oyun Olaylari v5 (Claude)
+/// Tum v4 eventleri korundu + Boss/Dunya eventleri eklendi.
+/// KURAL: Raise() yok — dogrudan ?.Invoke() kullan.
 /// </summary>
 public static class GameEvents
 {
-    // ── Temel ─────────────────────────────────────────────────────────────
-    public static Action<int>          OnCPUpdated;
-    public static Action<int>          OnTierChanged;
-    public static Action<int>          OnBulletCountChanged;
-    public static Action<string>       OnPathBoosted;
-    public static Action               OnMergeTriggered;
-    public static Action<string>       OnSynergyFound;
-    public static Action<int>          OnPlayerDamaged;       // flash icin
-    public static Action               OnGameOver;
-    public static Action<int>          OnRiskBonusActivated;
-    public static Action<float, float> OnDifficultyChanged;
-    public static Action               OnBossEncountered;
-    public static Action<bool>         OnAnchorModeChanged;   // true=boss sahnesi
+    // ── Oyuncu / Komutan ─────────────────────────────────────────────────
+    public static Action<int>        OnCPUpdated;
+    public static Action<int>        OnBulletCountChanged;
+    public static Action<int>        OnTierChanged;
+    public static Action<int, int>   OnCommanderHPChanged;    // (current, max)
+    public static Action<int, int>   OnCommanderDamaged;      // (finalDmg, currentHP)
+    public static Action<int>        OnCommanderHealed;
+    public static Action<int>        OnPlayerDamaged;
 
-    // ── Komutan HP (v4) ──────────────────────────────────────────────────
-    public static Action<int, int>     OnCommanderDamaged;    // (hasar, kalanHP)
-    public static Action<int>          OnCommanderHealed;     // kalanHP
-    public static Action<int, int>     OnCommanderHPChanged;  // (current, max)
+    // ── Ordu ────────────────────────────────────────────────────────────
+    public static Action<int>        OnSoldierAdded;          // (toplam asker sayisi)
+    public static Action<int>        OnSoldierRemoved;        // (toplam asker sayisi)
+    public static Action<string,int> OnSoldierMerged;         // (path adı, yeni level) ← DUZELTILDI
+    public static Action<int>        OnSoldierHPRestored;
+    public static Action<int>        OnSoldierCountChanged;
 
-    // ── Asker (v4) ───────────────────────────────────────────────────────
-    public static Action<int>          OnSoldierAdded;        // toplam asker sayisi
-    public static Action<int>          OnSoldierRemoved;      // toplam asker sayisi
-    public static Action<string, int>  OnSoldierMerged;       // (path, yeni level)
-    public static Action<int>          OnSoldierHPRestored;   // geri yuklenen HP toplami
+    // ── Yol / Sinerji ────────────────────────────────────────────────────
+    public static Action             OnMergeTriggered;
+    public static Action<string>     OnPathBoosted;
+    public static Action<string>     OnSynergyFound;
 
-    // ── Biyom (v4) ───────────────────────────────────────────────────────
-    public static Action<string>       OnBiomeChanged;        // "Tas", "Orman" vb.
+    // ── Kapi / Risk ──────────────────────────────────────────────────────
+    public static Action<int>        OnRiskBonusActivated;
+
+    // ── Zorluk / Spawn ───────────────────────────────────────────────────
+    // SpawnManager (float multiplier, float powerRatio) olarak kullaniyor
+    public static Action<float,float> OnDifficultyChanged;    // ← DUZELTILDI (2 param)
+    public static Action              OnBossEncountered;
+
+    // ── Anchor / Boss ────────────────────────────────────────────────────
+    public static Action<bool>       OnAnchorModeChanged;
+    public static Action<int, int>   OnBossHPChanged;         // (current, max)
+    public static Action<int>        OnBossPhaseShield;       // (gelen faz: 2 veya 3)
+    public static Action<int>        OnBossPhaseChanged;
+    public static Action<float>      OnBossEnraged;
+    public static Action             OnBossDefeated;
+
+    // ── Oyun Akisi ────────────────────────────────────────────────────────
+    public static Action             OnGameOver;
+    public static Action             OnVictory;
+
+    // ── Biyom / Dunya ────────────────────────────────────────────────────
+    public static Action<string>     OnBiomeChanged;
+    public static Action<int>        OnWorldChanged;
+    public static Action<int, int>   OnStageChanged;          // (worldID, stageID)
 }
 ```
 
@@ -2482,172 +2834,160 @@ GameOverUI.cs
 ```csharp
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;
 using TMPro;
 
 /// <summary>
-/// Top End War — Game Over Ekrani v2 (Claude)
-///
-/// v2: SaveManager entegrasyonu.
-///   En iyi CP, en iyi mesafe, bu oyun kill sayisi gosterilir.
-///   Yeni rekor varsa altin rengi vurgu yapar.
-///
-/// KURULUM:
-///   Hierarchy -> Create Empty -> "GameOverManager" -> ekle -> bitti.
-///   Kod kendi Canvas'ini olusturur.
+/// Top End War — Game Over Arayuzu v3 (Claude)
+/// Revive (reklam, run basina 1x) + Retreat (%20 loot koruma)
+/// SaveManager.CurrentRunKills kullanilir (SessionKills degil).
 /// </summary>
 public class GameOverUI : MonoBehaviour
 {
-    [Header("Sahne Adlari")]
-    public string gameSceneName = "SampleScene";
-    public string mainMenuScene = "MainMenu";
+    [Header("Panel")]
+    public GameObject gameOverPanel;
 
-    Canvas          _canvas;
-    GameObject      _panel;
-    TextMeshProUGUI _titleText;
-    TextMeshProUGUI _cpText;
-    TextMeshProUGUI _distText;
-    TextMeshProUGUI _killText;
-    TextMeshProUGUI _bestText;
-    bool            _shown = false;
+    [Header("Skor Gostergeleri")]
+    public TextMeshProUGUI distanceText;
+    public TextMeshProUGUI killText;
+    public TextMeshProUGUI cpText;
+    public TextMeshProUGUI highScoreText;
+    public GameObject      newRecordBadge;
 
-    void Start()
+    [Header("Revive")]
+    public Button          reviveButton;
+    public TextMeshProUGUI reviveInfoText;
+
+    [Header("Retreat")]
+    public Button          retreatButton;
+    public TextMeshProUGUI retreatRewardText;
+
+    [Header("Tekrar Oyna / Ana Menu")]
+    public Button restartButton;
+    public Button mainMenuButton;
+
+    bool _reviveUsed    = false;
+    int  _runGoldEarned = 0;
+    int  _runTechEarned = 0;
+
+    void Awake()
     {
-        BuildUI();
-        GameEvents.OnGameOver += ShowGameOver;
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        reviveButton?.onClick.AddListener(OnReviveClicked);
+        retreatButton?.onClick.AddListener(OnRetreatClicked);
+        restartButton?.onClick.AddListener(OnRestartClicked);
+        mainMenuButton?.onClick.AddListener(OnMainMenuClicked);
     }
 
-    void OnDestroy()
+    void OnEnable()  => GameEvents.OnGameOver += ShowGameOver;
+    void OnDisable() => GameEvents.OnGameOver -= ShowGameOver;
+
+    // ── Run Takibi ────────────────────────────────────────────────────────
+    public void RegisterRunGold(int amount)     => _runGoldEarned += amount;
+    public void RegisterRunTechCore(int amount)  => _runTechEarned += amount;
+
+    public void ResetRunTracking()
     {
-        GameEvents.OnGameOver -= ShowGameOver;
+        _runGoldEarned = 0;
+        _runTechEarned = 0;
+        _reviveUsed    = false;
     }
 
-    void BuildUI()
-    {
-        // Canvas
-        var canvasObj = new GameObject("GameOverCanvas");
-        _canvas = canvasObj.AddComponent<Canvas>();
-        _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        _canvas.sortingOrder = 99;
-        canvasObj.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        ((CanvasScaler)canvasObj.GetComponent<CanvasScaler>()).referenceResolution = new Vector2(1080, 1920);
-        canvasObj.AddComponent<GraphicRaycaster>();
-
-        // Arkaplan
-        _panel = new GameObject("GameOverPanel");
-        _panel.transform.SetParent(_canvas.transform, false);
-        _panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.88f);
-        var pr = _panel.GetComponent<RectTransform>();
-        pr.anchorMin = Vector2.zero; pr.anchorMax = Vector2.one;
-        pr.offsetMin = pr.offsetMax = Vector2.zero;
-
-        // Baslik
-        _titleText = MakeText(_panel, "SAVAS BITTI",   new Vector2(0.5f,0.5f), new Vector2(0, 130), 52, Color.red, FontStyles.Bold);
-
-        // Mevcut oyun sonuclari
-        _cpText   = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0,  60), 32, Color.white,           FontStyles.Normal);
-        _distText = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0,  15), 28, new Color(0.8f,0.8f,1f), FontStyles.Normal);
-        _killText = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0, -25), 24, new Color(1f,0.7f,0.3f), FontStyles.Normal);
-
-        // En iyi skor
-        _bestText = MakeText(_panel, "", new Vector2(0.5f,0.5f), new Vector2(0, -70), 22, new Color(0.6f,0.6f,0.6f), FontStyles.Normal);
-
-        // Butonlar
-        MakeButton(_panel, "TEKRAR DENE", new Vector2(0,-130), new Vector2(260,60),
-            new Color(0.2f,0.8f,0.2f), () => { Time.timeScale = 1f; SceneManager.LoadScene(gameSceneName); });
-
-        MakeButton(_panel, "ANA MENU", new Vector2(0,-210), new Vector2(260,55),
-            new Color(0.2f,0.3f,0.75f), () => { Time.timeScale = 1f; SceneManager.LoadScene(mainMenuScene); });
-
-        // Gelecekte: Ana Menü butonu buraya gelecek
-        // MakeButton(_panel, "ANA MENU", new Vector2(0,-210), new Vector2(260,60),
-        //     new Color(0.3f,0.3f,0.8f), () => SceneManager.LoadScene("MainMenu"));
-
-        _panel.SetActive(false);
-    }
-
+    // ── Game Over ─────────────────────────────────────────────────────────
     void ShowGameOver()
     {
-        if (_shown) return;
-        _shown = true;
-
-        Time.timeScale = 0f;
-        _panel.SetActive(true);
-
-        var ps   = PlayerStats.Instance;
-        var save = SaveManager.Instance;
-        var army = ArmyManager.Instance;
-
-        int   cp      = ps?.CP ?? 0;
-        float dist    = ps != null ? Mathf.RoundToInt(ps.transform.position.z) : 0f;
-        int   kills   = save?.CurrentRunKills ?? 0;
-        int   soldiers= army?.SoldierCount ?? 0;
-
-        _cpText.text   = $"CP: {cp:N0}";
-        _distText.text = $"Mesafe: {dist:N0}m  |  Asker: {soldiers}/20";
-        _killText.text = $"Dusmanlar: {kills}";
-
-        // En iyi skor goster
-        if (save != null)
-        {
-            bool newCP   = cp   >= save.HighScoreCP   && save.TotalRuns > 1;
-            bool newDist = dist >= save.HighScoreDistance && save.TotalRuns > 1;
-
-            string bestStr = $"En iyi: {save.HighScoreCP:N0} CP  |  {save.HighScoreDistance:N0}m";
-            _bestText.text  = bestStr;
-
-            // Yeni rekor vurgusu
-            if (newCP || newDist)
-            {
-                _bestText.text  = "YENİ REKOR!";
-                _bestText.color = new Color(1f, 0.85f, 0f);
-                _cpText.color   = new Color(1f, 0.85f, 0f);
-            }
-        }
+        if (gameOverPanel != null) gameOverPanel.SetActive(true);
+        UpdateScoreDisplay();
+        UpdateReviveButton();
+        UpdateRetreatButton();
     }
 
-    // ── Yardimci ─────────────────────────────────────────────────────────
-    TextMeshProUGUI MakeText(GameObject parent, string text, Vector2 anchor,
-        Vector2 pos, float size, Color color, FontStyles style)
+    void UpdateScoreDisplay()
     {
-        var obj = new GameObject("T_" + text.Substring(0, Mathf.Min(6, text.Length)));
-        obj.transform.SetParent(parent.transform, false);
-        var tmp = obj.AddComponent<TextMeshProUGUI>();
-        tmp.text = text; tmp.fontSize = size; tmp.color = color;
-        tmp.fontStyle = style; tmp.alignment = TextAlignmentOptions.Center;
-        var r = obj.GetComponent<RectTransform>();
-        r.anchorMin = anchor; r.anchorMax = anchor;
-        r.pivot = new Vector2(0.5f, 0.5f);
-        r.anchoredPosition = pos; r.sizeDelta = new Vector2(700, 60);
-        return tmp;
+        int dist  = Mathf.RoundToInt(
+            PlayerStats.Instance != null ? PlayerStats.Instance.transform.position.z : 0f);
+        int cp    = PlayerStats.Instance != null ? PlayerStats.Instance.CP : 0;
+
+        // SaveManager.CurrentRunKills  ← dogru property adi
+        int kills = SaveManager.Instance != null ? SaveManager.Instance.CurrentRunKills : 0;
+
+        if (distanceText != null) distanceText.text = $"{dist} m";
+        if (killText     != null) killText.text      = $"{kills}";
+        if (cpText       != null) cpText.text        = $"{cp}";
+
+        int  prevBest = PlayerPrefs.GetInt("HighScore_CP", 0);
+        bool isRecord = cp > prevBest;
+        if (isRecord) { PlayerPrefs.SetInt("HighScore_CP", cp); PlayerPrefs.Save(); }
+
+        if (highScoreText  != null) highScoreText.text = $"{Mathf.Max(cp, prevBest)}";
+        if (newRecordBadge != null) newRecordBadge.SetActive(isRecord);
     }
 
-    void MakeButton(GameObject parent, string label, Vector2 pos, Vector2 size,
-        Color bg, UnityEngine.Events.UnityAction onClick)
+    void UpdateReviveButton()
     {
-        var btn = new GameObject("Btn_" + label);
-        btn.transform.SetParent(parent.transform, false);
-        var img = btn.AddComponent<Image>(); img.color = bg;
-        var b = btn.AddComponent<Button>(); b.targetGraphic = img;
-        b.onClick.AddListener(onClick);
-        var r = btn.GetComponent<RectTransform>();
-        r.anchorMin = new Vector2(0.5f,0.5f); r.anchorMax = new Vector2(0.5f,0.5f);
-        r.pivot = new Vector2(0.5f,0.5f);
-        r.anchoredPosition = pos; r.sizeDelta = size;
+        if (reviveButton == null) return;
+        reviveButton.interactable = !_reviveUsed;
+        if (reviveInfoText != null)
+            reviveInfoText.text = _reviveUsed ? "Kullanildi" : "Reklam izle";
+    }
 
-        var lbl = new GameObject("Label");
-        lbl.transform.SetParent(btn.transform, false);
-        var t = lbl.AddComponent<TextMeshProUGUI>();
-        t.text = label; t.fontSize = 24; t.color = Color.white;
-        t.fontStyle = FontStyles.Bold; t.alignment = TextAlignmentOptions.Center;
-        var lr = lbl.GetComponent<RectTransform>();
-        lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
-        lr.offsetMin = lr.offsetMax = Vector2.zero;
+    void UpdateRetreatButton()
+    {
+        if (retreatButton == null) return;
+        int goldBack = Mathf.RoundToInt(_runGoldEarned * 0.20f);
+        int techBack = Mathf.RoundToInt(_runTechEarned * 0.20f);
+        if (retreatRewardText != null)
+            retreatRewardText.text = $"Altin +{goldBack}  TechCore +{techBack}";
+    }
+
+    // ── Revive ────────────────────────────────────────────────────────────
+    void OnReviveClicked()
+    {
+        if (_reviveUsed) return;
+        _reviveUsed = true;
+        UpdateReviveButton();
+        // TODO: Gercek reklam SDK buraya
+        Debug.Log("[GameOverUI] Reklam placeholder — Revive verildi.");
+        OnReviveGranted();
+    }
+
+    void OnReviveGranted()
+    {
+        if (gameOverPanel != null) gameOverPanel.SetActive(false);
+        PlayerStats.Instance?.HealCommander(PlayerStats.Instance.CommanderMaxHP);
+        Time.timeScale = 1f;
+        Debug.Log("[GameOverUI] Oyuncu diriltildi.");
+    }
+
+    // ── Retreat ───────────────────────────────────────────────────────────
+    void OnRetreatClicked()
+    {
+        int goldBack = Mathf.RoundToInt(_runGoldEarned * 0.20f);
+        int techBack = Mathf.RoundToInt(_runTechEarned * 0.20f);
+        EconomyManager.Instance?.AddGold(goldBack);
+        EconomyManager.Instance?.AddTechCore(techBack);
+        Debug.Log($"[GameOverUI] Retreat: +{goldBack} Altin, +{techBack} TechCore.");
+        OnRestartClicked();
+    }
+
+    // ── Tekrar / Menu ─────────────────────────────────────────────────────
+    void OnRestartClicked()
+    {
+        ResetRunTracking();
+        Time.timeScale = 1f;
+        UnityEngine.SceneManagement.SceneManager.LoadScene(
+            UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+    }
+
+    void OnMainMenuClicked()
+    {
+        ResetRunTracking();
+        Time.timeScale = 1f;
+        Debug.Log("[GameOverUI] Ana menu sahne adi henuz tanimsiz.");
     }
 }
 ```
 
-# Gamestartup.cs
+Gamestartup.cs
 
 ```csharp
 using UnityEngine;
@@ -2793,6 +3133,7 @@ public class Gate : MonoBehaviour
         Destroy(gameObject);
     }
 }
+
 ```
 
 GateData.cs
@@ -2921,12 +3262,388 @@ public class GateFeedback : MonoBehaviour
             });
     }
 }
+
 ```
 
-# # Mainmenuui.cs
+Inventorymanager.cs
 
 ```csharp
+using UnityEngine;
+using System.Collections.Generic;
 
+/// <summary>
+/// Top End War — Envanter Yoneticisi v1 (Claude)
+///
+/// SLOT LEVELING (Senin Kararin):
+///   Oyuncu "silah"i degil "silah slotunu" gellistirir.
+///   Yeni silah takinca slot seviyesi SIFIRLANMAZ.
+///   SlotLevelMult = 1 + azalan_verim_formulü (PlayerStats.GetSlotLevelMult)
+///
+/// MERGE (Birlestime):
+///   itemID ile karsilastirilir — string itemName KULLANILMAZ (localization sonrasi patlar).
+///   3x ayni itemID + ayni rarity → 1x (rarity + 1) item.
+///
+/// SLOT YÜKSELTME:
+///   TryUpgradeSlot(slot) → EconomyManager.TryUpgradeSlot() cagirir.
+///   Basarili ise PlayerStats'i günceller.
+/// </summary>
+public class InventoryManager : MonoBehaviour
+{
+    public static InventoryManager Instance { get; private set; }
+
+    // ── Slot Seviyeleri ───────────────────────────────────────────────────
+    // PlayerStats zaten slot level tutuyor (weaponSlotLevel vb.)
+    // InventoryManager bu degerleri okur/yazar.
+
+    // ── Sahip Olunan Esyalar ─────────────────────────────────────────────
+    // ItemID bazli liste. Her esyanin benzersiz bir int ID'si var.
+    // EquipmentData.itemID alani olacak (su an rarity kullaniliyor, ileride genisletilecek).
+    [Header("Sahip Olunan Esyalar (Runtime)")]
+    public List<EquipmentData> ownedItems = new List<EquipmentData>(50);
+
+    void Awake()
+    {
+        if (Instance != null) { Destroy(gameObject); return; }
+        Instance = this;
+    }
+
+    // ── Esya Ekle ─────────────────────────────────────────────────────────
+    public void AddItem(EquipmentData item)
+    {
+        if (item == null) return;
+        ownedItems.Add(item);
+        OnInventoryChanged?.Invoke();
+        Debug.Log($"[Inventory] +{item.equipmentName} (rarity {item.rarity})");
+    }
+
+    // ── Slot Yükselt ─────────────────────────────────────────────────────
+    /// <summary>
+    /// Verilen slot icin seviye atlamayı dener.
+    /// EconomyManager.TryUpgradeSlot() Gold ve TechCore dusurur.
+    /// Basarili ise PlayerStats'taki slot levelini 1 arttirir.
+    /// </summary>
+    public bool TryUpgradeWeaponSlot()
+    {
+        int cur = PlayerStats.Instance != null ? PlayerStats.Instance.weaponSlotLevel : 1;
+        if (!EconomyManager.Instance.TryUpgradeSlot(cur, out string fail))
+        {
+            Debug.Log($"[Inventory] Slot upgrade basarisiz: {fail}");
+            return false;
+        }
+        if (PlayerStats.Instance != null) PlayerStats.Instance.weaponSlotLevel++;
+        OnInventoryChanged?.Invoke();
+        return true;
+    }
+
+    public bool TryUpgradeArmorSlot()
+    {
+        int cur = PlayerStats.Instance != null ? PlayerStats.Instance.armorSlotLevel : 1;
+        if (!EconomyManager.Instance.TryUpgradeSlot(cur, out string fail))
+        {
+            Debug.Log($"[Inventory] Armor slot upgrade basarisiz: {fail}");
+            return false;
+        }
+        if (PlayerStats.Instance != null) PlayerStats.Instance.armorSlotLevel++;
+        OnInventoryChanged?.Invoke();
+        return true;
+    }
+
+    // ── Merge (Birlestime) ────────────────────────────────────────────────
+    /// <summary>
+    /// ownedItems listesinde verilen esyanin tipinde (ayni weaponType/armorType + rarity)
+    /// 3 kopya varsa bilestirir: 3x Lv R → 1x Lv (R+1).
+    /// Basarili ise true dondurur.
+    ///
+    /// NOT: itemName STRING ile degil, weaponType + armorType + rarity ile karsilastirilir.
+    /// </summary>
+    public bool TryMergeItem(EquipmentData targetItem)
+    {
+        if (targetItem == null) return false;
+        if (targetItem.rarity >= 5) { Debug.Log("[Inventory] Maksimum rarity, merge yapilamaz."); return false; }
+
+        var duplicates = FindDuplicates(targetItem, 3);
+        if (duplicates.Count < 3)
+        {
+            Debug.Log($"[Inventory] Merge icin 3 kopya gerekli, bulunan: {duplicates.Count}");
+            return false;
+        }
+
+        // 3 eskiyi kaldir
+        for (int i = 0; i < 3; i++) ownedItems.Remove(duplicates[i]);
+
+        // Yeni (rarity+1) esyayi bul veya klonla
+        EquipmentData upgraded = FindUpgradedVersion(targetItem);
+        if (upgraded != null)
+        {
+            ownedItems.Add(upgraded);
+            Debug.Log($"[Inventory] MERGE: {targetItem.equipmentName} R{targetItem.rarity} x3 → R{upgraded.rarity}");
+        }
+        else
+        {
+            Debug.LogWarning($"[Inventory] Merge: R{targetItem.rarity + 1} versiyonu bulunamadi.");
+        }
+
+        OnInventoryChanged?.Invoke();
+        return true;
+    }
+
+    /// <summary>
+    /// Ayni weapon/armor tipi ve rarity'de kopya esyalari dondurur.
+    /// String degil enum/int karsilastirmasi.
+    /// </summary>
+    List<EquipmentData> FindDuplicates(EquipmentData target, int maxCount)
+    {
+        var result = new List<EquipmentData>(maxCount);
+        foreach (var item in ownedItems)
+        {
+            if (result.Count >= maxCount) break;
+            if (item == null) continue;
+            if (item.rarity    != target.rarity)    continue;
+            if (item.slot      != target.slot)      continue;
+            if (item.weaponType != target.weaponType) continue;
+            if (item.armorType  != target.armorType)  continue;
+            result.Add(item);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Ayni tipe sahip 1 rarity yukari versiyonu ownedItems veya
+    /// Resources klasöründen arar.
+    /// Yoksa mevcut esyanin kopyasini olusturup rarity arttirir (fallback).
+    /// </summary>
+    EquipmentData FindUpgradedVersion(EquipmentData source)
+    {
+        int targetRarity = source.rarity + 1;
+
+        // Once mevcut listede ara
+        foreach (var item in ownedItems)
+        {
+            if (item == null) continue;
+            if (item.rarity     == targetRarity &&
+                item.slot       == source.slot &&
+                item.weaponType == source.weaponType &&
+                item.armorType  == source.armorType)
+                return item;
+        }
+
+        // Fallback: mevcut SO'yu kopyala, rarity artir
+        // (Gercek projede Database'den cektirilmeli)
+        var clone = Instantiate(source);
+        clone.rarity = targetRarity;
+        clone.equipmentName = $"{source.equipmentName} +{targetRarity}";
+        return clone;
+    }
+
+    // ── Esya Kus ─────────────────────────────────────────────────────────
+    public void EquipItem(EquipmentData item)
+    {
+        if (item == null || PlayerStats.Instance == null) return;
+
+        switch (item.slot)
+        {
+            case EquipmentSlot.Weapon:   PlayerStats.Instance.equippedWeapon   = item; break;
+            case EquipmentSlot.Armor:    PlayerStats.Instance.equippedArmor    = item; break;
+            case EquipmentSlot.Shoulder: PlayerStats.Instance.equippedShoulder = item; break;
+            case EquipmentSlot.Knee:     PlayerStats.Instance.equippedKnee     = item; break;
+            case EquipmentSlot.Necklace: PlayerStats.Instance.equippedNecklace = item; break;
+            case EquipmentSlot.Ring:     PlayerStats.Instance.equippedRing     = item; break;
+        }
+        OnInventoryChanged?.Invoke();
+        Debug.Log($"[Inventory] Kusanildi: {item.equipmentName} ({item.slot})");
+    }
+
+    // ── Slot Carpan Bilgisi (UI icin) ─────────────────────────────────────
+    public float GetWeaponSlotMult()
+    {
+        int lv = PlayerStats.Instance != null ? PlayerStats.Instance.weaponSlotLevel : 1;
+        return PlayerStats.GetSlotLevelMult(lv);
+    }
+
+    public float GetArmorSlotMult()
+    {
+        int lv = PlayerStats.Instance != null ? PlayerStats.Instance.armorSlotLevel : 1;
+        return PlayerStats.GetSlotLevelMult(lv);
+    }
+
+    // ── Olaylar ───────────────────────────────────────────────────────────
+    public static System.Action OnInventoryChanged;
+}
+```
+
+# Mainmenuui.cs
+
+```csharp
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+using TMPro;
+
+/// <summary>
+/// Top End War — Ana Menü (Claude)
+///
+/// UNITY KURULUM:
+///   1. File → New Scene → "MainMenu" olarak kaydet
+///   2. Hierarchy → Create Empty → "MainMenuManager" → bu scripti ekle
+///   3. Build Settings'e MainMenu sahnesini 0. sıraya, SampleScene'i 1. sıraya ekle
+///   4. gameSceneName = "SampleScene"
+///
+/// NE GÖSTERIR:
+///   - Oyun adı + slogan
+///   - En iyi skor + mesafe
+///   - Toplam run sayısı
+///   - OYNA butonu
+///   - Ekipman butonu (EquipmentUI'yi açar — aynı sahnede)
+///   - Sıfırla butonu (debug)
+/// </summary>
+public class MainMenuUI : MonoBehaviour
+{
+    [Header("Sahne")]
+    public string gameSceneName = "SampleScene";
+
+    [Header("Arkaplan Rengi")]
+    public Color bgColor = new Color(0.05f, 0.05f, 0.12f);
+
+    Canvas          _canvas;
+    TextMeshProUGUI _bestCPText;
+    TextMeshProUGUI _bestDistText;
+    TextMeshProUGUI _totalRunsText;
+
+    // ─────────────────────────────────────────────────────────────────────
+    void Start()
+    {
+        Camera.main.backgroundColor = bgColor;
+        Camera.main.clearFlags      = CameraClearFlags.SolidColor;
+        BuildUI();
+        RefreshStats();
+    }
+
+    void BuildUI()
+    {
+        // Canvas
+        var cObj = new GameObject("MainMenuCanvas");
+        _canvas = cObj.AddComponent<Canvas>();
+        _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        cObj.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        ((CanvasScaler)cObj.GetComponent<CanvasScaler>()).referenceResolution = new Vector2(1080, 1920);
+        cObj.AddComponent<GraphicRaycaster>();
+
+        // Arkaplan
+        var bg = new GameObject("BG");
+        bg.transform.SetParent(_canvas.transform, false);
+        var bgImg = bg.AddComponent<Image>();
+        bgImg.color = bgColor;
+        Stretch(bg.GetComponent<RectTransform>());
+
+        // Oyun adı
+        MakeText(_canvas.gameObject, "TOP END WAR",
+            new Vector2(0.5f, 1f), new Vector2(0, -160),
+            72, new Color(1f, 0.85f, 0.1f), FontStyles.Bold);
+
+        MakeText(_canvas.gameObject, "Sivas'ı Ele Geçir",
+            new Vector2(0.5f, 1f), new Vector2(0, -250),
+            30, new Color(0.7f, 0.7f, 0.9f), FontStyles.Italic);
+
+        // İstatistikler
+        _bestCPText    = MakeText(_canvas.gameObject, "En iyi CP: —",
+            new Vector2(0.5f, 0.5f), new Vector2(0, 200),
+            32, Color.white, FontStyles.Normal);
+
+        _bestDistText  = MakeText(_canvas.gameObject, "En iyi Mesafe: —",
+            new Vector2(0.5f, 0.5f), new Vector2(0, 155),
+            28, new Color(0.8f, 0.8f, 0.8f), FontStyles.Normal);
+
+        _totalRunsText = MakeText(_canvas.gameObject, "Toplam Sefer: 0",
+            new Vector2(0.5f, 0.5f), new Vector2(0, 110),
+            24, new Color(0.6f, 0.6f, 0.6f), FontStyles.Normal);
+
+        // OYNA butonu
+        MakeButton(_canvas.gameObject, "OYNA",
+            new Vector2(0.5f, 0.5f), new Vector2(0, -30),
+            new Vector2(400, 110),
+            new Color(0.15f, 0.75f, 0.25f),
+            () => SceneManager.LoadScene(gameSceneName));
+
+        // SIFIRLA butonu (debug — küçük, köşede)
+        MakeButton(_canvas.gameObject, "Skoru Sifirla",
+            new Vector2(0f, 0f), new Vector2(130, 60),
+            new Vector2(220, 55),
+            new Color(0.4f, 0.1f, 0.1f, 0.7f),
+            () =>
+            {
+                SaveManager.Instance?.ResetAll();
+                RefreshStats();
+            });
+
+        // Versiyon
+        MakeText(_canvas.gameObject, "v0.4 — Top End War",
+            new Vector2(1f, 0f), new Vector2(-80, 35),
+            18, new Color(0.4f, 0.4f, 0.4f), FontStyles.Normal);
+    }
+
+    void RefreshStats()
+    {
+        var save = SaveManager.Instance;
+        if (save == null) return;
+
+        _bestCPText.text    = $"En iyi CP: {save.HighScoreCP:N0}";
+        _bestDistText.text  = $"En iyi Mesafe: {save.HighScoreDistance:N0}m";
+        _totalRunsText.text = $"Toplam Sefer: {save.TotalRuns}";
+    }
+
+    // ── Yardımcılar ───────────────────────────────────────────────────────
+    TextMeshProUGUI MakeText(GameObject parent, string text, Vector2 anchor,
+        Vector2 pos, float size, Color color, FontStyles style)
+    {
+        var obj = new GameObject("T_" + text.Substring(0, Mathf.Min(8, text.Length)));
+        obj.transform.SetParent(parent.transform, false);
+        var t = obj.AddComponent<TextMeshProUGUI>();
+        t.text = text; t.fontSize = size; t.color = color;
+        t.fontStyle = style; t.alignment = TextAlignmentOptions.Center;
+        var r = obj.GetComponent<RectTransform>();
+        r.anchorMin = anchor; r.anchorMax = anchor;
+        r.pivot = new Vector2(0.5f, 0.5f);
+        r.anchoredPosition = pos; r.sizeDelta = new Vector2(900, 80);
+        return t;
+    }
+
+    void MakeButton(GameObject parent, string label, Vector2 anchor,
+        Vector2 pos, Vector2 size, Color bg, UnityEngine.Events.UnityAction onClick)
+    {
+        var obj = new GameObject("Btn_" + label);
+        obj.transform.SetParent(parent.transform, false);
+        var img = obj.AddComponent<Image>(); img.color = bg;
+        var btn = obj.AddComponent<Button>(); btn.targetGraphic = img;
+
+        // Hover rengi
+        var cols = btn.colors;
+        cols.highlightedColor = bg * 1.3f;
+        cols.pressedColor     = bg * 0.7f;
+        btn.colors = cols;
+        btn.onClick.AddListener(onClick);
+
+        var r = obj.GetComponent<RectTransform>();
+        r.anchorMin = anchor; r.anchorMax = anchor;
+        r.pivot = new Vector2(0.5f, 0.5f);
+        r.anchoredPosition = pos; r.sizeDelta = size;
+
+        var lbl = new GameObject("Label");
+        lbl.transform.SetParent(obj.transform, false);
+        var t = lbl.AddComponent<TextMeshProUGUI>();
+        t.text = label; t.fontSize = size.y * 0.35f;
+        t.color = Color.white; t.fontStyle = FontStyles.Bold;
+        t.alignment = TextAlignmentOptions.Center;
+        var lr = lbl.GetComponent<RectTransform>();
+        lr.anchorMin = Vector2.zero; lr.anchorMax = Vector2.one;
+        lr.offsetMin = lr.offsetMax = Vector2.zero;
+    }
+
+    void Stretch(RectTransform r)
+    {
+        r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one;
+        r.offsetMin = r.offsetMax = Vector2.zero;
+    }
+}
 ```
 
 MorphController.cs
@@ -3169,6 +3886,7 @@ public class ObjectPooler : MonoBehaviour
         return obj;
     }
 }
+
 ```
 
 # Petcontroller.cs
@@ -3383,17 +4101,24 @@ PlayerController.cs
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Hareketi v4 (Claude)
+/// Top End War — Oyuncu Hareketi v5 (Claude)
 ///
-/// v4: EquipmentData.fireRateMultiplier ateş hızına uygulanıyor.
-///     Komutan kuşandığı silahın hızını otomatik alıyor.
+/// v5 degisiklikleri:
+///   + AutoShoot: bulletDamage = GetTotalDPS() / (GetBaseFireRate() * BulletCount)
+///   + DAMAGE[] ve BASE_FIRE_RATES[] dizileri KALDIRILDI — PlayerStats'ten gelir
+///   + staticFire degiskeni kaldirildi
+///   Onceki mantik (v4) aynen korundu: FindTarget, drag, spread, anchor.
 ///
-/// Anchor Modu: OnAnchorModeChanged(true) gelince forwardSpeed=0,
-///   oyuncu sadece X ekseninde hareket eder, boss ile savaşır.
+/// HASAR FORMULU (Degismez Kural):
+///   TotalDPS = BaseDMG[tier] * WeaponMult * SlotMult * RarityMult * GlobalMult
+///   BulletDamage = TotalDPS / (FireRate * BulletCount)
 ///
-/// Spread formation (V şekli):
-///   1 mermi: düz, 2: ±8°, 3: -12° 0° +12°,
-///   4: -18° -6° +6° +18°, 5: -22° -11° 0° +11° +22°
+///   NEDEN BulletCount boluyor:
+///   5 mermi ayni hasar verirse toplam hasar 5x DPS olur.
+///   Spread = daha genis alan, toplam hasar degil.
+///
+/// Spread formation (V sekli):
+///   1 mermi: duz, 2: +-8, 3: -12 0 +12, 4: -18 -6 +6 +18, 5: -22 -11 0 +11 +22
 /// </summary>
 public class PlayerController : MonoBehaviour
 {
@@ -3408,25 +4133,24 @@ public class PlayerController : MonoBehaviour
     public GameObject bulletPrefab;
     public float      detectRange = 35f;
 
-    // Tier bazlı temel değerler
-    static readonly float[] BASE_FIRE_RATES = { 1.5f, 2.5f, 4.0f, 6.0f, 8.5f };
-    static readonly int[]   DAMAGE          = { 60,   95,   145,  210,  300  };
-
-    static readonly float[][] SPREAD = {
-        new float[]{ 0f },
-        new float[]{ -8f, 8f },
-        new float[]{ -12f, 0f, 12f },
-        new float[]{ -18f, -6f, 6f, 18f },
-        new float[]{ -22f, -11f, 0f, 11f, 22f },
+    // ── Spread Tablosu ────────────────────────────────────────────────────
+    static readonly float[][] SPREAD =
+    {
+        new[] {  0f },
+        new[] { -8f,  8f },
+        new[] { -12f, 0f, 12f },
+        new[] { -18f, -6f, 6f, 18f },
+        new[] { -22f, -11f, 0f, 11f, 22f },
     };
 
+    // ── Dahili Durum ──────────────────────────────────────────────────────
     float _targetX    = 0f;
     float _nextFire   = 0f;
     bool  _dragging   = false;
     float _lastMouseX;
     bool  _anchorMode = false;
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Start()
     {
         transform.position = new Vector3(0f, 1.2f, 0f);
@@ -3438,7 +4162,7 @@ public class PlayerController : MonoBehaviour
 
     void OnAnchorMode(bool active)
     {
-        _anchorMode = active;
+        _anchorMode  = active;
         forwardSpeed = active ? 0f : 10f;
         if (active) Debug.Log("[Player] Anchor modu aktif.");
     }
@@ -3457,6 +4181,7 @@ public class PlayerController : MonoBehaviour
         AutoShoot();
     }
 
+    // ── Surukle / Hareket ─────────────────────────────────────────────────
     void HandleDrag()
     {
         if (Input.GetKey(KeyCode.LeftArrow))
@@ -3465,7 +4190,7 @@ public class PlayerController : MonoBehaviour
             _targetX = Mathf.Clamp(_targetX + 10f * Time.deltaTime, -xLimit, xLimit);
 
         if (Input.GetMouseButtonDown(0)) { _dragging = true; _lastMouseX = Input.mousePosition.x; }
-        if (Input.GetMouseButtonUp(0))   _dragging = false;
+        if (Input.GetMouseButtonUp(0))    _dragging = false;
 
         if (_dragging)
         {
@@ -3484,44 +4209,39 @@ public class PlayerController : MonoBehaviour
         transform.position = p;
     }
 
+    // ── Otomatik Ates ─────────────────────────────────────────────────────
     void AutoShoot()
     {
-        if (!firePoint || Time.time < _nextFire) return;
+        if (!firePoint || Time.time < _nextFire || PlayerStats.Instance == null) return;
 
-        int tier   = PlayerStats.Instance != null ? PlayerStats.Instance.CurrentTier : 1;
-        int bCount = PlayerStats.Instance != null ? PlayerStats.Instance.BulletCount  : 1;
-        int idx    = Mathf.Clamp(tier - 1, 0, 4);
+        // ── Atis Hizi ────────────────────────────────────────────────────
+        float finalFireRate = PlayerStats.Instance.GetBaseFireRate();
 
-        // ── EquipmentData ateş hızı çarpanı ──────────────────────────────
-        // Kuşanılan silah BASE_FIRE_RATES'i çarpar — silah yoksa 1x.
-        float equipMult = 1f;
-        if (PlayerStats.Instance?.equippedWeapon != null)
-            equipMult = PlayerStats.Instance.equippedWeapon.fireRateMultiplier;
+        // ── Hasar Hesabi (v5 formulu) ────────────────────────────────────
+        // TotalDPS PlayerStats tarafindan hesaplandi:
+        //   BaseDMG[tier] * WeaponMult * SlotMult * RarityMult * GlobalMult
+        // BulletDamage = DPS / (FireRate * BulletCount)
+        // BulletCount icin boluyoruz: 5 mermi = genis alan, toplam hasar x5 olmaz.
+        int bCount      = PlayerStats.Instance.BulletCount;
+        float totalDPS  = PlayerStats.Instance.GetTotalDPS();
+        int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDPS / (finalFireRate * bCount)));
 
-        float fireRate = BASE_FIRE_RATES[idx] * equipMult;
-
-        // Silah hasar çarpanı
-        float dmgMult = 1f;
-        if (PlayerStats.Instance?.equippedWeapon != null)
-            dmgMult = PlayerStats.Instance.equippedWeapon.damageMultiplier;
-        int finalDamage = Mathf.RoundToInt(DAMAGE[idx] * dmgMult);
-
-        // Hedef bul
+        // ── Hedef Bul ────────────────────────────────────────────────────
         Transform target = FindTarget();
         if (target == null) return;
 
-        Vector3 aimPos = target.position;
+        Vector3 aimPos  = target.position;
         Vector3 baseDir = (aimPos - firePoint.position).normalized;
 
-        // Spread
+        // ── Spread ile Ates ──────────────────────────────────────────────
         int spreadIdx = Mathf.Clamp(bCount - 1, 0, SPREAD.Length - 1);
         foreach (float angle in SPREAD[spreadIdx])
         {
             Vector3 dir = Quaternion.Euler(0f, angle, 0f) * baseDir;
-            FireOne(firePoint.position, dir.normalized, finalDamage);
+            FireOne(firePoint.position, dir.normalized, bulletDamage);
         }
 
-        _nextFire = Time.time + 1f / fireRate;
+        _nextFire = Time.time + 1f / finalFireRate;
     }
 
     void FireOne(Vector3 pos, Vector3 dir, int dmg)
@@ -3539,9 +4259,10 @@ public class PlayerController : MonoBehaviour
         if (rb) rb.linearVelocity = dir * 30f;
     }
 
+    // ── Hedef Bulma ───────────────────────────────────────────────────────
     /// <summary>
-    /// En yakın Enemy'i bulur.
-    /// Normal modda BoxCast (serit tarama), Anchor modda OverlapSphere (360 — boss kesin bulunur).
+    /// Normal modda BoxCast (serit tarama).
+    /// Anchor modda OverlapSphere 70 birim (boss kesin yakalanir).
     /// </summary>
     Transform FindTarget()
     {
@@ -3578,34 +4299,73 @@ PlayerStats.cs
 ```csharp
 using UnityEngine;
 
+/// <summary>
+/// Top End War — Oyuncu Istatistikleri v7 (Claude)
+///
+/// v7 degisiklikleri:
+///   + activeCommander (CommanderData SO) — tum tier tablolari buradan gelir
+///   + GetTotalDPS(): BaseDMG[tier] x WeaponMult x SlotMult x RarityMult x GlobalMult
+///   + GetRarityMult(): rarity 1-5 carpan tablosu
+///   + GetBaseFireRate(): activeCommander'dan okur
+///   - startCP kaldirildi — starter equipment zorunlu
+///   - DAMAGE[] dizisi kaldirildi — PlayerController artik GetTotalDPS() kullanir
+///   - BASE_FIRE_RATES dizisi kaldirildi — GetBaseFireRate() kullanilir
+///
+/// DPS FORMULU (Magic Number Yok):
+///   CommanderDPS = BaseDMG[tier] * WeaponDmgMult * SlotLevelMult * RarityMult * GlobalMult
+///   BulletDamage = CommanderDPS / (FinalFireRate * BulletCount)
+///   [PlayerController.AutoShoot() hesaplar]
+///
+/// CP KURALI:
+///   CP = Gear Score (meta-hub UI icin). DPS hesabinda KULLANILMAZ.
+/// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance { get; private set; }
 
-    [Header("Baslangic Ayarlari")]
-    public int   startCP               = 350; // Başlangıç CP artırıldı
-    public float invincibilityDuration = 0.8f;
+    // ── Komutan ───────────────────────────────────────────────────────────
+    [Header("Aktif Komutan (CommanderData SO)")]
+    [Tooltip("Assets > Create > TopEndWar > CommanderData. Inspector'a sur.")]
+    public CommanderData activeCommander;
 
-    // ── Ekipman Seti (tek SO — hepsini bir arada tutar) ─────────────────
+    // ── Ekipman ───────────────────────────────────────────────────────────
     [Header("Ekipman Seti (EquipmentLoadout SO)")]
-    [Tooltip("Assets → Create → TopEndWar → Equipment Loadout. Doldur ve buraya sur.")]
     public EquipmentLoadout equippedLoadout;
 
-    // ── Tek tek slotlar (Loadout yoksa veya override için) ───────────────
-    [Header("Tekil Ekipmanlar (Loadout varsa otomatik dolar)")]
-    public EquipmentData equippedWeapon;    // ateş hızı + hasar
-    public EquipmentData equippedArmor;     // HP + hasar azaltma
-    public EquipmentData equippedShoulder;  // CP + küçük hasar
-    public EquipmentData equippedKnee;      // hafif HP bonus
-    public EquipmentData equippedNecklace;  // CP çarpanı
-    public EquipmentData equippedRing;      // genel buff
+    [Header("Tekil Ekipmanlar (Loadout yoksa veya override icin)")]
+    public EquipmentData equippedWeapon;
+    public EquipmentData equippedArmor;
+    public EquipmentData equippedShoulder;
+    public EquipmentData equippedKnee;
+    public EquipmentData equippedNecklace;
+    public EquipmentData equippedRing;
     public PetData       equippedPet;
 
-    // ── _baseCP: oyun içi ham puan ────────────────────────────────────────
-    private int _baseCP;
+    // ── Slot Seviyeleri ───────────────────────────────────────────────────
+    [Header("Slot Seviyeleri (max 50)")]
+    [Range(1, 50)] public int weaponSlotLevel   = 1;
+    [Range(1, 50)] public int armorSlotLevel    = 1;
+    [Range(1, 50)] public int shoulderSlotLevel = 1;
+    [Range(1, 50)] public int kneeSlotLevel     = 1;
+    [Range(1, 50)] public int necklaceSlotLevel = 1;
+    [Range(1, 50)] public int ringSlotLevel     = 1;
 
-    // CP = baseCP + tüm ekipman bonusları, kolye çarpanı dahil
+    // ── Diger Ayarlar ─────────────────────────────────────────────────────
+    [Header("Baslangic Ayarlari")]
+    public float invincibilityDuration = 0.8f;
+
+    // ── Dahili Durum ──────────────────────────────────────────────────────
+    private int   _baseCP        = 0;   // startCP kaldirildi — ekipmandan gelir
+    private int   _riskBonusLeft = 0;
+    private float _expectedCP    = 200f;
+    private float _lastDmgTime   = -99f;
+
+    // ── CP Property ───────────────────────────────────────────────────────
+    /// <summary>
+    /// Gear Score (meta-hub UI). Ekipman bonuslari + kolye/yuzuk carpanlari dahil.
+    /// DPS hesabinda KULLANILMAZ.
+    /// </summary>
     public int CP
     {
         get
@@ -3619,14 +4379,103 @@ public class PlayerStats : MonoBehaviour
             total += equippedRing     != null ? equippedRing.baseCPBonus     : 0;
             total += equippedPet      != null ? equippedPet.cpBonus          : 0;
 
-            // Kolye CP çarpanı (en son uygula)
             float mult = equippedNecklace != null ? equippedNecklace.cpMultiplier : 1f;
             if (equippedRing != null) mult *= equippedRing.cpMultiplier;
             return Mathf.RoundToInt(total * mult);
         }
     }
 
-    /// <summary>Tüm ekipmandan gelen hasar azaltma toplamı (0-0.6 arası sınırlı).</summary>
+    // ── DPS Formulu ───────────────────────────────────────────────────────
+    /// <summary>
+    /// Komutanin saniye basi hasari.
+    /// Formul: BaseDMG[tier] * WeaponDmgMult * SlotLevelMult * RarityMult * GlobalMult
+    ///
+    /// PlayerController bu degeri fireRate ve BulletCount ile boler:
+    ///   BulletDamage = GetTotalDPS() / (GetBaseFireRate() * BulletCount)
+    /// </summary>
+    public float GetTotalDPS()
+    {
+        if (activeCommander == null)
+        {
+            Debug.LogWarning("[PlayerStats] activeCommander atanmamis! Varsayilan degerler kullaniliyor.");
+            return 60f;
+        }
+
+        float baseDMG    = activeCommander.GetBaseDMG(CurrentTier);
+        float weaponMult = equippedWeapon != null ? equippedWeapon.damageMultiplier    : 1f;
+        float slotMult   = GetSlotLevelMult(weaponSlotLevel);
+        float rarityMult = GetRarityMult(equippedWeapon != null ? equippedWeapon.rarity : 1);
+        float globalMult = 1f;
+
+        // Global DPS carpani: once kolye, sonra yuzuk
+        if (equippedNecklace != null) globalMult *= equippedNecklace.globalDmgMultiplier;
+        if (equippedRing     != null) globalMult *= equippedRing.globalDmgMultiplier;
+
+        return baseDMG * weaponMult * slotMult * rarityMult * globalMult;
+    }
+
+    /// <summary>
+    /// Tier ve silah carpanina gore nihai atis hizi.
+    /// PlayerController bu degeri kullanir.
+    /// </summary>
+    public float GetBaseFireRate()
+    {
+        if (activeCommander == null) return 1.5f;
+        float baseRate  = activeCommander.GetBaseFireRate(CurrentTier);
+        float equipMult = equippedWeapon != null ? equippedWeapon.fireRateMultiplier : 1f;
+        return baseRate * equipMult;
+    }
+
+    // ── Slot Seviye Carpani ────────────────────────────────────────────────
+    /// <summary>
+    /// Azalan verimler:
+    ///   Level 1-10:  +%5/seviye  (1-10 = +%50)
+    ///   Level 11-30: +%3/seviye  (11-30 = +%60)
+    ///   Level 31-50: +%1.5/seviye (31-50 = +%30)
+    ///   Max (50):    +%140 → carpan 2.40
+    /// Rarity carpani her zaman dominant — yeni silah bulmak her zaman daha degerli.
+    /// </summary>
+    public static float GetSlotLevelMult(int level)
+    {
+        level = Mathf.Clamp(level, 1, 50);
+        float bonus = 0f;
+
+        int   tier1 = Mathf.Min(level, 10);
+        bonus += tier1 * 0.05f;
+
+        if (level > 10)
+        {
+            int tier2 = Mathf.Min(level - 10, 20);
+            bonus += tier2 * 0.03f;
+        }
+        if (level > 30)
+        {
+            int tier3 = level - 30;
+            bonus += tier3 * 0.015f;
+        }
+        return 1f + bonus;
+    }
+
+    // ── Rarity Carpani ────────────────────────────────────────────────────
+    /// <summary>
+    /// Rarity carpani her zaman SlotLevelMult'tan buyuktur.
+    /// Mor silah, max slotlu Gri silahi her zaman yener.
+    /// Altin (rarity 5) World 5+'ta acilir.
+    /// </summary>
+    public static float GetRarityMult(int rarity)
+    {
+        return rarity switch
+        {
+            1 => 1.0f,  // Gri
+            2 => 1.3f,  // Yesil
+            3 => 1.7f,  // Mavi
+            4 => 2.2f,  // Mor
+            5 => 3.0f,  // Altin (World 5+)
+            _ => 1.0f,
+        };
+    }
+
+    // ── Hasar Azaltma ─────────────────────────────────────────────────────
     public float TotalDamageReduction()
     {
         float dr = 0f;
@@ -3635,10 +4484,10 @@ public class PlayerStats : MonoBehaviour
         dr += equippedKnee     != null ? equippedKnee.damageReduction     : 0f;
         dr += equippedRing     != null ? equippedRing.damageReduction     : 0f;
         dr += equippedPet      != null ? equippedPet.anchorDamageReduction: 0f;
-        return Mathf.Clamp(dr, 0f, 0.60f); // max %60 azaltma
+        return Mathf.Clamp(dr, 0f, 0.60f);
     }
 
-    /// <summary>Tüm ekipmandan gelen ekstra Komutan HP bonusu.</summary>
+    // ── Ekipman HP Bonusu ─────────────────────────────────────────────────
     public int TotalEquipmentHPBonus()
     {
         int bonus = 0;
@@ -3648,9 +4497,9 @@ public class PlayerStats : MonoBehaviour
         return bonus;
     }
 
-    // Diğer her şey senin orijinal kodunla aynı
+    // ── Tier ve Diger Durum ───────────────────────────────────────────────
     public int   CurrentTier  { get; private set; } = 1;
-    public int   BulletCount  { get; private set; } = 1;   
+    public int   BulletCount  { get; private set; } = 1;
 
     public float PiyadePath    { get; private set; } = 0f;
     public float MekanizePath  { get; private set; } = 0f;
@@ -3660,25 +4509,26 @@ public class PlayerStats : MonoBehaviour
     public int CommanderHP    { get; private set; } = 500;
     public float SmoothedPowerRatio { get; private set; } = 1f;
 
-    float _lastDmgTime    = -99f;
-    int   _riskBonusLeft  = 0;
-    float _expectedCP     = 200f;
+    static readonly int[] TIER_CP = { 0, 300, 900, 2500, 6000 };
+    const int MAX_BULLETS = 5;
 
-    static readonly int[]    TIER_CP    = { 0, 300, 900, 2500, 6000 }; // Daha hızlı tier atla
-    static readonly string[] TIER_NAMES = { "Gonullu Er", "Elit Komando", "Gatling Timi", "Hava Indirme", "Suru Drone" };
-    static readonly int[]    COMMANDER_HP_BY_TIER = { 500, 700, 950, 1200, 1500 };
-    const  int MAX_BULLETS = 5;
-
+    // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
         Instance = this;
 
-        // Loadout SO varsa tekil slotlara uygula
         equippedLoadout?.ApplyTo(this);
 
-        _baseCP        = startCP;
-        CommanderMaxHP = COMMANDER_HP_BY_TIER[0] + TotalEquipmentHPBonus();
+        // startCP yok — baslangic gucu tamamen ekipmandan gelir
+        _baseCP = 0;
+
+        // Komutan HP'sini hesapla
+        if (activeCommander == null)
+            Debug.LogError("[PlayerStats] activeCommander atanmamis! Inspector'a CommanderData SO suru.");
+
+        CommanderMaxHP = (activeCommander != null ? activeCommander.GetBaseHP(1) : 500)
+                       + TotalEquipmentHPBonus();
         CommanderHP    = CommanderMaxHP;
     }
 
@@ -3688,18 +4538,18 @@ public class PlayerStats : MonoBehaviour
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
     }
 
+    // ── Hasar / Iyilesme ─────────────────────────────────────────────────
     public void TakeContactDamage(int amount)
     {
         if (Time.time - _lastDmgTime < invincibilityDuration) return;
         _lastDmgTime = Time.time;
 
-        // Ekipman + Pet hasar azaltma
-        float dr = TotalDamageReduction();
-        int finalAmount = Mathf.RoundToInt(amount * (1f - dr));
+        float dr         = TotalDamageReduction();
+        int finalAmount  = Mathf.RoundToInt(amount * (1f - dr));
 
         CommanderHP = Mathf.Max(0, CommanderHP - finalAmount);
         GameEvents.OnCommanderDamaged?.Invoke(finalAmount, CommanderHP);
-        GameEvents.OnPlayerDamaged?.Invoke(amount);  
+        GameEvents.OnPlayerDamaged?.Invoke(amount);
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
 
         if (CommanderHP <= 0) GameEvents.OnGameOver?.Invoke();
@@ -3712,15 +4562,17 @@ public class PlayerStats : MonoBehaviour
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
     }
 
+    // ── CP Guncellemeleri ─────────────────────────────────────────────────
     public void AddCPFromKill(int amount)
     {
         int oldTier = CurrentTier;
-        _baseCP = Mathf.Min(_baseCP + amount, 99999); // CP yerine _baseCP kullanıyoruz
+        _baseCP = Mathf.Min(_baseCP + amount, 99999);
         RefreshTier();
-        GameEvents.OnCPUpdated?.Invoke(CP); // Toplam CP'yi UI'a yolluyoruz
+        GameEvents.OnCPUpdated?.Invoke(CP);
         if (CurrentTier != oldTier) OnTierChanged();
     }
 
+    // ── Kapi Etkileri ─────────────────────────────────────────────────────
     public void ApplyGateEffect(GateData data)
     {
         if (data == null) return;
@@ -3729,7 +4581,6 @@ public class PlayerStats : MonoBehaviour
         float bonus     = _riskBonusLeft > 0 ? 1.5f : 1f;
         float scale     = 1f + transform.position.z / 2400f;
 
-        // BÜTÜN CP İŞLEMLERİ ARTIK _baseCP ÜZERİNDEN YAPILIYOR
         switch (data.effectType)
         {
             case GateEffectType.AddCP:
@@ -3752,12 +4603,12 @@ public class PlayerStats : MonoBehaviour
                 break;
             case GateEffectType.PathBoost_Piyade:
                 _baseCP += Mathf.RoundToInt(data.effectValue * scale * bonus);
-                PiyadePath+= 1f;
+                PiyadePath += 1f;
                 GameEvents.OnPathBoosted?.Invoke("Piyade");
                 break;
             case GateEffectType.PathBoost_Mekanize:
                 _baseCP += Mathf.RoundToInt(data.effectValue * scale * bonus);
-                MekanizePath+= 1f;
+                MekanizePath += 1f;
                 GameEvents.OnPathBoosted?.Invoke("Mekanik");
                 break;
             case GateEffectType.PathBoost_Teknoloji:
@@ -3776,37 +4627,34 @@ public class PlayerStats : MonoBehaviour
                 break;
             case GateEffectType.AddSoldier_Piyade:
             {
-                // Risk aktifse +1 ekstra asker (2 yerine 3)
-                int soldierCount = _riskBonusLeft > 0 ? 3 : 2;
-                ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade, count: soldierCount);
+                int count = _riskBonusLeft > 0 ? 3 : 2;
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade, count: count);
                 _baseCP += Mathf.RoundToInt(data.effectValue * scale);
                 if (_riskBonusLeft > 0) ShowPopupMessage("RISK: +3 Piyade!");
                 break;
             }
             case GateEffectType.AddSoldier_Mekanik:
             {
-                int soldierCount = _riskBonusLeft > 0 ? 3 : 2;
-                ArmyManager.Instance?.AddSoldier(SoldierPath.Mekanik, count: soldierCount);
+                int count = _riskBonusLeft > 0 ? 3 : 2;
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Mekanik, count: count);
                 _baseCP += Mathf.RoundToInt(data.effectValue * scale);
                 if (_riskBonusLeft > 0) ShowPopupMessage("RISK: +3 Mekanik!");
                 break;
             }
             case GateEffectType.AddSoldier_Teknoloji:
             {
-                int soldierCount = _riskBonusLeft > 0 ? 3 : 2;
-                ArmyManager.Instance?.AddSoldier(SoldierPath.Teknoloji, count: soldierCount);
+                int count = _riskBonusLeft > 0 ? 3 : 2;
+                ArmyManager.Instance?.AddSoldier(SoldierPath.Teknoloji, count: count);
                 _baseCP += Mathf.RoundToInt(data.effectValue * scale);
                 if (_riskBonusLeft > 0) ShowPopupMessage("RISK: +3 Teknoloji!");
                 break;
             }
             case GateEffectType.HealCommander:
             {
-                // Risk aktifse +kalıcı MaxHP bonusu da verir
-                int healAmt = Mathf.RoundToInt(data.effectValue);
-                HealCommander(healAmt);
+                HealCommander(Mathf.RoundToInt(data.effectValue));
                 if (_riskBonusLeft > 0)
                 {
-                    CommanderMaxHP += 100; // kalıcı max HP artışı
+                    CommanderMaxHP += 100;
                     CommanderHP = Mathf.Min(CommanderHP + 50, CommanderMaxHP);
                     GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
                     ShowPopupMessage("RISK: +100 MaxHP!");
@@ -3815,17 +4663,15 @@ public class PlayerStats : MonoBehaviour
             }
             case GateEffectType.HealSoldiers:
             {
-                // Risk aktifse tam heal (%100) + bir sonraki düşman dalgasını ertele (flag)
-                float healPct = _riskBonusLeft > 0 ? 1.0f : Mathf.Clamp(data.effectValue, 0f, 1f);
-                ArmyManager.Instance?.HealAll(healPct);
-                if (_riskBonusLeft > 0)
-                    ShowPopupMessage("RISK: Asker FULL HP!");
-                else
-                    ShowPopupMessage($"Asker +%{Mathf.RoundToInt(healPct * 100)}");
+                float pct = _riskBonusLeft > 0 ? 1.0f : Mathf.Clamp(data.effectValue, 0f, 1f);
+                ArmyManager.Instance?.HealAll(pct);
+                ShowPopupMessage(_riskBonusLeft > 0 ? "RISK: Asker FULL HP!" :
+                    $"Asker +%{Mathf.RoundToInt(pct * 100)}");
                 break;
             }
         }
 
+        // Risk sayacini dusuR
         if (_riskBonusLeft > 0 &&
             data.effectType != GateEffectType.NegativeCP &&
             data.effectType != GateEffectType.RiskReward)
@@ -3835,12 +4681,10 @@ public class PlayerStats : MonoBehaviour
                 GameEvents.OnRiskBonusActivated?.Invoke(_riskBonusLeft);
         }
 
-        _baseCP = Mathf.Clamp(_baseCP, 50, 99999);
+        _baseCP = Mathf.Clamp(_baseCP, 0, 99999);
         UpdateSmoothedRatio();
         RefreshTier();
         CheckSynergy();
-
-        // UI'ı GÜNCELLE
         GameEvents.OnCPUpdated?.Invoke(CP);
 
         if (CurrentTier != oldTier) OnTierChanged();
@@ -3848,33 +4692,35 @@ public class PlayerStats : MonoBehaviour
             GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
     }
 
+    // ── Merge ────────────────────────────────────────────────────────────
     void HandleMerge(bool riskActive = false)
     {
-        bool mergeOccurred = ArmyManager.Instance != null &&
-                             ArmyManager.Instance.TryMerge();
+        ArmyManager.Instance?.TryMerge();
 
         float total = PiyadePath + MekanizePath + TeknolojiPath;
+        float riskBonus = riskActive ? 0.2f : 0f;
         float multiplier;
         string role = "none";
 
-        // Risk aktifse tüm çarpanlar +0.2 artar
-        float riskBonus = riskActive ? 0.2f : 0f;
-        if (riskActive) ShowPopupMessage("RISK: Merge Güçlendi!");
+        if (riskActive) ShowPopupMessage("RISK: Merge Guclendi!");
 
-        if (total < 1f) multiplier = 1.1f + riskBonus;
+        if (total < 1f)
+        {
+            multiplier = 1.1f + riskBonus;
+        }
         else
         {
-            float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
+            float p = PiyadePath / total, m = MekanizePath / total, t = TeknolojiPath / total;
             float minPath = Mathf.Min(p, Mathf.Min(m, t));
             if (minPath > 0.28f)
             {
-                multiplier = 1.7f; role = "PERFECT";
+                multiplier = 1.7f + riskBonus; role = "PERFECT";
                 GameEvents.OnSynergyFound?.Invoke("PERFECT GENETICS!");
             }
-            else if (t >= 0.5f) { multiplier = 1.5f; role = "Teknoloji"; }
-            else if (p >= 0.5f) { multiplier = 1.5f; role = "Piyade"; }
-            else if (m >= 0.5f) { multiplier = 1.5f; role = "Mekanik"; }
-            else                { multiplier = 1.2f; }
+            else if (t >= 0.5f) { multiplier = 1.5f + riskBonus; role = "Teknoloji"; }
+            else if (p >= 0.5f) { multiplier = 1.5f + riskBonus; role = "Piyade"; }
+            else if (m >= 0.5f) { multiplier = 1.5f + riskBonus; role = "Mekanik"; }
+            else                { multiplier = 1.2f + riskBonus; }
         }
 
         _baseCP = Mathf.RoundToInt(_baseCP * multiplier);
@@ -3882,21 +4728,24 @@ public class PlayerStats : MonoBehaviour
         GameEvents.OnMergeTriggered?.Invoke();
     }
 
+    // ── Tier Degisimi ─────────────────────────────────────────────────────
     void OnTierChanged()
     {
+        if (activeCommander == null) return;
+
         int oldMax = CommanderMaxHP;
-        // Tier bazı + ekipman bonusu
-        CommanderMaxHP = COMMANDER_HP_BY_TIER[Mathf.Clamp(CurrentTier - 1, 0, 4)]
-                       + TotalEquipmentHPBonus();
+        CommanderMaxHP = activeCommander.GetBaseHP(CurrentTier) + TotalEquipmentHPBonus();
+
         if (CommanderMaxHP > oldMax)
         {
-            int bonus = CommanderMaxHP - oldMax;
-            CommanderHP = Mathf.Min(CommanderMaxHP, CommanderHP + bonus);
+            int bonusHP = CommanderMaxHP - oldMax;
+            CommanderHP = Mathf.Min(CommanderMaxHP, CommanderHP + bonusHP);
         }
         GameEvents.OnTierChanged?.Invoke(CurrentTier);
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
     }
 
+    // ── Yardimci ─────────────────────────────────────────────────────────
     public void SetExpectedCP(float e)
     {
         _expectedCP = Mathf.Max(1f, e);
@@ -3917,17 +4766,22 @@ public class PlayerStats : MonoBehaviour
     {
         float total = PiyadePath + MekanizePath + TeknolojiPath;
         if (total < 2f) return;
-        float p = PiyadePath/total, m = MekanizePath/total, t = TeknolojiPath/total;
+        float p = PiyadePath / total, m = MekanizePath / total, t = TeknolojiPath / total;
         if      (p > 0.5f && m > 0.25f) GameEvents.OnSynergyFound?.Invoke("Exosuit Komutu");
         else if (p > 0.5f && t > 0.25f) GameEvents.OnSynergyFound?.Invoke("Drone Takimi");
         else if (m > 0.4f && t > 0.30f) GameEvents.OnSynergyFound?.Invoke("Fuzyon Robotu");
     }
 
-    void ShowPopupMessage(string msg)
-        => GameEvents.OnSynergyFound?.Invoke(msg);
+    void ShowPopupMessage(string msg) => GameEvents.OnSynergyFound?.Invoke(msg);
 
-    public string GetTierName()  => TIER_NAMES[Mathf.Clamp(CurrentTier - 1, 0, 4)];
-    public int    GetRiskBonus() => _riskBonusLeft;
+    public string GetTierName()
+    {
+        if (activeCommander != null) return activeCommander.commanderName;
+        string[] fallback = { "Gonullu Er", "Elit Komando", "Gatling Timi", "Hava Indirme", "Suru Drone" };
+        return fallback[Mathf.Clamp(CurrentTier - 1, 0, 4)];
+    }
+
+    public int GetRiskBonus() => _riskBonusLeft;
 }
 ```
 
@@ -3937,52 +4791,51 @@ ProgressionConfig.cs
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Ilerleme Konfigurasyonu (Claude)
-/// Assets → Create → TopEndWar → Progression Config
-/// DifficultyManager'a bagla. Baglamazsan DifficultyManager dahili sabitlerle calisir.
-/// NAMESPACE YOK — eski GPT kodlari namespace kullaniyordu, biz kullanmiyoruz.
+/// Top End War — Ilerleme Konfigurasyonu v2 (Claude)
+///
+/// v2 degisiklikleri:
+///   difficultyExponent varsayilan:    1.3 → 1.1
+///   playerCPScalingFactor varsayilan: 0.9 → 0.5
+///   minPowerAdjust / maxPowerAdjust eklendi (carpan siniri)
+///
+/// Assets > Create > TopEndWar > ProgressionConfig ile olustur.
+/// DifficultyManager bu SO'yu okur.
 /// </summary>
-[CreateAssetMenu(fileName = "ProgressionConfig", menuName = "TopEndWar/Progression Config")]
+[CreateAssetMenu(fileName = "ProgressionConfig", menuName = "TopEndWar/ProgressionConfig")]
 public class ProgressionConfig : ScriptableObject
 {
-    [Header("Ilerleme")]
-    [Range(1.05f, 1.5f)] public float growthRate          = 1.15f;
-    [Range(1.0f,  3.0f)] public float difficultyExponent  = 1.3f;
-    public int baseStartCP = 200;
+    [Header("Zorluk Egrisi")]
+    [Tooltip("Mesafeye gore zorluk artis ussu. 1.1 = yavash artar, 1.5 = agresif")]
+    [Range(0.8f, 2.0f)]
+    public float difficultyExponent = 1.1f;
 
-    [Header("Dusman")]
-    public int   baseEnemyHealth       = 100;
-    public int   baseEnemyDamage       = 25;
-    public float baseEnemySpeed        = 4.0f;
-    public float enemyMaxSpeed         = 7.5f;
-    [Range(0.1f, 1.0f)] public float playerCPScalingFactor = 0.5f; // 0.9→0.5: güçlü oyuncuya ceza azaldı
+    [Tooltip("Mesafe olcegi. Kucuk = daha erken zorlasmaya baslar")]
+    public float distanceScale = 1000f;
 
-    [Header("Kapi")]
-    public float gateValueGrowthRate   = 1.12f;
-    public int   minGateValue          = 20;
-    public int   maxGateValue          = 500;
-    public float noBadGateZoneBeforeBoss = 200f;
+    [Header("Oyuncu Gucu Uyumu")]
+    [Tooltip(
+        "Oyuncunun gucune gore zorluk ne kadar uyum saglar?\n" +
+        "0.0 = hic uyum yok (saf Fixed Difficulty)\n" +
+        "0.5 = orta uyum (oyuncu cok gucluyse hafif zorlar)\n" +
+        "1.0 = tam uyum (kostu bandi — onerilmez)")]
+    [Range(0f, 1f)]
+    public float playerCPScalingFactor = 0.5f;
 
-    [Header("Tier Eslikleri")]
-    public int[] tierThresholds = { 0, 300, 800, 2000, 5000 };
+    [Tooltip("Guc ayari alt siniri (oyuncuyu asiri kolaylastirmaz)")]
+    [Range(0.5f, 1f)]
+    public float minPowerAdjust = 0.7f;
 
-    public int CalculateExpectedCP(float d)
-        => Mathf.RoundToInt(baseStartCP * Mathf.Pow(growthRate, d / 100f));
+    [Tooltip("Guc ayari ust siniri (oyuncuyu asiri cezalandirmaz)")]
+    [Range(1f, 2f)]
+    public float maxPowerAdjust = 1.4f;
 
-    public float CalculateDifficultyMultiplier(float d)
-        => 1f + Mathf.Pow(d / 1000f, difficultyExponent);
-
-    public int ScaleGateValue(int v, float d)
-    {
-        int s = Mathf.RoundToInt(v * Mathf.Pow(gateValueGrowthRate, d / 150f));
-        if (s < minGateValue) return minGateValue;
-        if (s > maxGateValue) return maxGateValue;
-        return s;
-    }
+    [Header("Beklenen CP (SpawnManager kullanir)")]
+    [Tooltip("Her 1000 unitede beklenen CP artisi")]
+    public float expectedCPGrowthPerKm = 150f;
 }
 ```
 
-# Savemanager.cs
+Savemanager.cs
 
 ```csharp
 using UnityEngine;
@@ -4796,7 +5649,560 @@ public class SpawnManager : MonoBehaviour
             var rb = obj.AddComponent<Rigidbody>(); rb.isKinematic = true;
             obj.tag = "Enemy"; obj.AddComponent<Enemy>();
         }
-        obj.GetComponent<Enemy>()?.Initialize(_stats);
+        var stats = GetEnemyStatsForSpawn();
+        obj.GetComponent<Enemy>()?.Initialize(stats);
     }
+    // ═══════════════════════════════════════════════════════════════════════════
+// MEVCUT SpawnManager.cs'e EKLENECEK KISIM
+// Dosyanin EN ALTINA, son kapanan } oncesine yapistir.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// SpawnManager sinifi icine ekle:
+
+    // ── StageManager tarafindan cagrilir ─────────────────────────────────
+
+    // Sahne basi varsayilan degerler
+    float _overrideNormalHP = 0f;
+    float _overrideEliteHP  = 0f;
+    float _densityMult      = 1f;
+    bool  _hpOverrideActive = false;
+
+    /// <summary>
+    /// StageManager, StageConfig'deki targetDps formulunden hesaplanan HP'yi
+    /// buraya iletir. Bu degerler PlaceEnemy() icerisinde Enemy.Initialize()'a aktarilir.
+    /// </summary>
+    public void SetMobHP(int normalHP, int eliteHP, float density = 1f)
+    {
+        _overrideNormalHP  = normalHP;
+        _overrideEliteHP   = eliteHP;
+        _densityMult       = density;
+        _hpOverrideActive  = true;
+        Debug.Log($"[SpawnManager] Mob HP override: Normal={normalHP}, Elite={eliteHP}, Density={density}");
+    }
+
+// Ayrica PlaceEnemy() icindeki su satiri degistir:
+//
+//   ESKISI:
+//   obj.GetComponent<Enemy>()?.Initialize(_stats);
+//
+//   YENISI:
+//   var stats = GetEnemyStatsForSpawn();
+//   obj.GetComponent<Enemy>()?.Initialize(stats);
+//
+// Ve su metodu SpawnManager sinifi icine ekle:
+
+    DifficultyManager.EnemyStats GetEnemyStatsForSpawn()
+    {
+        if (_hpOverrideActive)
+        {
+            // Fixed Difficulty: HP StageConfig'den gelir, DifficultyManager'dan degil
+            float speed  = _stats.Speed;   // Hiz yine DifficultyManager'dan
+            int   reward = _stats.CPReward;
+            return new DifficultyManager.EnemyStats(
+                health:   Mathf.RoundToInt(_overrideNormalHP),
+                damage:   _stats.Damage,
+                speed:    speed,
+                cpReward: reward);
+        }
+        return _stats; // Fallback: eski sistem (StageManager yoksa)
+    }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KURULUM:
+//   1. SpawnManager.cs'i ac.
+//   2. Sinifin son kapanan } oncesine yukardaki alanlari ve metotlari yapistir.
+//   3. PlaceEnemy() icindeki   obj.GetComponent<Enemy>()?.Initialize(_stats);
+//      satirini soyle degistir:
+//      var stats = GetEnemyStatsForSpawn();
+//      obj.GetComponent<Enemy>()?.Initialize(stats);
+// ═══════════════════════════════════════════════════════════════════════════
+}
+```
+
+Stageconfig.cs
+
+```csharp
+using UnityEngine;
+
+/// <summary>
+/// Top End War — Stage Konfigurasyonu v2 (Claude)
+///
+/// v2: targetDps eklendi. HP degerleri artik formule gore hesaplanir:
+///   normalMobHP = targetDps * 1.0
+///   eliteHP     = targetDps * 4.0
+///   miniBossHP  = targetDps * 18
+///   finalBossHP = targetDps * 36
+///
+/// gateBudgetMult: Bu stage'de kapilarin verebilecegi max DPS artis cokeni.
+/// BandliBütçe (ChatGPT canonical JSON):
+///   Stage 1-5:  1.40 | 6-9:   1.50 | 10: 1.55
+///   Stage 11-19: 1.65 | 20:   1.70
+///   Stage 21-29: 1.80 | 30-34: 1.88 | 35: 1.95
+///
+/// HP degerleri Inspector'dan ELLE YAZILMAZ — GetXxxHP() metotlari kullanilir.
+/// StageManager bu metotlari cagirip SpawnManager ve BossManager'a iletir.
+///
+/// ASSETS: Create > TopEndWar > StageConfig
+/// </summary>
+[CreateAssetMenu(fileName = "Stage_", menuName = "TopEndWar/StageConfig")]
+public class StageConfig : ScriptableObject
+{
+    [Header("Kimlik")]
+    public int    worldID        = 1;
+    public int    stageID        = 1;
+    public string locationName   = "Sivas - Sinir Boyu";
+
+    // ── Denge ─────────────────────────────────────────────────────────────
+    [Header("Denge — Temel Deger")]
+    [Tooltip(
+        "Bu stage icin hedeflenen oyuncu DPS'i.\n" +
+        "HP formulleri bu degere gore hesaplanir:\n" +
+        "  Normal mob   = targetDps x 1.0\n" +
+        "  Elite mob    = targetDps x 4.0\n" +
+        "  Mini-boss HP = targetDps x 18\n" +
+        "  Final boss   = targetDps x 36")]
+    public float targetDps = 70f;
+
+    [Header("Kapi Butcesi")]
+    [Tooltip(
+        "Bu stage'deki kapilarin verebilecegi max DPS buyume katsayisi.\n" +
+        "entryDps = round(targetDps / gateBudgetMult)\n" +
+        "Stage 1-5: 1.40 | 6-9: 1.50 | 10: 1.55 | 11-19: 1.65 | 20: 1.70\n" +
+        "Stage 21-29: 1.80 | 30-34: 1.88 | 35: 1.95")]
+    [Range(1f, 2.5f)]
+    public float gateBudgetMult  = 1.40f;
+
+    // ── Boss Turu ─────────────────────────────────────────────────────────
+    [Header("Boss")]
+    public BossType bossType     = BossType.None;
+
+    // ── Spawn Yogunlugu ───────────────────────────────────────────────────
+    [Header("Spawn")]
+    [Tooltip("1.0 = normal. DifficultyManager carpaniyla carpilir.")]
+    [Range(0.5f, 3f)]
+    public float spawnDensity    = 1f;
+
+    // ── Odüller ───────────────────────────────────────────────────────────
+    [Header("Odüller")]
+    [Tooltip("Bos birakılırsa EconomyConfig formulunden hesaplanir.")]
+    public int    goldRewardOverride   = 0;  // 0 = formul kullan
+    public bool   hasMidStageLoot      = true;
+    [Range(0f, 1f)]
+    public float  techCoreDropChance   = 0.15f;
+    [Tooltip("Stage tamamlaninca saatlik altina eklenen miktar")]
+    public int    offlineBoostPerHour  = 5;
+
+    // ── Tutorial ──────────────────────────────────────────────────────────
+    [Header("Ozel")]
+    public bool   isTutorialStage    = false;
+
+    // ── HP Formul Metotlari (StageManager kullanir) ───────────────────────
+
+    /// <summary>Normal mob HP = targetDps x 1.0</summary>
+    public int GetNormalMobHP()   => Mathf.RoundToInt(targetDps * 1.0f);
+
+    /// <summary>Elite mob HP = targetDps x 4.0</summary>
+    public int GetEliteHP()       => Mathf.RoundToInt(targetDps * 4.0f);
+
+    /// <summary>Mini-boss HP = targetDps x 18. BossType.MiniBoss icin kullanilir.</summary>
+    public int GetMiniBossHP()    => Mathf.RoundToInt(targetDps * 18f);
+
+    /// <summary>Final boss HP = targetDps x 36. BossType.FinalBoss icin kullanilir.</summary>
+    public int GetFinalBossHP()   => Mathf.RoundToInt(targetDps * 36f);
+
+    /// <summary>BossType'a gore dogru HP degerini dondurur.</summary>
+    public int GetBossHP()
+    {
+        return bossType switch
+        {
+            BossType.MiniBoss   => GetMiniBossHP(),
+            BossType.FinalBoss  => GetFinalBossHP(),
+            _                   => 0,
+        };
+    }
+
+    /// <summary>entryDps = round(targetDps / gateBudgetMult)</summary>
+    public int GetEntryDps() => Mathf.RoundToInt(targetDps / gateBudgetMult);
+
+    public bool IsBossStage => bossType != BossType.None;
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        if (!string.IsNullOrEmpty(name))
+            name = $"Stage_W{worldID}_{stageID:D2}";
+    }
+#endif
+}
+
+public enum BossType
+{
+    None,
+    MiniBoss,
+    FinalBoss,
+}
+```
+
+StageManager.cs
+
+```csharp
+using UnityEngine;
+
+/// <summary>
+/// Top End War — Stage Yoneticisi v2 (Claude)
+///
+/// v2: StageConfig.targetDps formullerine gore HP degerlerini
+///     SpawnManager ve BossManager'a iletir.
+///     EconomyManager'a altin ve offline boost ekler.
+///     Dunya bitisinde WorldConfig'deki komutani acar.
+///
+/// KURULUM:
+///   Hierarchy > Create Empty > "StageManager" > bu scripti ekle.
+///   worlds[]      : WorldConfig SO'lari sur (World 1, 2, 3...).
+///   stageConfigs[]: StageConfig SO'lari sur (veya Resources/Stages/'a koy).
+///   economyConfig : EconomyConfig SO'sunu sur.
+/// </summary>
+public class StageManager : MonoBehaviour
+{
+    public static StageManager Instance { get; private set; }
+
+    [Header("Dunya Listesi (sirali — World 1, 2, 3...)")]
+    public WorldConfig[]  worlds;
+
+    [Header("Stage Verileri")]
+    [Tooltip("Bos birakılırsa Resources/Stages/Stage_W{w}_{s:D2} yolundan yuklenir")]
+    public StageConfig[]  stageConfigs;
+
+    [Header("Ekonomi Formulü")]
+    public EconomyConfig  economyConfig;
+
+    [Header("Debug (Salt Okunur)")]
+    [SerializeField] int _currentWorldID = 1;
+    [SerializeField] int _currentStageID = 1;
+
+    StageConfig _activeStage;
+    WorldConfig _activeWorld;
+
+    // ── Yasamdongüsü ──────────────────────────────────────────────────────
+    void Awake()
+    {
+        if (Instance != null) { Destroy(gameObject); return; }
+        Instance = this;
+    }
+
+    void Start() => LoadStage(_currentWorldID, _currentStageID);
+
+    // ── Stage Yukle ───────────────────────────────────────────────────────
+    public void LoadStage(int worldID, int stageID)
+    {
+        _currentWorldID = worldID;
+        _currentStageID = stageID;
+
+        _activeWorld = FindWorld(worldID);
+        _activeStage = FindStage(worldID, stageID);
+
+        if (_activeStage == null)
+        {
+            Debug.LogWarning($"[StageManager] W{worldID}-{stageID} bulunamadi!");
+            return;
+        }
+
+        // Biyomu guncelle
+        if (_activeWorld != null)
+            BiomeManager.Instance?.SetBiome(_activeWorld.biome);
+
+        // SpawnManager'a mob HP'yi ilet
+        ApplyMobHP();
+
+        // Boss stage ise BossManager'a HP'yi ilet
+        if (_activeStage.IsBossStage)
+            ApplyBossHP();
+
+        GameEvents.OnStageChanged?.Invoke(worldID, stageID);
+        Debug.Log($"[StageManager] W{worldID}-{stageID} | targetDps={_activeStage.targetDps} " +
+                  $"| mobHP={_activeStage.GetNormalMobHP()} | bossHP={_activeStage.GetBossHP()}");
+    }
+
+    // ── HP Dagitimi ───────────────────────────────────────────────────────
+    void ApplyMobHP()
+    {
+        if (SpawnManager.Instance == null || _activeStage == null) return;
+        SpawnManager.Instance.SetMobHP(
+            normalHP: _activeStage.GetNormalMobHP(),
+            eliteHP:  _activeStage.GetEliteHP(),
+            density:  _activeStage.spawnDensity);
+    }
+
+    void ApplyBossHP()
+    {
+        if (BossManager.Instance == null || _activeStage == null) return;
+        BossManager.Instance.bossMaxHP = _activeStage.GetBossHP();
+        Debug.Log($"[StageManager] Boss HP set: {_activeStage.GetBossHP()} ({_activeStage.bossType})");
+    }
+
+    // ── Stage Tamamlandi ─────────────────────────────────────────────────
+    public void OnStageComplete()
+    {
+        if (_activeStage == null) return;
+
+        // Altin odulu
+        int gold = _activeStage.goldRewardOverride > 0
+            ? _activeStage.goldRewardOverride
+            : economyConfig != null
+                ? economyConfig.GetGoldReward(_activeStage.stageID, _activeStage.targetDps)
+                : 150;
+
+        EconomyManager.Instance?.AddGold(gold);
+        EconomyManager.Instance?.AddOfflineRate(_activeStage.offlineBoostPerHour);
+
+        Debug.Log($"[StageManager] Stage tamamlandi. Altin: +{gold}");
+
+        if (_activeStage.IsBossStage)
+            OnWorldComplete();
+        else
+            LoadStage(_currentWorldID, _currentStageID + 1);
+    }
+
+    // ── Stage Ortasi Micro-Loot ───────────────────────────────────────────
+    public void OnMidStageReached()
+    {
+        if (_activeStage == null || !_activeStage.hasMidStageLoot) return;
+
+        int midGold = economyConfig != null
+            ? economyConfig.GetMidLootGold(_activeStage.stageID, _activeStage.targetDps)
+            : 50;
+
+        EconomyManager.Instance?.AddGold(midGold);
+        Debug.Log($"[StageManager] Micro-loot: +{midGold} Altin");
+
+        // Tech Core sans kontrolu
+        if (Random.value < _activeStage.techCoreDropChance)
+        {
+            EconomyManager.Instance?.AddTechCore(1);
+            Debug.Log("[StageManager] Micro-loot: +1 TechCore!");
+        }
+    }
+
+    // ── Dunya Tamamlandi ─────────────────────────────────────────────────
+    void OnWorldComplete()
+    {
+        if (_activeWorld != null)
+        {
+            EconomyManager.Instance?.AddOfflineRate(_activeWorld.offlineIncomeBoost);
+
+            if (_activeWorld.unlockedCommander != null)
+                Debug.Log($"[StageManager] Komutan acildi: {_activeWorld.unlockedCommander.commanderName}");
+                // TODO: Komutan unlock UI
+        }
+
+        GameEvents.OnWorldChanged?.Invoke(_currentWorldID);
+        LoadStage(_currentWorldID + 1, stageID: 1);
+    }
+
+    // ── Yardimcilar ───────────────────────────────────────────────────────
+    WorldConfig FindWorld(int id)
+    {
+        if (worlds != null)
+            foreach (var w in worlds)
+                if (w != null && w.worldID == id) return w;
+        return null;
+    }
+
+    StageConfig FindStage(int worldID, int stageID)
+    {
+        if (stageConfigs != null)
+            foreach (var s in stageConfigs)
+                if (s != null && s.worldID == worldID && s.stageID == stageID) return s;
+
+        return Resources.Load<StageConfig>($"Stages/Stage_W{worldID}_{stageID:D2}");
+    }
+
+    // ── Getter'lar ────────────────────────────────────────────────────────
+    public StageConfig ActiveStage     => _activeStage;
+    public WorldConfig ActiveWorld     => _activeWorld;
+    public int         CurrentWorldID  => _currentWorldID;
+    public int         CurrentStageID  => _currentStageID;
+}
+```
+
+Tiervisualizer.cs
+
+```csharp
+using UnityEngine;
+using DG.Tweening;
+
+/// <summary>
+/// Top End War — Tier Gorsel Evrimi v1 (Claude)
+///
+/// Tier atladikca boyut DEGISMEZ (eski morph sistemi).
+/// Bunun yerine:
+///   - Aktif model degisir (CommanderData.tierModels[tier-1])
+///   - Aura degisir      (CommanderData.tierAuras[tier-1])
+///   - Mermi VFX rengi degisir
+///   - Tier-up mini event: DOTween scale punch + kisa slow-mo
+///
+/// KURULUM:
+///   Player objesine ekle.
+///   CommanderData SO'daki tierModels ve tierAuras dizilerini doldur
+///   (bos birakilabilir — dizi yoksa sadece event tetiklenir).
+/// </summary>
+public class TierVisualizer : MonoBehaviour
+{
+    [Header("Baglanti (opsiyonel — CommanderData'dan da okunur)")]
+    [Tooltip("Bos birakılırsa PlayerStats.activeCommander'dan alinir")]
+    public CommanderData commanderOverride;
+
+    [Header("Tier-Up Event Ayarlari")]
+    [Tooltip("Scale punch siddeti")]
+    public float punchStrength  = 0.25f;
+    [Tooltip("Scale punch suresi (saniye)")]
+    public float punchDuration  = 0.4f;
+    [Tooltip("Slow-motion carpani (0.3 = %30 hiz)")]
+    public float slowMoScale    = 0.3f;
+    [Tooltip("Slow-motion suresi (saniye, gercek zaman)")]
+    public float slowMoDuration = 0.5f;
+
+    // ── Dahili ────────────────────────────────────────────────────────────
+    int              _currentTier     = 0;
+    CommanderData    _commander;
+    ParticleSystem   _activeAura;
+
+    void Start()
+    {
+        _commander = commanderOverride != null
+            ? commanderOverride
+            : PlayerStats.Instance?.activeCommander;
+
+        GameEvents.OnTierChanged += OnTierChanged;
+
+        // Baslangic tier'ini uygula (animasyonsuz)
+        int startTier = PlayerStats.Instance != null ? PlayerStats.Instance.CurrentTier : 1;
+        ApplyTierVisuals(startTier, animated: false);
+    }
+
+    void OnDestroy() => GameEvents.OnTierChanged -= OnTierChanged;
+
+    // ── Tier Degisimi ─────────────────────────────────────────────────────
+    void OnTierChanged(int newTier)
+    {
+        if (newTier <= _currentTier) return;   // Sadece yukari tier
+        _currentTier = newTier;
+        ApplyTierVisuals(newTier, animated: true);
+    }
+
+    void ApplyTierVisuals(int tier, bool animated)
+    {
+        _currentTier = tier;
+        int idx      = Mathf.Clamp(tier - 1, 0, 4);
+
+        // ── Model degisimi ────────────────────────────────────────────────
+        if (_commander != null && _commander.tierModels != null &&
+            _commander.tierModels.Length > 0)
+        {
+            for (int i = 0; i < _commander.tierModels.Length; i++)
+            {
+                if (_commander.tierModels[i] != null)
+                    _commander.tierModels[i].SetActive(i == idx);
+            }
+        }
+
+        // ── Aura degisimi ─────────────────────────────────────────────────
+        if (_commander != null && _commander.tierAuras != null &&
+            _commander.tierAuras.Length > 0)
+        {
+            // Onceki aurayi durdur
+            _activeAura?.Stop(withChildren: true);
+
+            if (idx < _commander.tierAuras.Length && _commander.tierAuras[idx] != null)
+            {
+                _activeAura = _commander.tierAuras[idx];
+                _activeAura.Play();
+            }
+        }
+
+        // ── Tier-up animasyon (sadece ilk kez atlandikta) ─────────────────
+        if (animated) TierUpEvent();
+    }
+
+    // ── Tier-Up Mini Event ────────────────────────────────────────────────
+    void TierUpEvent()
+    {
+        // Scale punch (DOTween)
+        transform.DOPunchScale(Vector3.one * punchStrength, punchDuration, 6, 0.5f);
+
+        // Kisa slow-motion (gercek zamanda geri doner)
+        if (slowMoScale > 0f && slowMoDuration > 0f)
+            SlowMo();
+
+        Debug.Log($"[TierVisualizer] Tier {_currentTier} evrimi!");
+    }
+
+    void SlowMo()
+    {
+        Time.timeScale = slowMoScale;
+        // UnscaledTime ile geri yukle
+        DOVirtual.DelayedCall(slowMoDuration, ResetTimeScale, ignoreTimeScale: true);
+    }
+
+    static void ResetTimeScale()
+    {
+        Time.timeScale = 1f;
+    }
+
+    // ── Getter ────────────────────────────────────────────────────────────
+    public int CurrentTier => _currentTier;
+}
+```
+
+Worldconfig.cs
+
+```csharp
+using UnityEngine;
+
+/// <summary>
+/// Top End War — Dunya Konfigurasyonu v1 (Claude)
+///
+/// Her dunya icin ayri bir SO olustur:
+///   Assets > Create > TopEndWar > WorldConfig
+///
+/// WorldConfig nedir?
+///   Bir dunya (ornegin Sivas, Tokat) kac stage'den olusuyor,
+///   hangi biyom, hangi rarity esigi ve hangi komutan aciliyor.
+///
+/// StageManager bu SO'yu okur, BiomeManager biyomu buradan alir.
+/// </summary>
+[CreateAssetMenu(fileName = "World_", menuName = "TopEndWar/WorldConfig")]
+public class WorldConfig : ScriptableObject
+{
+    [Header("Kimlik")]
+    public int    worldID   = 1;
+    public string worldName = "Sivas";
+
+    [Header("Biyom")]
+    [Tooltip("BiomeManager'in taniydigi biyom adi: Tas, Orman, Col, Karli, Tarim")]
+    public string biome     = "Tas";
+
+    [Header("Stage Yapisi")]
+    [Tooltip("Bu dunyada kac stage var (ornegin 15)")]
+    public int stageCount   = 15;
+
+    [Header("Rarity Esigi")]
+    [Tooltip(
+        "Bu dunyada drop edilebilecek max rarity.\n" +
+        "Dunya 1 = 2 (Yesil), Dunya 3 = 4 (Mor), Dunya 5+ = 5 (Altin)")]
+    [Range(1, 5)]
+    public int maxRarity    = 2;
+
+    [Header("Komutan Kilidi")]
+    [Tooltip("Bu dunya bittikten sonra acilan CommanderData SO. Bos = komutan acilmaz.")]
+    public CommanderData unlockedCommander;
+
+    [Header("Offline Kazanc")]
+    [Tooltip("Bu dunya temizlenince saatlik altina eklenen miktar")]
+    public int offlineIncomeBoost = 30;
+
+    [Header("Gorunumler")]
+    [Tooltip("Haritada bu dunya icin gosterilecek ikon veya renk (gelecek)")]
+    public Color mapColor   = Color.green;
 }
 ```

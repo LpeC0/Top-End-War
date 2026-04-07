@@ -422,6 +422,77 @@ public class SpawnManager : MonoBehaviour
             var rb = obj.AddComponent<Rigidbody>(); rb.isKinematic = true;
             obj.tag = "Enemy"; obj.AddComponent<Enemy>();
         }
-        obj.GetComponent<Enemy>()?.Initialize(_stats);
+        var stats = GetEnemyStatsForSpawn();
+        obj.GetComponent<Enemy>()?.Initialize(stats);
     }
+    // ═══════════════════════════════════════════════════════════════════════════
+// MEVCUT SpawnManager.cs'e EKLENECEK KISIM
+// Dosyanin EN ALTINA, son kapanan } oncesine yapistir.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// SpawnManager sinifi icine ekle:
+
+    // ── StageManager tarafindan cagrilir ─────────────────────────────────
+
+    // Sahne basi varsayilan degerler
+    float _overrideNormalHP = 0f;
+    float _overrideEliteHP  = 0f;
+    float _densityMult      = 1f;
+    bool  _hpOverrideActive = false;
+
+    /// <summary>
+    /// StageManager, StageConfig'deki targetDps formulunden hesaplanan HP'yi
+    /// buraya iletir. Bu degerler PlaceEnemy() icerisinde Enemy.Initialize()'a aktarilir.
+    /// </summary>
+    public void SetMobHP(int normalHP, int eliteHP, float density = 1f)
+    {
+        _overrideNormalHP  = normalHP;
+        _overrideEliteHP   = eliteHP;
+        _densityMult       = density;
+        _hpOverrideActive  = true;
+        Debug.Log($"[SpawnManager] Mob HP override: Normal={normalHP}, Elite={eliteHP}, Density={density}");
+    }
+
+// Ayrica PlaceEnemy() icindeki su satiri degistir:
+//
+//   ESKISI:
+//   obj.GetComponent<Enemy>()?.Initialize(_stats);
+//
+//   YENISI:
+//   var stats = GetEnemyStatsForSpawn();
+//   obj.GetComponent<Enemy>()?.Initialize(stats);
+//
+// Ve su metodu SpawnManager sinifi icine ekle:
+
+    DifficultyManager.EnemyStats GetEnemyStatsForSpawn()
+    {
+        if (_hpOverrideActive)
+        {
+            // Fixed Difficulty: HP StageConfig'den gelir, DifficultyManager'dan degil
+            float speed  = _stats.Speed;   // Hiz yine DifficultyManager'dan
+            int   reward = _stats.CPReward;
+            return new DifficultyManager.EnemyStats(
+                health:   Mathf.RoundToInt(_overrideNormalHP),
+                damage:   _stats.Damage,
+                speed:    speed,
+                cpReward: reward);
+        }
+        return _stats; // Fallback: eski sistem (StageManager yoksa)
+    }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// KURULUM:
+//   1. SpawnManager.cs'i ac.
+//   2. Sinifin son kapanan } oncesine yukardaki alanlari ve metotlari yapistir.
+//   3. PlaceEnemy() icindeki   obj.GetComponent<Enemy>()?.Initialize(_stats);
+//      satirini soyle degistir:
+//      var stats = GetEnemyStatsForSpawn();
+//      obj.GetComponent<Enemy>()?.Initialize(stats);
+// ═══════════════════════════════════════════════════════════════════════════
+public static SpawnManager Instance { get; private set; }
+void Awake() {
+    if (Instance != null) { Destroy(gameObject); return; }
+    Instance = this;
+    // mevcut kod devam
+}
 }

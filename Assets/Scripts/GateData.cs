@@ -1,44 +1,98 @@
+using System.Collections.Generic;
 using UnityEngine;
 
-/// <summary>
-/// Top End War — Kapi Verisi v3
-/// v3: AddSoldier (Piyade/Mekanik/Teknoloji) + HealCommander + HealSoldiers eklendi.
-/// Eski degerler (0-8) korundu — sahne .asset dosyalari bozulmaz.
-/// </summary>
 public enum GateEffectType
 {
-    // ── Mevcut (v1-v2) ─ degerler degismedi ──────────────────────────────
-    AddCP             = 0,
-    MultiplyCP        = 1,
-    AddBullet         = 2,   // Eski isim korundu, AddSoldier_Piyade gibi davranir
-    Merge             = 3,
-    PathBoost_Piyade  = 4,   // Eski — CP + path skoru verir (hala calisir)
-    PathBoost_Mekanize= 5,
-    PathBoost_Teknoloji=6,
-    NegativeCP        = 7,
-    RiskReward        = 8,
-
-    // ── v3 Yeni ───────────────────────────────────────────────────────────
-    AddSoldier_Piyade    = 9,   // +1 Piyade Lv1 asker + kucuk CP
-    AddSoldier_Mekanik   = 10,  // +1 Mekanik Lv1 asker + kucuk CP
-    AddSoldier_Teknoloji = 11,  // +1 Teknoloji Lv1 asker + kucuk CP
-    HealCommander        = 12,  // Komutan HP +300 (effectValue ile ayarlanabilir)
-    HealSoldiers         = 13,  // Tum askerler %50 HP geri kazanir (effectValue=yuzde)
+    Power,
+    Tempo,
+    Geometry,
+    Army,
+    Sustain,
+    Tactical
 }
 
-[CreateAssetMenu(fileName = "NewGateData", menuName = "TopEndWar/Gate Data")]
+public enum GateDeliveryType
+{
+    Single,
+    Duel,
+    Risk,
+    Recovery,
+    BossPrep
+}
+
+public enum GateTargetTag
+{
+    AllWeapons,
+    Assault,
+    SMG,
+    Sniper,
+    Shotgun,
+    Launcher,
+    ArmyAll,
+    Piyade,
+    Mekanik,
+    Teknoloji,
+    Commander,
+    Soldiers
+}
+
+public enum GateStatType
+{
+    WeaponPowerPercent,
+    FireRatePercent,
+    EliteDamagePercent,
+    BossDamagePercent,
+    ArmorPenFlat,
+    PierceCount,
+    BounceCount,
+    PelletCount,
+    SplashRadiusPercent,
+    ArmyDamagePercent,
+    AddSoldierCount,
+    PromoteWeakestSoldier,
+    HealCommanderPercent,
+    HealSoldiersPercent,
+    CommanderDamageReductionPercent,
+    CloseRangeDamagePercent,
+    ArmoredTargetDamagePercent
+}
+
+[System.Serializable]
+public class GateModifier
+{
+    public GateTargetTag targetTag;
+    public GateStatType statType;
+    public float value;
+}
+
+[CreateAssetMenu(fileName = "NewGateData", menuName = "TopEndWar/Gate Data v2")]
 public class GateData : ScriptableObject
 {
-    [Header("Gorsel")]
-    public string gateText  = "+80";
-    public Color  gateColor = new Color(0.2f, 0.85f, 0.2f, 0.7f);
+    [Header("Presentation")]
+    public string title;
+    public string subtitle;
+    public Color gateColor;
+    public Sprite icon;
+    public GateEffectType family;
+    public GateDeliveryType deliveryType;
 
-    [Header("Etki")]
-    public GateEffectType effectType  = GateEffectType.AddCP;
-    [Tooltip("AddCP: miktar | MultiplyCP: carpan | AddSoldier: CP bonus | HealCommander: HP miktar | HealSoldiers: yuzdesi (0-1)")]
-    public float effectValue = 80f;
+    [Header("Gameplay Tags")]
+    public List<GateTargetTag> bestForTags = new();
+    public bool runnerAllowed = true;
+    public bool anchorAllowed = true;
+    public bool tutorialAllowed = true;
+    public bool bossPrepAllowed = false;
 
-    [Header("Spawn Agirligi (SpawnManager icin)")]
-    [Range(0f, 1f)]
-    public float spawnWeight = 0.12f;
+    [Header("Balance")]
+    public float gateValueBudget = 1.0f;
+    public int minStage = 1;
+    public int maxStage = 999;
+    public float spawnWeight = 0.1f;
+
+    [Header("Modifiers")]
+    public List<GateModifier> modifiers = new();
+
+    [Header("Risk")]
+    public bool hasPenalty = false;
+    public List<GateModifier> penaltyModifiers = new();
 }

@@ -1,41 +1,39 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Stage Yoneticisi v1 (Claude)
+/// Top End War — Stage Yoneticisi v2 (Claude)
 ///
-/// GOREV:
-///   - Aktif World ve Stage'i tutar
-///   - StageConfig SO'yu yukleyerek BossManager ve SpawnManager'a HP/yogunluk iletir
-///   - Stage tamamlaninca EconomyManager'a offline boost ekler
-///   - Dunya tamamlaninca WorldConfig'deki komuTanı acar + BiomeManager'i gunceller
+/// v2: StageConfig.targetDps formullerine gore HP degerlerini
+///     SpawnManager ve BossManager'a iletir.
+///     EconomyManager'a altin ve offline boost ekler.
+///     Dunya bitisinde WorldConfig'deki komutani acar.
 ///
 /// KURULUM:
-///   Hierarchy > Create Empty > "StageManager" > bu scripti ekle
-///   Inspector'dan worlds[] dizisini doldur (WorldConfig SO'lari sur)
-///   Resources/Stages/ klasoru olustur, StageConfig SO'lari oraya koy
-///   (veya Inspector'dan stageConfigs[] dizisini doldur)
-///
-/// KULLANIM:
-///   StageManager.Instance.LoadStage(worldID: 1, stageID: 3);
-///   StageManager.Instance.OnStageComplete();  // Stage bittikten sonra
+///   Hierarchy > Create Empty > "StageManager" > bu scripti ekle.
+///   worlds[]      : WorldConfig SO'lari sur (World 1, 2, 3...).
+///   stageConfigs[]: StageConfig SO'lari sur (veya Resources/Stages/'a koy).
+///   economyConfig : EconomyConfig SO'sunu sur.
 /// </summary>
 public class StageManager : MonoBehaviour
 {
     public static StageManager Instance { get; private set; }
 
-    [Header("Dunya Listesi (siralı — World 1, 2, 3...)")]
-    public WorldConfig[] worlds;
+    [Header("Dunya Listesi (sirali — World 1, 2, 3...)")]
+    public WorldConfig[]  worlds;
 
-    [Header("Stage Verileri (Resources/Stages/ yoksa buraya sur)")]
+    [Header("Stage Verileri")]
     [Tooltip("Bos birakılırsa Resources/Stages/Stage_W{w}_{s:D2} yolundan yuklenir")]
-    public StageConfig[] stageConfigs;
+    public StageConfig[]  stageConfigs;
+
+    [Header("Ekonomi Formulü")]
+    public EconomyConfig  economyConfig;
 
     [Header("Debug (Salt Okunur)")]
     [SerializeField] int _currentWorldID = 1;
     [SerializeField] int _currentStageID = 1;
 
-    StageConfig  _activeStage;
-    WorldConfig  _activeWorld;
+    StageConfig _activeStage;
+    WorldConfig _activeWorld;
 
     // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Awake()
@@ -44,11 +42,7 @@ public class StageManager : MonoBehaviour
         Instance = this;
     }
 
-    void Start()
-    {
-        // Ilk stage'i yukle
-        LoadStage(_currentWorldID, _currentStageID);
-    }
+    void Start() => LoadStage(_currentWorldID, _currentStageID);
 
     // ── Stage Yukle ───────────────────────────────────────────────────────
     public void LoadStage(int worldID, int stageID)
@@ -56,29 +50,46 @@ public class StageManager : MonoBehaviour
         _currentWorldID = worldID;
         _currentStageID = stageID;
 
-        // WorldConfig bul
         _activeWorld = FindWorld(worldID);
-        if (_activeWorld == null)
-            Debug.LogWarning($"[StageManager] World {worldID} bulunamadi!");
-
-        // StageConfig bul
         _activeStage = FindStage(worldID, stageID);
+
         if (_activeStage == null)
         {
-            Debug.LogWarning($"[StageManager] Stage W{worldID}-{stageID} bulunamadi! Varsayilan kullaniliyor.");
+            Debug.LogWarning($"[StageManager] W{worldID}-{stageID} bulunamadi!");
             return;
         }
 
         // Biyomu guncelle
-        if (_activeWorld != null && BiomeManager.Instance != null)
-            BiomeManager.Instance.SetBiome(_activeWorld.biome);
+        if (_activeWorld != null)
+            BiomeManager.Instance?.SetBiome(_activeWorld.biome);
 
-        // Boss HP'sini BossManager'a ilet
-        if (_activeStage.isBossStage && BossManager.Instance != null)
-            BossManager.Instance.bossMaxHP = Mathf.RoundToInt(_activeStage.bossHP);
+        // SpawnManager'a mob HP'yi ilet
+        ApplyMobHP();
+
+        // Boss stage ise BossManager'a HP'yi ilet
+        if (_activeStage.IsBossStage)
+            ApplyBossHP();
 
         GameEvents.OnStageChanged?.Invoke(worldID, stageID);
-        Debug.Log($"[StageManager] W{worldID}-{stageID} yuklendi: {_activeStage.locationName}");
+        Debug.Log($"[StageManager] W{worldID}-{stageID} | targetDps={_activeStage.targetDps} " +
+                  $"| mobHP={_activeStage.GetNormalMobHP()} | bossHP={_activeStage.GetBossHP()}");
+    }
+
+    // ── HP Dagitimi ───────────────────────────────────────────────────────
+    void ApplyMobHP()
+    {
+        if (SpawnManager.Instance == null || _activeStage == null) return;
+        SpawnManager.Instance.SetMobHP(
+            normalHP: _activeStage.GetNormalMobHP(),
+            eliteHP:  _activeStage.GetEliteHP(),
+            density:  _activeStage.spawnDensity);
+    }
+
+    void ApplyBossHP()
+    {
+        if (BossManager.Instance == null || _activeStage == null) return;
+        BossManager.Instance.bossMaxHP = _activeStage.GetBossHP();
+        Debug.Log($"[StageManager] Boss HP set: {_activeStage.GetBossHP()} ({_activeStage.bossType})");
     }
 
     // ── Stage Tamamlandi ─────────────────────────────────────────────────
@@ -86,73 +97,81 @@ public class StageManager : MonoBehaviour
     {
         if (_activeStage == null) return;
 
-        // Offline boost ekle
+        // Altin odulu
+        int gold = _activeStage.goldRewardOverride > 0
+            ? _activeStage.goldRewardOverride
+            : economyConfig != null
+                ? economyConfig.GetGoldReward(_activeStage.stageID, _activeStage.targetDps)
+                : 150;
+
+        EconomyManager.Instance?.AddGold(gold);
         EconomyManager.Instance?.AddOfflineRate(_activeStage.offlineBoostPerHour);
 
-        // Temel altin odulu
-        EconomyManager.Instance?.AddGold(_activeStage.baseGoldReward);
+        Debug.Log($"[StageManager] Stage tamamlandi. Altin: +{gold}");
 
-        // Dunya bitti mi?
-        bool worldComplete = _activeStage.isBossStage;
-        if (worldComplete) OnWorldComplete();
+        if (_activeStage.IsBossStage)
+            OnWorldComplete();
         else
-        {
-            // Sonraki stage
             LoadStage(_currentWorldID, _currentStageID + 1);
-        }
+    }
 
-        Debug.Log($"[StageManager] Stage tamamlandi: W{_currentWorldID}-{_currentStageID}");
+    // ── Stage Ortasi Micro-Loot ───────────────────────────────────────────
+    public void OnMidStageReached()
+    {
+        if (_activeStage == null || !_activeStage.hasMidStageLoot) return;
+
+        int midGold = economyConfig != null
+            ? economyConfig.GetMidLootGold(_activeStage.stageID, _activeStage.targetDps)
+            : 50;
+
+        EconomyManager.Instance?.AddGold(midGold);
+        Debug.Log($"[StageManager] Micro-loot: +{midGold} Altin");
+
+        // Tech Core sans kontrolu
+        if (Random.value < _activeStage.techCoreDropChance)
+        {
+            EconomyManager.Instance?.AddTechCore(1);
+            Debug.Log("[StageManager] Micro-loot: +1 TechCore!");
+        }
     }
 
     // ── Dunya Tamamlandi ─────────────────────────────────────────────────
     void OnWorldComplete()
     {
-        if (_activeWorld == null) return;
+        if (_activeWorld != null)
+        {
+            EconomyManager.Instance?.AddOfflineRate(_activeWorld.offlineIncomeBoost);
 
-        // Offline boost (dunya seviyesinde)
-        EconomyManager.Instance?.AddOfflineRate(_activeWorld.offlineIncomeBoost);
-
-        // Komutan ac
-        if (_activeWorld.unlockedCommander != null)
-            Debug.Log($"[StageManager] Komutan acildi: {_activeWorld.unlockedCommander.commanderName}");
-            // TODO: Komutan unlock UI bildirimi
+            if (_activeWorld.unlockedCommander != null)
+                Debug.Log($"[StageManager] Komutan acildi: {_activeWorld.unlockedCommander.commanderName}");
+                // TODO: Komutan unlock UI
+        }
 
         GameEvents.OnWorldChanged?.Invoke(_currentWorldID);
-
-        // Sonraki dunya
         LoadStage(_currentWorldID + 1, stageID: 1);
     }
 
     // ── Yardimcilar ───────────────────────────────────────────────────────
     WorldConfig FindWorld(int id)
     {
-        if (worlds == null) return null;
-        foreach (var w in worlds)
-            if (w != null && w.worldID == id) return w;
+        if (worlds != null)
+            foreach (var w in worlds)
+                if (w != null && w.worldID == id) return w;
         return null;
     }
 
     StageConfig FindStage(int worldID, int stageID)
     {
-        // Once Inspector dizisine bak
         if (stageConfigs != null)
             foreach (var s in stageConfigs)
                 if (s != null && s.worldID == worldID && s.stageID == stageID) return s;
 
-        // Sonra Resources klasorune bak
-        string path = $"Stages/Stage_W{worldID}_{stageID:D2}";
-        return Resources.Load<StageConfig>(path);
+        return Resources.Load<StageConfig>($"Stages/Stage_W{worldID}_{stageID:D2}");
     }
 
     // ── Getter'lar ────────────────────────────────────────────────────────
-    public StageConfig ActiveStage  => _activeStage;
-    public WorldConfig ActiveWorld  => _activeWorld;
-    public int CurrentWorldID       => _currentWorldID;
-    public int CurrentStageID       => _currentStageID;
-
-    public float GetActiveMobHP()
-        => _activeStage != null ? _activeStage.mobHP : 1100f;
-
-    public float GetActiveBossHP()
-        => _activeStage != null ? _activeStage.bossHP : 41000f;
+    public StageConfig ActiveStage     => _activeStage;
+    public WorldConfig ActiveWorld     => _activeWorld;
+    public int         CurrentWorldID  => _currentWorldID;
+    public int         CurrentStageID  => _currentStageID;
 }
