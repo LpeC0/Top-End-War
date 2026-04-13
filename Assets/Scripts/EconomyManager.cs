@@ -118,34 +118,39 @@ public class EconomyManager : MonoBehaviour
     /// currentLevel: MEVCUT seviye. Yeni seviye = currentLevel + 1.
     /// </summary>
     public bool TryUpgradeSlot(int currentLevel, out string failReason)
+{
+    failReason = "";
+    if (config == null) { failReason = "EconomyConfig atanmamis."; return false; }
+
+    int nextLevel = currentLevel + 1;
+    if (nextLevel > 50) { failReason = "Maksimum slot seviyesi."; return false; }
+
+    int goldCost = config.GetSlotGoldCost(currentLevel);
+    int tcCost   = config.GetSlotTechCoreCost(currentLevel);
+
+    if (Gold < goldCost)
     {
-        failReason = "";
-        if (config == null) { failReason = "EconomyConfig atanmamis."; return false; }
-
-        int nextLevel = currentLevel + 1;
-        if (nextLevel > 50) { failReason = "Maksimum slot seviyesi."; return false; }
-
-        int goldCost = config.GetSlotGoldCost(currentLevel);      // mevcut level maliyeti
-        int tcCost   = config.GetSlotTechCoreCost(currentLevel);
-
-        if (Gold < goldCost)
-        {
-            failReason = $"Yetersiz altin. Gerekli: {goldCost}, Mevcut: {Gold}";
-            return false;
-        }
-        if (TechCore < tcCost)
-        {
-            failReason = $"Yetersiz TechCore. Gerekli: {tcCost}, Mevcut: {TechCore}";
-            return false;
-        }
-
-        Gold     -= goldCost;
-        TechCore -= tcCost;
-        Save();
-        OnEconomyChanged?.Invoke();
-        Debug.Log($"[Economy] Slot Lv{currentLevel}→{nextLevel} | -{goldCost}G -{tcCost}TC");
-        return true;
+        failReason = $"Yetersiz altin. Gerekli: {goldCost}, Mevcut: {Gold}";
+        return false;
     }
+
+    if (config.useTechCoreForSlotUpgrades && TechCore < tcCost)
+    {
+        failReason = $"Yetersiz TechCore. Gerekli: {tcCost}, Mevcut: {TechCore}";
+        return false;
+    }
+
+    Gold -= goldCost;
+
+    if (config.useTechCoreForSlotUpgrades)
+        TechCore -= tcCost;
+
+    Save();
+    OnEconomyChanged?.Invoke();
+    Debug.Log($"[Economy] Slot Lv{currentLevel}→{nextLevel} | -{goldCost}G" +
+              (config.useTechCoreForSlotUpgrades ? $" -{tcCost}TC" : ""));
+    return true;
+}
 
     /// <summary>Bir sonraki slot yukseltmesinin maliyetini dondurur (bilgi icin).</summary>
     public (int gold, int tc) GetUpgradeCost(int currentLevel)
@@ -160,20 +165,23 @@ public class EconomyManager : MonoBehaviour
     /// Esige ulasilirsa Basic Scroll garantisi tetiklenir.
     /// </summary>
     public void RegisterEmptyStage()
+{
+    if (config != null && !config.enablePitySystem)
+        return;
+
+    _emptyStageCount++;
+    int threshold = config != null ? config.pityStagThreshold : 20;
+
+    if (_emptyStageCount >= threshold)
     {
-        _emptyStageCount++;
-        int threshold = config != null ? config.pityStagThreshold : 20;
-
-        if (_emptyStageCount >= threshold)
-        {
-            _emptyStageCount = 0;
-            OnGuaranteedScroll?.Invoke();
-            Debug.Log("[Economy] Pity Timer: Guaranteed Basic Scroll!");
-        }
-
-        PlayerPrefs.SetInt(KEY_PITY, _emptyStageCount);
-        PlayerPrefs.Save();
+        _emptyStageCount = 0;
+        OnGuaranteedScroll?.Invoke();
+        Debug.Log("[Economy] Pity Timer: Guaranteed Basic Scroll!");
     }
+
+    PlayerPrefs.SetInt(KEY_PITY, _emptyStageCount);
+    PlayerPrefs.Save();
+}
 
     public void ResetPityCounter()
     {
@@ -204,11 +212,14 @@ public class EconomyManager : MonoBehaviour
 
     // ── Offline Gelir ─────────────────────────────────────────────────────
     public void AddOfflineRate(int amountPerHour)
-    {
-        _bonusOfflineRate += amountPerHour;
-        PlayerPrefs.SetInt(KEY_BONUS_RATE, _bonusOfflineRate);
-        PlayerPrefs.Save();
-    }
+{
+    if (config != null && !config.enableOfflineEarnings)
+        return;
+
+    _bonusOfflineRate += amountPerHour;
+    PlayerPrefs.SetInt(KEY_BONUS_RATE, _bonusOfflineRate);
+    PlayerPrefs.Save();
+}
 
     public int GetTotalOfflineRate()
     {
@@ -216,24 +227,27 @@ public class EconomyManager : MonoBehaviour
         return baseRate + _bonusOfflineRate;
     }
 
-    void CollectOfflineEarnings()
-    {
-        string savedTime = PlayerPrefs.GetString(KEY_LAST_SAVE, "");
-        if (string.IsNullOrEmpty(savedTime)) return;
-        if (!DateTime.TryParse(savedTime, out DateTime lastSave)) return;
+   void CollectOfflineEarnings()
+{
+    if (config != null && !config.enableOfflineEarnings)
+        return;
 
-        float capHours = config != null ? config.offlineCapHours : 15f;
-        double hoursGone = Mathf.Min((float)(DateTime.UtcNow - lastSave).TotalHours, capHours);
-        if (hoursGone < 0.01f) return;
+    string savedTime = PlayerPrefs.GetString(KEY_LAST_SAVE, "");
+    if (string.IsNullOrEmpty(savedTime)) return;
+    if (!DateTime.TryParse(savedTime, out DateTime lastSave)) return;
 
-        int earned = Mathf.RoundToInt((float)hoursGone * GetTotalOfflineRate());
-        if (earned <= 0) return;
+    float capHours = config != null ? config.offlineCapHours : 15f;
+    double hoursGone = Mathf.Min((float)(DateTime.UtcNow - lastSave).TotalHours, capHours);
+    if (hoursGone < 0.01f) return;
 
-        Gold += earned;
-        Save();
-        Debug.Log($"[Economy] Offline: +{earned} Altin ({hoursGone:F1} saat)");
-        OnOfflineEarningCollected?.Invoke(earned);
-    }
+    int earned = Mathf.RoundToInt((float)hoursGone * GetTotalOfflineRate());
+    if (earned <= 0) return;
+
+    Gold += earned;
+    Save();
+    Debug.Log($"[Economy] Offline: +{earned} Altin ({hoursGone:F1} saat)");
+    OnOfflineEarningCollected?.Invoke(earned);
+}
 
     void SaveLastTime()
     {

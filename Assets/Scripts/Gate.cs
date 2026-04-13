@@ -2,20 +2,13 @@ using UnityEngine;
 using TMPro;
 
 /// <summary>
-/// Top End War — Kapi (Claude)
+/// Top End War — Kapi v2
 ///
-/// PREFAB:
-///   GatePrefab (root)
-///   ├── Gate.cs + BoxCollider(IsTrigger=true) + Rigidbody(IsKinematic=true)
-///   ├── Panel (3D Quad, Scale 4,5,1)  → panelRenderer slotuna sur
-///   └── Label (3D TextMeshPro)        → labelText slotuna sur
-///
-/// MATERYAL: Herhangi bir materyal olabilir — kod runtime'da Sprites/Default'a cevirir.
-/// Panel'deki MeshCollider otomatik silinir.
+/// Yeni kanonik veri tipi: GateConfig
 /// </summary>
 public class Gate : MonoBehaviour
 {
-    public GateData    gateData;
+    public GateConfig  gateConfig;
     public Renderer    panelRenderer;
     public TextMeshPro labelText;
 
@@ -30,7 +23,11 @@ public class Gate : MonoBehaviour
 
     void OnEnable() { _triggered = false; }
 
-    public void Refresh() { ApplyVisuals(); FitBoxCollider(); }
+    public void Refresh()
+    {
+        ApplyVisuals();
+        FitBoxCollider();
+    }
 
     void RemoveChildColliders()
     {
@@ -40,26 +37,29 @@ public class Gate : MonoBehaviour
 
     void ApplyVisuals()
     {
-        if (gateData == null) return;
+        if (gateConfig == null) return;
 
         if (labelText != null)
         {
-            labelText.text               = gateData.gateText;
+            string sub = string.IsNullOrWhiteSpace(gateConfig.tag2)
+                ? gateConfig.tag1
+                : $"{gateConfig.tag1} • {gateConfig.tag2}";
+
+            labelText.text               = $"{gateConfig.title}\n<size=55%>{sub}</size>";
             labelText.fontSize           = 5f;
             labelText.color              = Color.white;
             labelText.alignment          = TextAlignmentOptions.Center;
             labelText.fontStyle          = FontStyles.Bold;
-            labelText.overflowMode       = TextOverflowModes.Truncate;
-            labelText.enableWordWrapping = false;
+            labelText.overflowMode       = TextOverflowModes.Overflow;
+            labelText.textWrappingMode = TextWrappingModes.NoWrap;
         }
 
         if (panelRenderer != null)
         {
-            // Sprites/Default: her shader'da calisir, tam transparan destekler
             Material mat = new Material(Shader.Find("Sprites/Default"));
-            Color c      = gateData.gateColor;
-            c.a          = 0.72f;
-            mat.color    = c;
+            Color c = gateConfig.gateColor;
+            c.a = 0.72f;
+            mat.color = c;
             panelRenderer.material = mat;
         }
     }
@@ -68,8 +68,9 @@ public class Gate : MonoBehaviour
     {
         BoxCollider box = GetComponent<BoxCollider>();
         if (box == null || panelRenderer == null) return;
-        Vector3 s  = panelRenderer.transform.localScale;
-        box.size   = new Vector3(s.x * 0.95f, s.y, 1.2f);
+
+        Vector3 s = panelRenderer.transform.localScale;
+        box.size = new Vector3(s.x * 0.95f, s.y, 1.2f);
         box.center = Vector3.zero;
     }
 
@@ -77,8 +78,13 @@ public class Gate : MonoBehaviour
     {
         if (_triggered || !other.CompareTag("Player")) return;
         _triggered = true;
-        other.GetComponent<PlayerStats>()?.ApplyGateEffect(gateData);
-        Debug.Log("[Gate] " + gateData.gateText + " | CP: " + PlayerStats.Instance?.CP);
+
+        PlayerStats ps = other.GetComponent<PlayerStats>();
+        ps?.ApplyGateConfig(gateConfig);
+
+        other.GetComponent<GateFeedback>()?.PlayGatePop();
+
+        Debug.Log($"[Gate] {gateConfig.title}");
         Destroy(gameObject);
     }
 }

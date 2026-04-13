@@ -1,11 +1,11 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Stage Yoneticisi v2 (Claude)
+/// Top End War — Stage Yoneticisi v2 (Claude) + Vertical Slice Patch
 ///
 /// v2: StageConfig.targetDps formullerine gore HP degerlerini
 ///     SpawnManager ve BossManager'a iletir.
-///     EconomyManager'a altin ve offline boost ekler.
+///     EconomyManager'a altin ekler (Offline boost slice'ta kapali).
 ///     Dunya bitisinde WorldConfig'deki komutani acar.
 ///
 /// KURULUM:
@@ -19,14 +19,14 @@ public class StageManager : MonoBehaviour
     public static StageManager Instance { get; private set; }
 
     [Header("Dunya Listesi (sirali — World 1, 2, 3...)")]
-    public WorldConfig[]  worlds;
+    public WorldConfig[] worlds;
 
     [Header("Stage Verileri")]
     [Tooltip("Bos birakılırsa Resources/Stages/Stage_W{w}_{s:D2} yolundan yuklenir")]
-    public StageConfig[]  stageConfigs;
+    public StageConfig[] stageConfigs;
 
     [Header("Ekonomi Formulü")]
-    public EconomyConfig  economyConfig;
+    public EconomyConfig economyConfig;
 
     [Header("Debug (Salt Okunur)")]
     [SerializeField] int _currentWorldID = 1;
@@ -45,8 +45,11 @@ public class StageManager : MonoBehaviour
     void Start() => LoadStage(_currentWorldID, _currentStageID);
 
     // ── Stage Yukle ───────────────────────────────────────────────────────
+   
     public void LoadStage(int worldID, int stageID)
     {
+        RunState.Instance.Reset();
+        SaveManager.Instance?.BeginRun();
         _currentWorldID = worldID;
         _currentStageID = stageID;
 
@@ -58,6 +61,9 @@ public class StageManager : MonoBehaviour
             Debug.LogWarning($"[StageManager] W{worldID}-{stageID} bulunamadi!");
             return;
         }
+
+        // Stage başında gate bonuslarını sıfırla
+        PlayerStats.Instance?.ResetRunGateBonuses();
 
         // Biyomu guncelle
         if (_activeWorld != null)
@@ -79,6 +85,7 @@ public class StageManager : MonoBehaviour
     void ApplyMobHP()
     {
         if (SpawnManager.Instance == null || _activeStage == null) return;
+
         SpawnManager.Instance.SetMobHP(
             normalHP: _activeStage.GetNormalMobHP(),
             eliteHP:  _activeStage.GetEliteHP(),
@@ -95,6 +102,8 @@ public class StageManager : MonoBehaviour
     // ── Stage Tamamlandi ─────────────────────────────────────────────────
     public void OnStageComplete()
     {
+        
+
         if (_activeStage == null) return;
 
         // Altin odulu
@@ -103,16 +112,32 @@ public class StageManager : MonoBehaviour
             : economyConfig != null
                 ? economyConfig.GetGoldReward(_activeStage.stageID, _activeStage.targetDps)
                 : 150;
-
+        RunState.Instance.AddRunGold(gold);
         EconomyManager.Instance?.AddGold(gold);
-        EconomyManager.Instance?.AddOfflineRate(_activeStage.offlineBoostPerHour);
+        
+        // Vertical slice'ta offline boost kapali.
+        // EconomyManager.Instance?.AddOfflineRate(_activeStage.offlineBoostPerHour);
 
         Debug.Log($"[StageManager] Stage tamamlandi. Altin: +{gold}");
 
-        if (_activeStage.IsBossStage)
+        // Sadece FinalBoss world complete sayilsin.
+        if (_activeStage.bossType == BossType.FinalBoss)
+        {
             OnWorldComplete();
-        else
+            return;
+        }
+
+        // MiniBoss ise normal stage gibi ilerlesin; sonraki stage yoksa slice biter.
+        StageConfig nextStage = FindStage(_currentWorldID, _currentStageID + 1);
+        
+        if (nextStage != null)
+        {
             LoadStage(_currentWorldID, _currentStageID + 1);
+            return;
+        }
+
+        Debug.Log("[StageManager] Vertical slice tamamlandi.");
+        GameEvents.OnWorldChanged?.Invoke(_currentWorldID); // mevcut event sistemi bozulmasin
     }
 
     // ── Stage Ortasi Micro-Loot ───────────────────────────────────────────
@@ -127,12 +152,11 @@ public class StageManager : MonoBehaviour
         EconomyManager.Instance?.AddGold(midGold);
         Debug.Log($"[StageManager] Micro-loot: +{midGold} Altin");
 
-        // Tech Core sans kontrolu
-        if (Random.value < _activeStage.techCoreDropChance)
-        {
-            EconomyManager.Instance?.AddTechCore(1);
-            Debug.Log("[StageManager] Micro-loot: +1 TechCore!");
-        }
+        // Vertical slice economy: TechCore kapali.
+        // if (Random.value < _activeStage.techCoreDropChance)
+        // {
+        //     EconomyManager.Instance?.AddTechCore(1);
+        // }
     }
 
     // ── Dunya Tamamlandi ─────────────────────────────────────────────────
@@ -141,10 +165,10 @@ public class StageManager : MonoBehaviour
         if (_activeWorld != null)
         {
             EconomyManager.Instance?.AddOfflineRate(_activeWorld.offlineIncomeBoost);
-
             if (_activeWorld.unlockedCommander != null)
                 Debug.Log($"[StageManager] Komutan acildi: {_activeWorld.unlockedCommander.commanderName}");
-                // TODO: Komutan unlock UI
+            
+            // TODO: Komutan unlock UI
         }
 
         GameEvents.OnWorldChanged?.Invoke(_currentWorldID);
@@ -165,13 +189,13 @@ public class StageManager : MonoBehaviour
         if (stageConfigs != null)
             foreach (var s in stageConfigs)
                 if (s != null && s.worldID == worldID && s.stageID == stageID) return s;
-
+                
         return Resources.Load<StageConfig>($"Stages/Stage_W{worldID}_{stageID:D2}");
     }
 
     // ── Getter'lar ────────────────────────────────────────────────────────
-    public StageConfig ActiveStage     => _activeStage;
-    public WorldConfig ActiveWorld     => _activeWorld;
-    public int         CurrentWorldID  => _currentWorldID;
-    public int         CurrentStageID  => _currentStageID;
+    public StageConfig ActiveStage => _activeStage;
+    public WorldConfig ActiveWorld => _activeWorld;
+    public int CurrentWorldID => _currentWorldID;
+    public int CurrentStageID => _currentStageID;
 }

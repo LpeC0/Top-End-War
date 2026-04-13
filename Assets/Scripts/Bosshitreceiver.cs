@@ -1,18 +1,16 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Boss Isabet Alici (Claude)
-/// Boss prefab'ine eklenir. Bullet.cs bu componenti bulur.
+/// Top End War — Boss Isabet Alici v2
 ///
-/// KURULUM:
-///   Boss GameObject'ine ekle.
-///   Inspector'dan bossManager alanina BossManager objesini sur.
-///   (bos birakılırsa Instance'tan alir — fallback)
+/// DEĞİŞİKLİK:
+///   - ArmorPen / BossDamageMult tasir
+///   - Eski TakeDamage(int) korunur
 /// </summary>
 public class BossHitReceiver : MonoBehaviour
 {
     [Tooltip("BossManager objesi. Bos birakılırsa BossManager.Instance kullanilir.")]
-    public BossManager bossManager;   // ← Bullet.cs bu field'i ariyordu
+    public BossManager bossManager;
 
     void Awake()
     {
@@ -20,10 +18,16 @@ public class BossHitReceiver : MonoBehaviour
             bossManager = BossManager.Instance;
     }
 
-    /// <summary>Bullet.cs bu metodu cagirir.</summary>
     public void TakeDamage(int dmg)
     {
         if (bossManager == null) bossManager = BossManager.Instance;
         bossManager?.TakeDamage(dmg);
+    }
+
+    // DEĞİŞİKLİK
+    public void TakeDamage(int rawDamage, int armorPen, float bossDamageMult)
+    {
+        if (bossManager == null) bossManager = BossManager.Instance;
+        bossManager?.TakeDamage(rawDamage, armorPen, bossDamageMult);
     }
 }

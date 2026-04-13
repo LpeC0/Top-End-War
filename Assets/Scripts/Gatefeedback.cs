@@ -1,12 +1,9 @@
 using UnityEngine;
-using DG.Tweening;
+using System.Collections;
 
 /// <summary>
-/// Top End War — Kapi Gecis Efekti (Claude)
-/// Player objesine ekle. DOTween kurulu olmali.
-///
-/// Kapidan gecince: kucuk scale pop (1 → 1.25 → 1)
-/// Tier atlayinca: buyuk scale pop (1 → 1.5 → 1) + kamera sallama
+/// Top End War — Kapi Gecis Efekti v2
+/// Player objesine ekle. Coroutine ile calisir (DOTween'e gerek yok).
 /// </summary>
 public class GateFeedback : MonoBehaviour
 {
@@ -20,55 +17,95 @@ public class GateFeedback : MonoBehaviour
 
     [Header("Kamera Sallama")]
     public Camera mainCamera;
-    public float  shakeStrength = 0.3f;
-    public float  shakeDuration = 0.3f;
+    public float  shakeStrength = 0.15f;
+    public float  shakeDuration = 0.2f;
 
     Vector3 _originalScale;
-    Tweener _activeTween;
+    Vector3 _cameraOriginalPos;
+    Coroutine _scaleRoutine;
+    Coroutine _shakeRoutine;
 
     void Start()
     {
         _originalScale = transform.localScale;
-
-        GameEvents.OnCPUpdated   += OnCPUpdated;
-        GameEvents.OnTierChanged += OnTierChanged;
-
         if (mainCamera == null) mainCamera = Camera.main;
+        if (mainCamera != null) _cameraOriginalPos = mainCamera.transform.localPosition;
+
+        GameEvents.OnTierChanged += OnTierChanged;
     }
 
     void OnDestroy()
     {
-        GameEvents.OnCPUpdated   -= OnCPUpdated;
         GameEvents.OnTierChanged -= OnTierChanged;
     }
 
-    void OnCPUpdated(int cp)
+    public void PlayGatePop()
     {
-        // Her kapi gecisinde kucuk pop
-        ScalePop(gatePopScale, gatePopDuration);
+        StartScalePop(gatePopScale, gatePopDuration);
+    }
+
+    public void PlayTierPop()
+    {
+        StartScalePop(tierPopScale, tierPopDuration);
+        if (mainCamera != null)
+        {
+            if (_shakeRoutine != null) StopCoroutine(_shakeRoutine);
+            _shakeRoutine = StartCoroutine(CameraShakeRoutine());
+        }
     }
 
     void OnTierChanged(int tier)
     {
-        // Tier atlarken buyuk pop + kamera shake
-        ScalePop(tierPopScale, tierPopDuration);
-
-        if (mainCamera != null)
-            mainCamera.DOShakePosition(shakeDuration, shakeStrength, 10, 90, false);
+        PlayTierPop();
     }
 
-    void ScalePop(float peak, float duration)
+    void StartScalePop(float peak, float duration)
     {
-        _activeTween?.Kill();
-        transform.localScale = _originalScale;
+        if (_scaleRoutine != null) StopCoroutine(_scaleRoutine);
+        _scaleRoutine = StartCoroutine(ScalePopRoutine(peak, duration));
+    }
 
-        _activeTween = transform
-            .DOScale(_originalScale * peak, duration * 0.4f)
-            .SetEase(Ease.OutQuad)
-            .OnComplete(() =>
-            {
-                transform.DOScale(_originalScale, duration * 0.6f)
-                         .SetEase(Ease.InOutQuad);
-            });
+    IEnumerator ScalePopRoutine(float peak, float duration)
+    {
+        float upTime = duration * 0.4f;
+        float downTime = duration * 0.6f;
+
+        transform.localScale = _originalScale;
+        Vector3 peakScale = _originalScale * peak;
+
+        float t = 0f;
+        while (t < upTime)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.Clamp01(t / upTime);
+            transform.localScale = Vector3.Lerp(_originalScale, peakScale, k);
+            yield return null;
+        }
+
+        t = 0f;
+        while (t < downTime)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.Clamp01(t / downTime);
+            transform.localScale = Vector3.Lerp(peakScale, _originalScale, k);
+            yield return null;
+        }
+
+        transform.localScale = _originalScale;
+    }
+
+    IEnumerator CameraShakeRoutine()
+    {
+        float t = 0f;
+        while (t < shakeDuration)
+        {
+            t += Time.deltaTime;
+            Vector3 offset = Random.insideUnitSphere * shakeStrength;
+            offset.z = 0f;
+            mainCamera.transform.localPosition = _cameraOriginalPos + offset;
+            yield return null;
+        }
+
+        mainCamera.transform.localPosition = _cameraOriginalPos;
     }
 }

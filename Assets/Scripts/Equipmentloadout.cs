@@ -1,18 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Ekipman Seti ScriptableObject (Claude)
+/// Top End War — Ekipman Seti ScriptableObject v2
 ///
-/// 6 slotun tamamını tek bir .asset dosyasında tutar.
-/// Ana menü ve save sistemi için ideal: 1 referans = tüm ekipman.
-///
-/// KULLANIM:
-///   Assets → Create → TopEndWar → Equipment Loadout
-///   PlayerStats Inspector'da equippedLoadout alanına sürükle.
-///   Oyun içinde EquipmentUI değişiklikleri hem tek slota hem de
-///   Loadout'a yazar (SaveManager bunu JSON'a kaydeder).
-///
-/// GELECEK: SaveManager bu SO'yu JSON'a serialize edecek.
+/// DEĞİŞİKLİK:
+///   - Yanlis slot item'lari runtime'da equip edilmez
+///   - Inspector'da OnValidate ile temizlenir
+///   - TotalCPBonus, PlayerStats.CP mantigina daha yakin hesaplanir
 /// </summary>
 [CreateAssetMenu(fileName = "NewLoadout", menuName = "TopEndWar/Equipment Loadout")]
 public class EquipmentLoadout : ScriptableObject
@@ -32,20 +26,19 @@ public class EquipmentLoadout : ScriptableObject
     [Header("Pet")]
     public PetData pet;
 
-    /// <summary>Bu loadout'u PlayerStats'a uygular.</summary>
     public void ApplyTo(PlayerStats ps)
     {
         if (ps == null) return;
-        ps.equippedWeapon   = weapon;
-        ps.equippedArmor    = armor;
-        ps.equippedShoulder = shoulder;
-        ps.equippedKnee     = knee;
-        ps.equippedNecklace = necklace;
-        ps.equippedRing     = ring;
+
+        ps.equippedWeapon   = ValidateForSlot(weapon,   EquipmentSlot.Weapon,   "weapon");
+        ps.equippedArmor    = ValidateForSlot(armor,    EquipmentSlot.Armor,    "armor");
+        ps.equippedShoulder = ValidateForSlot(shoulder, EquipmentSlot.Shoulder, "shoulder");
+        ps.equippedKnee     = ValidateForSlot(knee,     EquipmentSlot.Knee,     "knee");
+        ps.equippedNecklace = ValidateForSlot(necklace, EquipmentSlot.Necklace, "necklace");
+        ps.equippedRing     = ValidateForSlot(ring,     EquipmentSlot.Ring,     "ring");
         ps.equippedPet      = pet;
     }
 
-    /// <summary>PlayerStats'taki mevcut ekipmanı bu loadout'a kaydeder.</summary>
     public void ReadFrom(PlayerStats ps)
     {
         if (ps == null) return;
@@ -58,7 +51,9 @@ public class EquipmentLoadout : ScriptableObject
         pet      = ps.equippedPet;
     }
 
-    /// <summary>Toplam CP bonusunu hesaplar (UI önizleme için).</summary>
+    /// <summary>
+    /// UI preview icin PlayerStats.CP mantigina yakin hesap.
+    /// </summary>
     public int TotalCPBonus()
     {
         int total = 0;
@@ -69,6 +64,43 @@ public class EquipmentLoadout : ScriptableObject
         total += necklace != null ? necklace.baseCPBonus : 0;
         total += ring     != null ? ring.baseCPBonus     : 0;
         total += pet      != null ? pet.cpBonus          : 0;
-        return total;
+
+        float mult = 1f;
+        if (necklace != null) mult *= necklace.cpMultiplier;
+        if (ring != null)     mult *= ring.cpMultiplier;
+
+        return Mathf.RoundToInt(total * mult);
     }
+
+    EquipmentData ValidateForSlot(EquipmentData item, EquipmentSlot expected, string label)
+    {
+        if (item == null) return null;
+
+        if (item.slot == expected)
+            return item;
+
+        Debug.LogWarning(
+            $"[EquipmentLoadout] {label} alaninda yanlis item var. " +
+            $"Beklenen={expected}, Gelen={item.slot}, Item={item.equipmentName}");
+
+        return null;
+    }
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        weapon   = Sanitize(weapon,   EquipmentSlot.Weapon);
+        armor    = Sanitize(armor,    EquipmentSlot.Armor);
+        shoulder = Sanitize(shoulder, EquipmentSlot.Shoulder);
+        knee     = Sanitize(knee,     EquipmentSlot.Knee);
+        necklace = Sanitize(necklace, EquipmentSlot.Necklace);
+        ring     = Sanitize(ring,     EquipmentSlot.Ring);
+    }
+
+    EquipmentData Sanitize(EquipmentData item, EquipmentSlot expected)
+    {
+        if (item == null) return null;
+        return item.slot == expected ? item : null;
+    }
+#endif
 }

@@ -2,27 +2,18 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dalga Konfigurasyonu v1 (Claude)
+/// Top End War — Dalga Konfigurasyonu v2
 ///
-/// Bir wave'in hangi dusmanlari, hangi sirada, hangi aralikla cikardigi.
-/// Sahnede dusman dizmek yerine SpawnManager bu SO'yu okur.
-///
-/// SLICE DALGA IDS (Final Pack v1):
-///   W1  = Trooper Line
-///   W2  = Swarm Burst
-///   W3  = Charger Pressure
-///   W4  = Mixed Light
-///   M1  = Tutorial Exam
-///   W_BruteIntro / M_BrutePlusLine / W_EliteIntro / M2 / MB1
-///
-/// ASSETS: Create > TopEndWar > WaveConfig
+/// DEĞİŞİKLİK:
+///   - OnValidate eklendi
+///   - Slice icin guvenli clamp'ler eklendi
 /// </summary>
 [CreateAssetMenu(fileName = "Wave_", menuName = "TopEndWar/WaveConfig")]
 public class WaveConfig : ScriptableObject
 {
     [Header("Kimlik")]
-    public string waveId    = "W1";
-    public string waveCode  = "W1_TrooperLine";
+    public string waveId = "W1";
+    public string waveCode = "W1_TrooperLine";
     public WaveRole waveRole = WaveRole.Normal;
 
     [Header("Spawn Gruplari")]
@@ -32,8 +23,23 @@ public class WaveConfig : ScriptableObject
     [Header("Zamanlama")]
     [Tooltip("Gruplar arasi bekleme suresi")]
     public float spawnGroupDelay = 2.5f;
+
     [Tooltip("Ayni grup icinde dusman spawn araliginda saniye")]
     public float intraGroupDelay = 0.4f;
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        if (groups == null)
+            groups = new List<WaveGroup>();
+
+        spawnGroupDelay = Mathf.Max(0f, spawnGroupDelay);
+        intraGroupDelay = Mathf.Max(0f, intraGroupDelay);
+
+        if (!string.IsNullOrEmpty(waveId))
+            name = $"Wave_{waveId}";
+    }
+#endif
 }
 
 [System.Serializable]
@@ -52,16 +58,16 @@ public class WaveGroup
 
 public enum WaveRole
 {
-    Normal,     // Standart dalga
-    Elite,      // Elite agirlikli
-    Boss,       // Mini-boss veya boss
-    MixedExam,  // Test dalgasi
+    Normal,
+    Elite,
+    Boss,
+    MixedExam,
 }
 
 public enum LaneBias
 {
-    Spread,     // Yola yayil
-    Center,     // Merkez agirlikh
+    Spread,
+    Center,
     Left,
     Right,
     Random,

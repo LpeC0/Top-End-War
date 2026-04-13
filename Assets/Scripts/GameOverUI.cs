@@ -97,13 +97,14 @@ public class GameOverUI : MonoBehaviour
     }
 
     void UpdateRetreatButton()
-    {
-        if (retreatButton == null) return;
-        int goldBack = Mathf.RoundToInt(_runGoldEarned * 0.20f);
-        int techBack = Mathf.RoundToInt(_runTechEarned * 0.20f);
-        if (retreatRewardText != null)
-            retreatRewardText.text = $"Altin +{goldBack}  TechCore +{techBack}";
-    }
+{
+    if (retreatButton == null) return;
+
+    int goldBack = Mathf.RoundToInt(_runGoldEarned * 0.20f);
+
+    if (retreatRewardText != null)
+        retreatRewardText.text = $"Gold +{goldBack}";
+}
 
     // ── Revive ────────────────────────────────────────────────────────────
     void OnReviveClicked()
@@ -126,14 +127,13 @@ public class GameOverUI : MonoBehaviour
 
     // ── Retreat ───────────────────────────────────────────────────────────
     void OnRetreatClicked()
-    {
-        int goldBack = Mathf.RoundToInt(_runGoldEarned * 0.20f);
-        int techBack = Mathf.RoundToInt(_runTechEarned * 0.20f);
-        EconomyManager.Instance?.AddGold(goldBack);
-        EconomyManager.Instance?.AddTechCore(techBack);
-        Debug.Log($"[GameOverUI] Retreat: +{goldBack} Altin, +{techBack} TechCore.");
-        OnRestartClicked();
-    }
+{
+    int goldBack = Mathf.RoundToInt(_runGoldEarned * 0.20f);
+    EconomyManager.Instance?.AddGold(goldBack);
+
+    Debug.Log($"[GameOverUI] Retreat: +{goldBack} Gold.");
+    OnRestartClicked();
+}
 
     // ── Tekrar / Menu ─────────────────────────────────────────────────────
     void OnRestartClicked()

@@ -2,18 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Boss Konfigurasyonu v1 (Claude)
+/// Top End War — Boss Konfigurasyonu v2
 ///
-/// Boss'un tasarim verisi. Runtime state icermez.
-/// BossManager bu SO'dan HP, faz ve saldiri bilgisini okur.
-///
-/// SLICE BOSS: Gatekeeper Walker (Stage 10)
-///   HP = targetDps * 13 (Stage 10 targetDps=232 => HP=3016)
-///   Armor = 10
-///   Encounter hedefi: 12-15 sn
-///   Faz gecis kilit: 1.6 sn
-///
-/// ASSETS: Create > TopEndWar > BossConfig
+/// Vertical slice icin BossManager'a minimum bridge helper'lari eklendi.
 /// </summary>
 [CreateAssetMenu(fileName = "Boss_", menuName = "TopEndWar/BossConfig")]
 public class BossConfig : ScriptableObject
@@ -25,10 +16,10 @@ public class BossConfig : ScriptableObject
 
     [Header("Stat Faktörleri")]
     [Tooltip("HP = StageConfig.targetDps * hpFactor")]
-    public float hpFactor       = 13f;
+    public float hpFactor = 13f;
 
     [Tooltip("Zirh degeri")]
-    public int   armor          = 10;
+    public int armor = 10;
 
     [Tooltip("Encounter suresi hedefi (saniye, tasarim referansi)")]
     public float targetEncounterSec = 13.5f;
@@ -39,22 +30,49 @@ public class BossConfig : ScriptableObject
     [Header("Tasarim Notu")]
     [TextArea(2, 4)]
     public string teachingFocus = "";
-    [TextArea(2, 4)]
-    public string skillsTested  = "";
 
-    // ── Yardimcilar ───────────────────────────────────────────────────────
+    [TextArea(2, 4)]
+    public string skillsTested = "";
+
     public int GetHP(float targetDps) => Mathf.RoundToInt(targetDps * hpFactor);
+
+    // DEĞİŞİKLİK
+    public float GetFirstTransitionRatio(float fallback = 0.50f)
+    {
+        if (phases == null || phases.Count < 2) return fallback;
+        return Mathf.Clamp01(phases[1].startHpRatio);
+    }
+
+    // DEĞİŞİKLİK
+    public float GetFirstTransitionLock(float fallback = 1.6f)
+    {
+        if (phases == null || phases.Count < 2) return fallback;
+        return Mathf.Max(0f, phases[1].transitionLockSec);
+    }
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        hpFactor = Mathf.Max(0.1f, hpFactor);
+        armor = Mathf.Max(0, armor);
+        targetEncounterSec = Mathf.Max(1f, targetEncounterSec);
+
+        if (phases == null)
+            phases = new List<BossPhaseData>();
+
+        if (!string.IsNullOrEmpty(bossId))
+            name = $"Boss_{bossTier}_{bossId}";
+    }
+#endif
 }
 
 [System.Serializable]
 public class BossPhaseData
 {
     [Header("Faz Tanimi")]
-    [Tooltip("Bu faz hangi HP oraninda baslar? (1.0 = %100, 0.5 = %50)")]
     [Range(0f, 1f)]
-    public float startHpRatio   = 1.0f;
+    public float startHpRatio = 1.0f;
 
-    [Tooltip("Faz gecisi oncesi transition lock suresi (saniye)")]
     public float transitionLockSec = 1.6f;
 
     [Header("Saldirilar")]
@@ -68,21 +86,14 @@ public class BossPhaseData
 [System.Serializable]
 public class BossAttackData
 {
-    public string attackId      = "line_shot";
-    public string attackName    = "Line Shot";
+    public string attackId = "line_shot";
+    public string attackName = "Line Shot";
     public BossAttackType attackType = BossAttackType.Strike;
 
-    [Tooltip("Telegraph suresi (saniye)")]
-    public float telegraphSec   = 0.7f;
-
-    [Tooltip("Cooldown (saniye)")]
-    public float cooldownSec    = 2.8f;
-
-    [Tooltip("Hasar skalasi (targetDps ile carpilir)")]
-    public float damageScalar   = 0.8f;
-
-    [Tooltip("Alan saldirisi yaricapi (0 = tek hedef)")]
-    public float areaRadius     = 0f;
+    public float telegraphSec = 0.7f;
+    public float cooldownSec = 2.8f;
+    public float damageScalar = 0.8f;
+    public float areaRadius = 0f;
 
     [TextArea(1, 2)]
     public string note = "";
@@ -97,10 +108,10 @@ public enum BossTier
 
 public enum BossAttackType
 {
-    Strike,     // Tekil darbe
-    Sweep,      // Alan tarama
-    Charge,     // Hizli ilerleme
-    AreaMark,   // Yer isaretleme
-    SummonPulse,// Yardimci cagirma
-    WeakpointWindow, // Hassas nokta acilmasi
+    Strike,
+    Sweep,
+    Charge,
+    AreaMark,
+    SummonPulse,
+    WeakpointWindow,
 }

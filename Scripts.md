@@ -887,7 +887,6 @@ public class ChunkManager : MonoBehaviour
         Destroy(activeChunks.Dequeue());
     }
 }
-
 ```
 
 Commanderdata.cs
@@ -1906,7 +1905,6 @@ public class EnemyHealthBar : MonoBehaviour
         fillR.offsetMin = Vector2.zero; fillR.offsetMax = Vector2.zero;
     }
 }
-
 ```
 
 EquipmentData.cs
@@ -3133,7 +3131,6 @@ public class Gate : MonoBehaviour
         Destroy(gameObject);
     }
 }
-
 ```
 
 GateData.cs
@@ -3262,7 +3259,6 @@ public class GateFeedback : MonoBehaviour
             });
     }
 }
-
 ```
 
 Inventorymanager.cs
@@ -3886,7 +3882,6 @@ public class ObjectPooler : MonoBehaviour
         return obj;
     }
 }
-
 ```
 
 # Petcontroller.cs

@@ -182,7 +182,7 @@ public class EquipmentUI : MonoBehaviour
         // Eski içeriği temizle
         foreach (Transform t in _pickPanel.transform) Destroy(t.gameObject);
 
-        EquipmentData[] pool = GetPool(slot);
+        EquipmentData[] pool = GetFilteredPool(slot);
         if (pool == null || pool.Length == 0)
         {
             MakeLabel(_pickPanel, "Bu slot icin ekipman yok.\nInspector'dan ekle.",
@@ -287,6 +287,21 @@ public class EquipmentUI : MonoBehaviour
     }
 
     // ── Yardımcılar ─────────────────────────────────────────────────────────
+    EquipmentData[] GetFilteredPool(EquipmentSlot slot)
+{
+    EquipmentData[] raw = GetPool(slot);
+    if (raw == null || raw.Length == 0) return raw;
+
+    var list = new System.Collections.Generic.List<EquipmentData>(raw.Length);
+    foreach (var item in raw)
+    {
+        if (item == null) continue;
+        if (item.slot == slot)
+            list.Add(item);
+    }
+    return list.ToArray();
+}
+    
     EquipmentData[] GetPool(EquipmentSlot slot) => slot switch
     {
         EquipmentSlot.Weapon   => availableWeapons,
@@ -327,4 +342,18 @@ public class EquipmentUI : MonoBehaviour
         r.anchorMin = Vector2.zero; r.anchorMax = Vector2.one;
         r.offsetMin = r.offsetMax = Vector2.zero;
     }
+
+    void OnDisable()
+{
+    if (_open)
+    {
+        _open = false;
+        Time.timeScale = 1f;
+    }
+}
+
+void OnDestroy()
+{
+    Time.timeScale = 1f;
+}
 }

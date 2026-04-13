@@ -167,21 +167,26 @@ public class InventoryManager : MonoBehaviour
 
     // ── Esya Kus ─────────────────────────────────────────────────────────
     public void EquipItem(EquipmentData item)
-    {
-        if (item == null || PlayerStats.Instance == null) return;
+{
+    if (item == null || PlayerStats.Instance == null) return;
 
-        switch (item.slot)
-        {
-            case EquipmentSlot.Weapon:   PlayerStats.Instance.equippedWeapon   = item; break;
-            case EquipmentSlot.Armor:    PlayerStats.Instance.equippedArmor    = item; break;
-            case EquipmentSlot.Shoulder: PlayerStats.Instance.equippedShoulder = item; break;
-            case EquipmentSlot.Knee:     PlayerStats.Instance.equippedKnee     = item; break;
-            case EquipmentSlot.Necklace: PlayerStats.Instance.equippedNecklace = item; break;
-            case EquipmentSlot.Ring:     PlayerStats.Instance.equippedRing     = item; break;
-        }
-        OnInventoryChanged?.Invoke();
-        Debug.Log($"[Inventory] Kusanildi: {item.equipmentName} ({item.slot})");
+    switch (item.slot)
+    {
+        case EquipmentSlot.Weapon:   PlayerStats.Instance.equippedWeapon   = item; break;
+        case EquipmentSlot.Armor:    PlayerStats.Instance.equippedArmor    = item; break;
+        case EquipmentSlot.Shoulder: PlayerStats.Instance.equippedShoulder = item; break;
+        case EquipmentSlot.Knee:     PlayerStats.Instance.equippedKnee     = item; break;
+        case EquipmentSlot.Necklace: PlayerStats.Instance.equippedNecklace = item; break;
+        case EquipmentSlot.Ring:     PlayerStats.Instance.equippedRing     = item; break;
     }
+
+    PlayerStats.Instance.equippedLoadout?.ReadFrom(PlayerStats.Instance);
+    GameEvents.OnCPUpdated?.Invoke(PlayerStats.Instance.CP);
+    GameEvents.OnCommanderHPChanged?.Invoke(PlayerStats.Instance.CommanderHP, PlayerStats.Instance.CommanderMaxHP);
+
+    OnInventoryChanged?.Invoke();
+    Debug.Log($"[Inventory] Kusanildi: {item.equipmentName} ({item.slot})");
+}
 
     // ── Slot Carpan Bilgisi (UI icin) ─────────────────────────────────────
     public float GetWeaponSlotMult()

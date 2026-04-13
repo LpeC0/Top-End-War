@@ -137,4 +137,9 @@ public class SaveManager : MonoBehaviour
         Save();
         Debug.Log("[Save] Sıfırlandı.");
     }
+    public void BeginRun()
+{
+    CurrentRunKills = 0;
+    CurrentRunStartTime = Time.time;
+}
 }

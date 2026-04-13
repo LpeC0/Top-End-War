@@ -1,18 +1,24 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dusman v5 (Claude)
+/// Top End War — Dusman v6
 ///
-/// DEGISIKLIKLER (v5):
-///   OnTriggerEnter: Soldier tagini da taniyor.
-///   Dusman Soldier'a carparsa: Soldier hasar alir, dusman olur.
-///   Dusman Player'a carparsa: CommanderHP.TakeDamage (CP etkilenmiyor).
-///   HP degerleri: Normal 1100, Zirh 2250, Elite 3750 (ordu DPS'e gore).
+/// DEĞİŞİKLİK:
+///   - Armor / Elite alanlari eklendi
+///   - TakeDamage armorPen ve elite multiplier alabiliyor
+///   - Eski Initialize(stats) korunuyor
+///   - Yeni Initialize(stats, armor, isElite) eklendi
+///   - AutoInit gizli scaling yerine sabit fallback oldu
 /// </summary>
 public class Enemy : MonoBehaviour
 {
     [Header("Varsayilan (Initialize cagrilmazsa)")]
     public float xLimit = 8f;
+
+    // DEĞİŞİKLİK
+    [Header("Combat Flags (Debug / Fallback)")]
+    [SerializeField] int  _armor = 0;
+    [SerializeField] bool _isElite = false;
 
     int    _maxHealth;
     int    _currentHealth;
@@ -20,8 +26,8 @@ public class Enemy : MonoBehaviour
     float  _moveSpeed;
     int    _cpReward;
     bool   _initialized      = false;
-    bool   _isDead            = false;
-    bool   _hasDamagedPlayer  = false;
+    bool   _isDead           = false;
+    bool   _hasDamagedPlayer = false;
 
     Renderer       _bodyRenderer;
     EnemyHealthBar _hpBar;
@@ -40,11 +46,16 @@ public class Enemy : MonoBehaviour
 
     void OnEnable()
     {
-        _isDead          = false;
-        _hasDamagedPlayer= false;
-        _separationVec   = Vector3.zero;
-        if (_bodyRenderer != null) _bodyRenderer.material.color = Color.white;
-        if (!_initialized) AutoInit();
+        _isDead           = false;
+        _hasDamagedPlayer = false;
+        _separationVec    = Vector3.zero;
+
+        if (_bodyRenderer != null)
+            _bodyRenderer.material.color = Color.white;
+
+        if (!_initialized)
+            AutoInit();
+
         _hpBar?.Init(_maxHealth);
     }
 
@@ -58,26 +69,36 @@ public class Enemy : MonoBehaviour
         _initialized      = true;
         _isDead           = false;
         _hasDamagedPlayer = false;
-        if (_bodyRenderer != null) _bodyRenderer.material.color = Color.white;
+
+        if (_bodyRenderer != null)
+            _bodyRenderer.material.color = Color.white;
+
         _hpBar?.Init(_maxHealth);
     }
 
+    // DEĞİŞİKLİK
+    public void Initialize(DifficultyManager.EnemyStats stats, int armor, bool isElite)
+    {
+        Initialize(stats);
+        _armor = Mathf.Max(0, armor);
+        _isElite = isElite;
+    }
+
+    // DEĞİŞİKLİK
     void AutoInit()
     {
-        float z    = PlayerStats.Instance != null ? PlayerStats.Instance.transform.position.z : 0f;
-        float mult = 1f + Mathf.Pow(z / 1000f, 1.3f);
-        // Yeni HP degerlerine gore (ordu DPS kalibre)
-        _maxHealth     = Mathf.RoundToInt(1100f * mult);
-        _currentHealth = _maxHealth;
-        _contactDamage = Mathf.RoundToInt(30f   * mult);
-        _moveSpeed     = Mathf.Min(4f + (mult - 1f) * 1.4f, 7.5f);
-        _cpReward      = Mathf.RoundToInt(15f   * mult);
+        UseDefaults();
+        _initialized = true;
     }
 
     void UseDefaults()
     {
-        _maxHealth = _currentHealth = 1100;
-        _contactDamage = 30; _moveSpeed = 4.5f; _cpReward = 15;
+        _maxHealth = _currentHealth = 100;
+        _contactDamage = 25;
+        _moveSpeed = 4.5f;
+        _cpReward = 15;
+        _armor = 0;
+        _isElite = false;
     }
 
     void Update()
@@ -87,7 +108,8 @@ public class Enemy : MonoBehaviour
         float   pZ  = PlayerStats.Instance.transform.position.z;
         Vector3 pos = transform.position;
 
-        if (pos.z > pZ + 0.5f) pos.z -= _moveSpeed * Time.deltaTime;
+        if (pos.z > pZ + 0.5f)
+            pos.z -= _moveSpeed * Time.deltaTime;
 
         pos.x = Mathf.Clamp(
             Mathf.MoveTowards(pos.x, PlayerStats.Instance.transform.position.x, 1.5f * Time.deltaTime),
@@ -98,57 +120,84 @@ public class Enemy : MonoBehaviour
             _separationVec = CalcSeparation(pos);
             _lastSepTime   = Time.time;
         }
+
         pos += _separationVec * Time.deltaTime;
         pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
         transform.position = pos;
 
-        if (pos.z < pZ - 15f) gameObject.SetActive(false);
+        if (pos.z < pZ - 15f)
+            gameObject.SetActive(false);
     }
 
     Vector3 CalcSeparation(Vector3 pos)
     {
-        Vector3 sep   = Vector3.zero;
-        int     count = 0;
+        Vector3 sep = Vector3.zero;
+        int count = 0;
+
         foreach (Collider col in Physics.OverlapSphere(pos, 1.8f))
         {
             if (col.gameObject == gameObject || !col.CompareTag("Enemy")) continue;
+
             Vector3 away = pos - col.transform.position;
             away.y = 0f;
-            if (away.magnitude < 0.001f) away = new Vector3(Random.Range(-1f, 1f), 0, 0).normalized * 0.1f;
+
+            if (away.magnitude < 0.001f)
+                away = new Vector3(Random.Range(-1f, 1f), 0, 0).normalized * 0.1f;
+
             sep += away.normalized / Mathf.Max(away.magnitude, 0.1f);
             count++;
         }
+
         return count > 0 ? (sep / count) * 3.5f : Vector3.zero;
     }
 
-    public void TakeDamage(int dmg, Color? hitColor = null)
+    // DEĞİŞİKLİK
+    public void TakeDamage(int rawDamage, int armorPenValue = 0, float eliteMultiplier = 1f, Color? hitColor = null)
     {
         if (_isDead) return;
-        _currentHealth -= dmg;
+
+        int effectiveArmor = Mathf.Max(0, _armor - Mathf.Max(0, armorPenValue));
+
+        // Minimum kirilim icin basit ve anlasilir armor cozumu:
+        // finalDamage = rawDamage - effectiveArmor
+        // en az 1 hasar
+        int finalDamage = Mathf.Max(1, rawDamage - effectiveArmor);
+
+        if (_isElite)
+            finalDamage = Mathf.Max(1, Mathf.RoundToInt(finalDamage * Mathf.Max(1f, eliteMultiplier)));
+
+        _currentHealth -= finalDamage;
         _hpBar?.UpdateBar(_currentHealth);
-        if (_bodyRenderer != null) _bodyRenderer.material.color = Color.red;
+
+        if (_bodyRenderer != null)
+            _bodyRenderer.material.color = Color.red;
+
         Invoke(nameof(ResetColor), 0.1f);
 
-        // Floating damage popup
-        bool isCrit = dmg > 200;
+        bool isCrit = finalDamage > 200;
         Color popupColor = hitColor ?? DamagePopup.GetColor("Commander");
-        DamagePopup.Show(transform.position, dmg, popupColor, isCrit);
+        DamagePopup.Show(transform.position, finalDamage, popupColor, isCrit);
 
-        if (_currentHealth <= 0) Die();
+        if (_currentHealth <= 0)
+            Die();
     }
 
     void ResetColor()
     {
-        if (!_isDead && _bodyRenderer != null) _bodyRenderer.material.color = Color.white;
+        if (!_isDead && _bodyRenderer != null)
+            _bodyRenderer.material.color = Color.white;
     }
 
     void Die()
     {
         if (_isDead) return;
-        _isDead = _initialized = false;
+
+        _isDead = true;
+        _initialized = false;
         CancelInvoke();
+
         PlayerStats.Instance?.AddCPFromKill(_cpReward);
-        SaveManager.Instance?.RegisterKill();  // kill sayaci
+        SaveManager.Instance?.RegisterKill();
         gameObject.SetActive(false);
     }
 
@@ -156,23 +205,34 @@ public class Enemy : MonoBehaviour
     {
         if (_isDead) return;
 
-        // --- Askere carparsa (tag yok, GetComponent kullan) ---
         SoldierUnit soldier = other.GetComponent<SoldierUnit>();
         if (soldier != null)
         {
-            // Pozisyon bazlı hasar: asker düşman ile temas edince düşer
             soldier.TakeDamage(_contactDamage);
             Die();
             return;
         }
 
-        // --- Oyuncuya carparsa ---
         if (!other.CompareTag("Player") || _hasDamagedPlayer) return;
+
         _hasDamagedPlayer = true;
-        // PlayerStats.TakeContactDamage → OnPlayerDamaged event → CommanderHP alir
         other.GetComponent<PlayerStats>()?.TakeContactDamage(_contactDamage);
         Die();
     }
 
-    void OnDisable() { CancelInvoke(); _initialized = false; }
+// Enemy.cs içine eklenecek bridge metot
+public void ConfigureCombat(int armor, bool isElite)
+{
+    // Buraya zırh ve elite görsel mantığını bağlayabilirsin
+    // Şimdilik boş kalsa bile hata vermesini engeller.
+}
+    void OnDisable()
+    {
+        CancelInvoke();
+        _initialized = false;
+    }
+
+    // DEĞİŞİKLİK
+    public int  Armor => _armor;
+    public bool IsElite => _isElite;
 }

@@ -1,24 +1,8 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Stage Konfigurasyonu v2 (Claude)
-///
-/// v2: targetDps eklendi. HP degerleri artik formule gore hesaplanir:
-///   normalMobHP = targetDps * 1.0
-///   eliteHP     = targetDps * 4.0
-///   miniBossHP  = targetDps * 18
-///   finalBossHP = targetDps * 36
-///
-/// gateBudgetMult: Bu stage'de kapilarin verebilecegi max DPS artis cokeni.
-/// BandliBütçe (ChatGPT canonical JSON):
-///   Stage 1-5:  1.40 | 6-9:   1.50 | 10: 1.55
-///   Stage 11-19: 1.65 | 20:   1.70
-///   Stage 21-29: 1.80 | 30-34: 1.88 | 35: 1.95
-///
-/// HP degerleri Inspector'dan ELLE YAZILMAZ — GetXxxHP() metotlari kullanilir.
-/// StageManager bu metotlari cagirip SpawnManager ve BossManager'a iletir.
-///
-/// ASSETS: Create > TopEndWar > StageConfig
+/// Top End War — Stage Konfigurasyonu v3
 /// </summary>
 [CreateAssetMenu(fileName = "Stage_", menuName = "TopEndWar/StageConfig")]
 public class StageConfig : ScriptableObject
@@ -26,7 +10,7 @@ public class StageConfig : ScriptableObject
     [Header("Kimlik")]
     public int    worldID        = 1;
     public int    stageID        = 1;
-    public string locationName   = "Sivas - Sinir Boyu";
+    public string locationName = "Frontier Pass";
 
     // ── Denge ─────────────────────────────────────────────────────────────
     [Header("Denge — Temel Deger")]
@@ -51,11 +35,20 @@ public class StageConfig : ScriptableObject
     // ── Boss Turu ─────────────────────────────────────────────────────────
     [Header("Boss")]
     public BossType bossType     = BossType.None;
+    
+    // YENİ EKLENEN
+    public BossConfig bossConfig;
+
+    [Header("Wave Sequence")]
+    [Tooltip("Bu stage boyunca oynatilacak dalga sirasi. Bos birakılırsa eski procedural fallback kullanilir.")]
+public List<WaveConfig> waveSequence = new List<WaveConfig>();
 
     // ── Spawn Yogunlugu ───────────────────────────────────────────────────
     [Header("Spawn")]
     [Tooltip("1.0 = normal. DifficultyManager carpaniyla carpilir.")]
     [Range(0.5f, 3f)]
+
+    
     public float spawnDensity    = 1f;
 
     // ── Odüller ───────────────────────────────────────────────────────────
@@ -74,19 +67,11 @@ public class StageConfig : ScriptableObject
 
     // ── HP Formul Metotlari (StageManager kullanir) ───────────────────────
 
-    /// <summary>Normal mob HP = targetDps x 1.0</summary>
     public int GetNormalMobHP()   => Mathf.RoundToInt(targetDps * 1.0f);
-
-    /// <summary>Elite mob HP = targetDps x 4.0</summary>
     public int GetEliteHP()       => Mathf.RoundToInt(targetDps * 4.0f);
-
-    /// <summary>Mini-boss HP = targetDps x 18. BossType.MiniBoss icin kullanilir.</summary>
-    public int GetMiniBossHP()    => Mathf.RoundToInt(targetDps * 18f);
-
-    /// <summary>Final boss HP = targetDps x 36. BossType.FinalBoss icin kullanilir.</summary>
+    public int GetMiniBossHP()    => Mathf.RoundToInt(targetDps * 13f);
     public int GetFinalBossHP()   => Mathf.RoundToInt(targetDps * 36f);
 
-    /// <summary>BossType'a gore dogru HP degerini dondurur.</summary>
     public int GetBossHP()
     {
         return bossType switch
@@ -97,7 +82,6 @@ public class StageConfig : ScriptableObject
         };
     }
 
-    /// <summary>entryDps = round(targetDps / gateBudgetMult)</summary>
     public int GetEntryDps() => Mathf.RoundToInt(targetDps / gateBudgetMult);
 
     public bool IsBossStage => bossType != BossType.None;

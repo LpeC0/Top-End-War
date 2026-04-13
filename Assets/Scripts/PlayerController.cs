@@ -1,26 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Hareketi v5 (Claude)
-///
-/// v5 degisiklikleri:
-///   + AutoShoot: bulletDamage = GetTotalDPS() / (GetBaseFireRate() * BulletCount)
-///   + DAMAGE[] ve BASE_FIRE_RATES[] dizileri KALDIRILDI — PlayerStats'ten gelir
-///   + staticFire degiskeni kaldirildi
-///   Onceki mantik (v4) aynen korundu: FindTarget, drag, spread, anchor.
-///
-/// HASAR FORMULU (Degismez Kural):
-///   TotalDPS = BaseDMG[tier] * WeaponMult * SlotMult * RarityMult * GlobalMult
-///   BulletDamage = TotalDPS / (FireRate * BulletCount)
-///
-///   NEDEN BulletCount boluyor:
-///   5 mermi ayni hasar verirse toplam hasar 5x DPS olur.
-///   Spread = daha genis alan, toplam hasar degil.
-///
-/// Spread formation (V sekli):
-///   1 mermi: duz, 2: +-8, 3: -12 0 +12, 4: -18 -6 +6 +18, 5: -22 -11 0 +11 +22
+/// Top End War — Oyuncu Hareketi v8 (Boss Damage Mult Eklendi)
 /// </summary>
-public class PlayerController : MonoBehaviour
+public class Playercontroller : MonoBehaviour
 {
     [Header("Hareket")]
     public float forwardSpeed    = 10f;
@@ -33,7 +16,6 @@ public class PlayerController : MonoBehaviour
     public GameObject bulletPrefab;
     public float      detectRange = 35f;
 
-    // ── Spread Tablosu ────────────────────────────────────────────────────
     static readonly float[][] SPREAD =
     {
         new[] {  0f },
@@ -43,14 +25,12 @@ public class PlayerController : MonoBehaviour
         new[] { -22f, -11f, 0f, 11f, 22f },
     };
 
-    // ── Dahili Durum ──────────────────────────────────────────────────────
     float _targetX    = 0f;
     float _nextFire   = 0f;
     bool  _dragging   = false;
     float _lastMouseX;
     bool  _anchorMode = false;
 
-    // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Start()
     {
         transform.position = new Vector3(0f, 1.2f, 0f);
@@ -71,7 +51,9 @@ public class PlayerController : MonoBehaviour
     {
         if (GetComponent<Collider>() != null) return;
         var c = gameObject.AddComponent<CapsuleCollider>();
-        c.height = 2f; c.radius = 0.4f; c.isTrigger = false;
+        c.height = 2f;
+        c.radius = 0.4f;
+        c.isTrigger = false;
     }
 
     void Update()
@@ -81,20 +63,29 @@ public class PlayerController : MonoBehaviour
         AutoShoot();
     }
 
-    // ── Surukle / Hareket ─────────────────────────────────────────────────
     void HandleDrag()
     {
         if (Input.GetKey(KeyCode.LeftArrow))
             _targetX = Mathf.Clamp(_targetX - 10f * Time.deltaTime, -xLimit, xLimit);
+
         if (Input.GetKey(KeyCode.RightArrow))
             _targetX = Mathf.Clamp(_targetX + 10f * Time.deltaTime, -xLimit, xLimit);
 
-        if (Input.GetMouseButtonDown(0)) { _dragging = true; _lastMouseX = Input.mousePosition.x; }
-        if (Input.GetMouseButtonUp(0))    _dragging = false;
+        if (Input.GetMouseButtonDown(0))
+        {
+            _dragging = true;
+            _lastMouseX = Input.mousePosition.x;
+        }
+
+        if (Input.GetMouseButtonUp(0))
+            _dragging = false;
 
         if (_dragging)
         {
-            _targetX    = Mathf.Clamp(_targetX + (Input.mousePosition.x - _lastMouseX) * dragSensitivity, -xLimit, xLimit);
+            _targetX = Mathf.Clamp(
+                _targetX + (Input.mousePosition.x - _lastMouseX) * dragSensitivity,
+                -xLimit, xLimit);
+
             _lastMouseX = Input.mousePosition.x;
         }
     }
@@ -103,48 +94,52 @@ public class PlayerController : MonoBehaviour
     {
         Vector3 p = transform.position;
         p.z += forwardSpeed * Time.deltaTime;
-        p.x  = Mathf.Lerp(p.x, _targetX, Time.deltaTime * smoothing);
-        p.x  = Mathf.Clamp(p.x, -xLimit, xLimit);
-        p.y  = 1.2f;
+        p.x = Mathf.Lerp(p.x, _targetX, Time.deltaTime * smoothing);
+        p.x = Mathf.Clamp(p.x, -xLimit, xLimit);
+        p.y = 1.2f;
         transform.position = p;
     }
 
-    // ── Otomatik Ates ─────────────────────────────────────────────────────
     void AutoShoot()
     {
-        if (!firePoint || Time.time < _nextFire || PlayerStats.Instance == null) return;
+        if (!firePoint || Time.time < _nextFire || PlayerStats.Instance == null)
+            return;
 
-        // ── Atis Hizi ────────────────────────────────────────────────────
-        float finalFireRate = PlayerStats.Instance.GetBaseFireRate();
+        float finalFireRate = PlayerStats.Instance.GetBaseFireRate()
+                            * (1f + PlayerStats.Instance.RunFireRatePercent / 100f);
 
-        // ── Hasar Hesabi (v5 formulu) ────────────────────────────────────
-        // TotalDPS PlayerStats tarafindan hesaplandi:
-        //   BaseDMG[tier] * WeaponMult * SlotMult * RarityMult * GlobalMult
-        // BulletDamage = DPS / (FireRate * BulletCount)
-        // BulletCount icin boluyoruz: 5 mermi = genis alan, toplam hasar x5 olmaz.
-        int bCount      = PlayerStats.Instance.BulletCount;
-        float totalDPS  = PlayerStats.Instance.GetTotalDPS();
+        float totalDPS = PlayerStats.Instance.GetTotalDPS()
+                       * (1f + PlayerStats.Instance.RunWeaponPowerPercent / 100f);
+
+        int bCount = PlayerStats.Instance.BulletCount;
         int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDPS / (finalFireRate * bCount)));
 
-        // ── Hedef Bul ────────────────────────────────────────────────────
+        // YENİ: BossDamageMult alındı
+        float bossDamageMult = GetCurrentBossDamageMultiplier();
+
         Transform target = FindTarget();
         if (target == null) return;
 
         Vector3 aimPos  = target.position;
         Vector3 baseDir = (aimPos - firePoint.position).normalized;
 
-        // ── Spread ile Ates ──────────────────────────────────────────────
+        int armorPen = GetCurrentArmorPen();
+        int pierceCount = GetCurrentPierceCount();
+        float eliteDamageMult = GetCurrentEliteDamageMultiplier();
+
         int spreadIdx = Mathf.Clamp(bCount - 1, 0, SPREAD.Length - 1);
         foreach (float angle in SPREAD[spreadIdx])
         {
             Vector3 dir = Quaternion.Euler(0f, angle, 0f) * baseDir;
-            FireOne(firePoint.position, dir.normalized, bulletDamage);
+            // YENİ: bossDamageMult FireOne'a eklendi
+            FireOne(firePoint.position, dir.normalized, bulletDamage, armorPen, pierceCount, eliteDamageMult, bossDamageMult);
         }
 
         _nextFire = Time.time + 1f / finalFireRate;
     }
 
-    void FireOne(Vector3 pos, Vector3 dir, int dmg)
+    // YENİ İMZA
+    void FireOne(Vector3 pos, Vector3 dir, int dmg, int armorPen, int pierceCount, float eliteDamageMult, float bossDamageMult)
     {
         GameObject b = ObjectPooler.Instance?.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
         if (b == null && bulletPrefab != null)
@@ -152,31 +147,78 @@ public class PlayerController : MonoBehaviour
             b = Instantiate(bulletPrefab, pos, Quaternion.LookRotation(dir));
             Destroy(b, 3f);
         }
+
         if (b == null) return;
 
-        b.GetComponent<Bullet>()?.SetDamage(dmg);
+        Bullet bullet = b.GetComponent<Bullet>();
+        if (bullet != null)
+        {
+            bullet.hitterPath = "Commander";
+            // YENİ SETCOMBATSTATS
+            bullet.SetCombatStats(dmg, armorPen, pierceCount, eliteDamageMult, bossDamageMult);
+        }
+
         Rigidbody rb = b.GetComponent<Rigidbody>();
         if (rb) rb.linearVelocity = dir * 30f;
     }
 
-    // ── Hedef Bulma ───────────────────────────────────────────────────────
-    /// <summary>
-    /// Normal modda BoxCast (serit tarama).
-    /// Anchor modda OverlapSphere 70 birim (boss kesin yakalanir).
-    /// </summary>
+    int GetCurrentArmorPen()
+    {
+        EquipmentData w = PlayerStats.Instance != null ? PlayerStats.Instance.equippedWeapon : null;
+        int equipValue = w != null ? w.armorPen : 0;
+        int gateValue  = PlayerStats.Instance != null ? PlayerStats.Instance.RunArmorPenFlat : 0;
+        return equipValue + gateValue;
+    }
+
+    int GetCurrentPierceCount()
+    {
+        EquipmentData w = PlayerStats.Instance != null ? PlayerStats.Instance.equippedWeapon : null;
+        int equipValue = w != null ? w.pierceCount : 0;
+        int gateValue  = PlayerStats.Instance != null ? PlayerStats.Instance.RunPierceCount : 0;
+        return equipValue + gateValue;
+    }
+
+    float GetCurrentEliteDamageMultiplier()
+    {
+        EquipmentData w = PlayerStats.Instance != null ? PlayerStats.Instance.equippedWeapon : null;
+        float equipMult = w != null ? w.eliteDamageMultiplier : 1f;
+        float gateMult  = PlayerStats.Instance != null
+            ? (1f + PlayerStats.Instance.RunEliteDamagePercent / 100f)
+            : 1f;
+
+        return equipMult * gateMult;
+    }
+
+    // YENİ HELPER
+    float GetCurrentBossDamageMultiplier()
+    {
+        return PlayerStats.Instance != null
+            ? 1f + (PlayerStats.Instance.RunBossDamagePercent / 100f)
+            : 1f;
+    }
+
     Transform FindTarget()
     {
         if (_anchorMode)
         {
-            float    bestDist = 70f * 70f;
-            Collider best     = null;
+            float bestDist = 70f * 70f;
+            Transform best = null;
+
             foreach (Collider c in Physics.OverlapSphere(transform.position, 70f))
             {
-                if (!c.CompareTag("Enemy")) continue;
+                bool isEnemy = c.GetComponent<Enemy>() != null || c.GetComponentInParent<Enemy>() != null;
+                bool isBoss  = c.GetComponent<BossHitReceiver>() != null || c.GetComponentInParent<BossHitReceiver>() != null;
+
+                if (!isEnemy && !isBoss) continue;
+
                 float d = (c.transform.position - transform.position).sqrMagnitude;
-                if (d < bestDist) { bestDist = d; best = c; }
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    best = c.transform;
+                }
             }
-            return best?.transform;
+            return best;
         }
         else
         {
@@ -184,9 +226,17 @@ public class PlayerController : MonoBehaviour
             bool found = Physics.BoxCast(
                 transform.position + Vector3.up,
                 new Vector3(xLimit * 0.6f, 1.2f, 0.5f),
-                Vector3.forward, out hit,
-                Quaternion.identity, detectRange);
-            return (found && hit.collider.CompareTag("Enemy")) ? hit.transform : null;
+                Vector3.forward,
+                out hit,
+                Quaternion.identity,
+                detectRange);
+
+            if (!found) return null;
+
+            bool isEnemy = hit.collider.GetComponent<Enemy>() != null || hit.collider.GetComponentInParent<Enemy>() != null;
+            bool isBoss  = hit.collider.GetComponent<BossHitReceiver>() != null || hit.collider.GetComponentInParent<BossHitReceiver>() != null;
+
+            return (isEnemy || isBoss) ? hit.transform : null;
         }
     }
 
