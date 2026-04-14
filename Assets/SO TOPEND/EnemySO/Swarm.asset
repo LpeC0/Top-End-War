@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5ef6eb4e7f65a2a40942cd88632f62d0, type: 3}
-  m_Name: Swarm
+  m_Name: Enemy_Normal_swarm
   m_EditorClassIdentifier: Assembly-CSharp::EnemyArchetypeConfig
   enemyId: swarm
   enemyName: Swarm

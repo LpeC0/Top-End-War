@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 192555d4a58924647a93b6142377ea02, type: 3}
-  m_Name: Boss1
+  m_Name: Boss_MiniBoss1_gatekeeper_walker
   m_EditorClassIdentifier: Assembly-CSharp::BossConfig
   bossId: gatekeeper_walker
   bossName: Gatekeeper Walker

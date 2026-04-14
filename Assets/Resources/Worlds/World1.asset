@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5fbe044e5dd6ce74b95ea229d2c8760a, type: 3}
-  m_Name: World1
+  m_Name: World_1_Sivas
   m_EditorClassIdentifier: Assembly-CSharp::WorldConfig
   worldID: 1
   worldName: Sivas

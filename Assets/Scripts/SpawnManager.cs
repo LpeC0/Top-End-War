@@ -130,6 +130,18 @@ public void ResetForStage()
         return stage <= 5 ? poolStage1To5 : poolStage6To10;
     }
 
+    GateConfig PickGateFromPoolDistinct(GateConfig exclude)
+{
+    for (int i = 0; i < 8; i++)
+    {
+        GateConfig picked = PickGateFromPool();
+        if (picked != null && picked != exclude)
+            return picked;
+    }
+
+    return PickGateFromPool();
+}
+
     GateConfig PickGateFromPool()
     {
         GatePoolConfig pool = GetActiveGatePool();
@@ -162,8 +174,12 @@ void SpawnEnemyWave(float zPos)
     void SpawnNormalPair(float zPos, bool pity)
     {
         float offset = ROAD_HALF_WIDTH * 0.40f;
-        SpawnGate(PickGateFromPool(), new Vector3(-offset, 1.5f, zPos), scale: 1f);
-        SpawnGate(PickGateFromPool(), new Vector3( offset, 1.5f, zPos), scale: 1f);
+
+    GateConfig leftGate = PickGateFromPool();
+    GateConfig rightGate = PickGateFromPoolDistinct(leftGate);
+
+    SpawnGate(leftGate,  new Vector3(-offset, 1.5f, zPos), scale: 1f);
+    SpawnGate(rightGate, new Vector3( offset, 1.5f, zPos), scale: 1f);
     }
 
     void SpawnGate(GateConfig data, Vector3 pos, float scale = 1f)

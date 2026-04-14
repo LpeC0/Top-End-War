@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8584a736f3a31764099a876b3462bfe8, type: 3}
+  m_Name: GatePool_Stage6To10
+  m_EditorClassIdentifier: Assembly-CSharp::GatePoolConfig
+  poolId: GP_BasicPowerTempo
+  poolName: Basic Power/Tempo (Stage 1-5)
+  entries:
+  - gate: {fileID: 11400000, guid: c5042f24f74f41d45a6a90300cd57f81, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: 8f9702ea4b847d34cb68cad162ed609b, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: 52a420f402783494fa20efae741227eb, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: ebd6fb7d8cfd13840a9961f8a3231f5b, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: 64c980e3471a41142aeffc6f7d70caf4, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: f32c230edb66a914e8e49614acd49a61, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: bc302f1d1ec6f1748a85a7bf2ff843b8, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: bd1daf6a6c000374e8bf666c6489a5ea, type: 2}
+    overrideWeight: 0
+  allowRisk: 0
+  bossPrepBias: 0

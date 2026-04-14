@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 96292dd30963c02469733f48cb8b18ed, type: 3}
-  m_Name: W4CHARGER
+  m_Name: Wave_WaveCharger
   m_EditorClassIdentifier: Assembly-CSharp::WaveConfig
   waveId: WaveCharger
   waveCode: W4CHARGER

@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 826dc359f20be8e48a2a5805c1776a46, type: 3}
+  m_Name: EQ_SMG_Automatic
+  m_EditorClassIdentifier: Assembly-CSharp::EquipmentData
+  equipmentName: SMG Automatic
+  slot: 0
+  icon: {fileID: 0}
+  description: 
+  weaponType: 3
+  armorType: 0
+  baseCPBonus: 0
+  cpMultiplier: 1
+  fireRateMultiplier: 2.2
+  damageMultiplier: 0.6
+  globalDmgMultiplier: 1
+  damageReduction: 0
+  commanderHPBonus: 0
+  spreadBonus: 0
+  armorPen: 2
+  pierceCount: 0
+  eliteDamageMultiplier: 1
+  rarity: 1

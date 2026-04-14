@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5ef6eb4e7f65a2a40942cd88632f62d0, type: 3}
+  m_Name: Enemy_Normal_swarm
+  m_EditorClassIdentifier: Assembly-CSharp::EnemyArchetypeConfig
+  enemyId: swarm
+  enemyName: Swarm
+  enemyClass: 0
+  hpFactor: 0.35
+  armor: 0
+  moveSpeed: 5.4
+  contactDamage: 20
+  threatType: 0
+  canSpawnInRunner: 1
+  canSpawnInAnchor: 1
+  cpRewardFactor: 0.04
+  icon: {fileID: 0}
+  animatorOverride: {fileID: 0}

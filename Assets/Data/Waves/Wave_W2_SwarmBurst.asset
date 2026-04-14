@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 96292dd30963c02469733f48cb8b18ed, type: 3}
+  m_Name: Wave_W2
+  m_EditorClassIdentifier: Assembly-CSharp::WaveConfig
+  waveId: W2
+  waveCode: W2_SwarmBurst
+  waveRole: 0
+  groups:
+  - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+    count: 8
+    laneBias: 0
+  spawnGroupDelay: 3.5
+  intraGroupDelay: 1

@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 349adc2663932284e8a9ab4e01731fb0, type: 3}
+  m_Name: EconomyConfig_Default
+  m_EditorClassIdentifier: Assembly-CSharp::EconomyConfig
+  enableOfflineEarnings: 0
+  useTechCoreForSlotUpgrades: 0
+  enablePitySystem: 0
+  slotGoldCostBase: 180
+  slotGoldCostGrowth: 1.22
+  tcBandFromLevel: 01000000060000000b00000010000000150000001f000000
+  tcBandToLevel: 050000000a0000000f000000140000001e00000032000000
+  tcBandCost: 010000000200000003000000040000000500000007000000
+  goldBase: 120
+  goldPerStage: 10
+  goldDpsFactor: 0.2
+  midLootFraction: 0.35
+  baseOfflineRate: 50
+  offlineCapHours: 15
+  reviveAdsPerRun: 1
+  doubleGoldAdsDaily: 3
+  bonusChestAdsDaily: 4
+  pityStagThreshold: 20

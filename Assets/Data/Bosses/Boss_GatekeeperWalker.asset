@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 192555d4a58924647a93b6142377ea02, type: 3}
+  m_Name: Boss_MiniBoss1_gatekeeper_walker
+  m_EditorClassIdentifier: Assembly-CSharp::BossConfig
+  bossId: gatekeeper_walker
+  bossName: Gatekeeper Walker
+  bossTier: 0
+  hpFactor: 13
+  armor: 10
+  targetEncounterSec: 13.5
+  phases:
+  - startHpRatio: 1
+    transitionLockSec: 1.6
+    attacks: []
+    phaseNote: 
+  - startHpRatio: 0.5
+    transitionLockSec: 1.6
+    attacks: []
+    phaseNote: 
+  teachingFocus: 
+  skillsTested: 

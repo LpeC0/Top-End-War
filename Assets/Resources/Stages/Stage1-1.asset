@@ -15,13 +15,14 @@ MonoBehaviour:
   worldID: 1
   stageID: 1
   locationName: Sivas - Sinir Boyu
-  mobHP: 90
-  eliteHP: 270
-  bossHP: 3600
+  targetDps: 70
+  gateBudgetMult: 1.4
+  bossType: 0
+  bossConfig: {fileID: 0}
+  waveSequence: []
   spawnDensity: 1
-  baseGoldReward: 150
-  offlineBoostPerHour: 5
+  goldRewardOverride: 0
   hasMidStageLoot: 1
   techCoreDropChance: 0.15
-  isTutorial: 0
-  isBossStage: 0
+  offlineBoostPerHour: 5
+  isTutorialStage: 0

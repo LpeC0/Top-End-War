@@ -159,7 +159,7 @@ public class Playercontroller : MonoBehaviour
         }
 
         Rigidbody rb = b.GetComponent<Rigidbody>();
-        if (rb) rb.linearVelocity = dir * 30f;
+        if (rb) rb.linearVelocity = dir * 50f;
     }
 
     int GetCurrentArmorPen()
