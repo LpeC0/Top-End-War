@@ -1,20 +1,16 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-/// <summary>
-/// Top End War — Mermi v6
-/// </summary>
 public class Bullet : MonoBehaviour
 {
     public int    damage      = 60;
     public Color  bulletColor = new Color(0.6f, 0.1f, 1.0f);
 
     [HideInInspector] public string hitterPath = "Commander"; 
-
     [HideInInspector] public int   armorPen = 0;
     [HideInInspector] public int   pierceCount = 0;
     [HideInInspector] public float eliteDamageMult = 1f;
-    [HideInInspector] public float bossDamageMult = 1f; // YENİ
+    [HideInInspector] public float bossDamageMult = 1f;
 
     const float HIT_RADIUS = 0.4f;
     const float LIFETIME   = 1.8f;
@@ -25,6 +21,9 @@ public class Bullet : MonoBehaviour
     int _remainingPierce = 0;
     readonly HashSet<int> _hitTargets = new HashSet<int>();
 
+    // DEĞİŞİKLİK
+    Vector3 _lastPos;
+
     void Awake() => _rend = GetComponentInChildren<Renderer>();
 
     void OnEnable()
@@ -33,6 +32,10 @@ public class Bullet : MonoBehaviour
         _remainingPierce = Mathf.Max(0, pierceCount);
         _hitTargets.Clear();
         ApplyColor();
+
+        // DEĞİŞİKLİK
+        _lastPos = transform.position;
+
         Invoke(nameof(ReturnToPool), LIFETIME);
     }
 
@@ -46,7 +49,6 @@ public class Bullet : MonoBehaviour
 
     public void SetDamage(int d) => damage = d;
 
-    // DEĞİŞİKLİK
     public void SetCombatStats(int newDamage, int newArmorPen = 0, int newPierceCount = 0, float newEliteDamageMult = 1f, float newBossDamageMult = 1f)
     {
         damage = newDamage;
@@ -61,7 +63,9 @@ public class Bullet : MonoBehaviour
     {
         if (_hit) return;
 
-        Collider[] cols = Physics.OverlapSphere(transform.position, HIT_RADIUS);
+        // DEĞİŞİKLİK
+        Collider[] cols = Physics.OverlapCapsule(_lastPos, transform.position, HIT_RADIUS);
+
         foreach (Collider col in cols)
         {
             BossHitReceiver bossRecv = col.GetComponent<BossHitReceiver>() ?? col.GetComponentInParent<BossHitReceiver>();
@@ -83,7 +87,6 @@ public class Bullet : MonoBehaviour
                 if (t.position.z < playerZ - 2f) continue;
             }
 
-            // GÜNCELLENDİ (BossHitReceiver.TakeDamage artık 3 parametre bekler)
             if (bossRecv != null)
             {
                 bossRecv.TakeDamage(damage, armorPen, bossDamageMult);
@@ -110,6 +113,9 @@ public class Bullet : MonoBehaviour
             Hit();
             return;
         }
+
+        // DEĞİŞİKLİK
+        _lastPos = transform.position;
     }
 
     void Hit()

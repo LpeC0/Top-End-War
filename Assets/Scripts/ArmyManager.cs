@@ -29,24 +29,20 @@ public class ArmyManager : MonoBehaviour
     [Header("Sinirlar")]
     public int maxSoldiers = 20;
 
+    // DEĞİŞİKLİK
+[Header("Gorsel")]
+[Range(0.8f, 1f)] public float soldierVisualScale = 0.88f;
     // ── Formasyon (20 slot) ───────────────────────────────────────────────
     // Oyuncu +Z yonune kosar; askerler arkasindan gelir (negatif Z offset).
     // Y=0 (LateUpdate'de 1.2f set edilir), xLimit dahilinde.
-    static readonly Vector3[] FORMATION = new Vector3[20]
-    {
-        // Sira 1 — z=-2 (en yakın, 4 asker)
-        new Vector3(-3f, 0f, -2f), new Vector3(-1f, 0f, -2f),
-        new Vector3( 1f, 0f, -2f), new Vector3( 3f, 0f, -2f),
-        // Sira 2 — z=-4 (5 asker)
-        new Vector3(-4f, 0f, -4f), new Vector3(-2f, 0f, -4f), new Vector3(0f, 0f, -4f),
-        new Vector3( 2f, 0f, -4f), new Vector3( 4f, 0f, -4f),
-        // Sira 3 — z=-6 (5 asker)
-        new Vector3(-4f, 0f, -6f), new Vector3(-2f, 0f, -6f), new Vector3(0f, 0f, -6f),
-        new Vector3( 2f, 0f, -6f), new Vector3( 4f, 0f, -6f),
-        // Sira 4 — z=-8 (6 asker, en geri)
-        new Vector3(-5f, 0f, -8f), new Vector3(-3f, 0f, -8f), new Vector3(-1f, 0f, -8f),
-        new Vector3( 1f, 0f, -8f), new Vector3( 3f, 0f, -8f), new Vector3( 5f, 0f, -8f),
-    };
+   // DEĞİŞİKLİK
+static readonly Vector3[] FORMATION = new Vector3[20]
+{
+    new Vector3(-2.4f, 0f, -1.4f), new Vector3(-1.2f, 0f, -1.4f), new Vector3(0f, 0f, -1.4f), new Vector3(1.2f, 0f, -1.4f), new Vector3(2.4f, 0f, -1.4f),
+    new Vector3(-3.0f, 0f, -2.6f), new Vector3(-1.5f, 0f, -2.6f), new Vector3(0f, 0f, -2.6f), new Vector3(1.5f, 0f, -2.6f), new Vector3(3.0f, 0f, -2.6f),
+    new Vector3(-2.4f, 0f, -3.8f), new Vector3(-1.2f, 0f, -3.8f), new Vector3(0f, 0f, -3.8f), new Vector3(1.2f, 0f, -3.8f), new Vector3(2.4f, 0f, -3.8f),
+    new Vector3(-3.0f, 0f, -5.0f), new Vector3(-1.5f, 0f, -5.0f), new Vector3(0f, 0f, -5.0f), new Vector3(1.5f, 0f, -5.0f), new Vector3(3.0f, 0f, -5.0f),
+};
 
     // ── Asker listesi ─────────────────────────────────────────────────────
     readonly List<SoldierUnit> _soldiers = new List<SoldierUnit>(20);
@@ -209,7 +205,7 @@ public class ArmyManager : MonoBehaviour
         {
             // Fallback: renkli kapsul
             go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            go.transform.localScale = new Vector3(0.45f, 0.55f, 0.45f);
+            go.transform.localScale *= soldierVisualScale;
             Destroy(go.GetComponent<CapsuleCollider>());
             var cc = go.AddComponent<CapsuleCollider>();
             cc.radius = 0.4f; cc.height = 1.1f; cc.isTrigger = true;

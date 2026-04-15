@@ -9,7 +9,7 @@ public class Playercontroller : MonoBehaviour
     public float forwardSpeed    = 10f;
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
-    public float xLimit          = 8f;
+    public float xLimit          = 6.8f;
 
     [Header("Ates")]
     public Transform  firePoint;

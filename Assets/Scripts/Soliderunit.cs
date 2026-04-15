@@ -1,52 +1,48 @@
 using UnityEngine;
 
-/// <summary>
-/// Asker path tipleri — GateData ve ArmyManager ile eslesik olmali.
-/// </summary>
 public enum SoldierPath { Piyade, Mekanik, Teknoloji }
 
-/// <summary>
-/// Top End War — Bireysel Asker v2 (Claude)
-///
-/// UNITY NOTU:
-///   - "Soldier" TAG eklemenize GEREK YOK — tag kullanılmıyor.
-///   - ArmyManager bu scripti otomatik yönetir, elle prefab gerekmez.
-///   - Bullet pool "Bullet" etiketiyle çalışır — asker ateşi de aynı poolu kullanır.
-/// </summary>
 public class SoldierUnit : MonoBehaviour
 {
-    // ── Kimlik ────────────────────────────────────────────────────────────
     [HideInInspector] public SoldierPath path;
     [HideInInspector] public string      biome      = "Tas";
     [HideInInspector] public int         mergeLevel = 1;
 
-    // ── Statlar ───────────────────────────────────────────────────────────
     [HideInInspector] public int   maxHP;
     [HideInInspector] public int   currentHP;
     [HideInInspector] public float baseAtk;
     [HideInInspector] public float atkSpeed;
 
-    // ── Formasyon ─────────────────────────────────────────────────────────
     [HideInInspector] public Vector3 formationOffset;
 
-    const float FOLLOW_SPEED  = 14f;
-    const float DETECT_RADIUS = 28f;
+    const float FOLLOW_SPEED        = 14f;
+
+    // DEĞİŞİKLİK
+    const float DETECT_RADIUS       = 24f;
+    const float KEEP_TARGET_RADIUS  = 28f;
+    const float RETARGET_INTERVAL   = 0.18f;
 
     Renderer _rend;
     float    _nextFire;
     bool     _dead;
 
-    // ─────────────────────────────────────────────────────────────────────
+    // DEĞİŞİKLİK
+    Collider _currentTarget;
+    float    _nextRetargetTime;
+
     void Awake()
     {
         _rend = GetComponentInChildren<Renderer>();
-        // TAG EKLEME — Unity'de Soldier tag'i varsayılan olarak yok,
-        // ve buna ihtiyacımız yok. GetComponent<SoldierUnit>() kullanıyoruz.
     }
 
     void OnEnable()
     {
-        _dead     = false;
+        _dead = false;
+
+        // DEĞİŞİKLİK
+        _currentTarget = null;
+        _nextRetargetTime = 0f;
+
         _nextFire = Time.time + Random.value / Mathf.Max(atkSpeed, 0.1f);
     }
 
@@ -68,18 +64,15 @@ public class SoldierUnit : MonoBehaviour
     {
         _nextFire = Time.time + 1f / Mathf.Max(atkSpeed, 0.01f);
 
-        Collider best    = null;
-        float    bestDist= DETECT_RADIUS * DETECT_RADIUS;
-
-        foreach (Collider col in Physics.OverlapSphere(transform.position, DETECT_RADIUS))
+        // DEĞİŞİKLİK
+        if (!IsTargetValid(_currentTarget) || Time.time >= _nextRetargetTime)
         {
-            if (!col.CompareTag("Enemy")) continue;
-            float d = (col.transform.position - transform.position).sqrMagnitude;
-            if (d < bestDist) { bestDist = d; best = col; }
+            _currentTarget = AcquireTarget();
+            _nextRetargetTime = Time.time + RETARGET_INTERVAL;
         }
-        if (best == null) return;
 
-        // Hasar hesapla
+        if (_currentTarget == null) return;
+
         float biomeMultiplier = BiomeManager.Instance != null
             ? BiomeManager.Instance.GetMultiplier(path) : 1f;
 
@@ -89,20 +82,70 @@ public class SoldierUnit : MonoBehaviour
         float mergeMult = mergeLevel switch { 2 => 1.8f, 3 => 3.5f, 4 => 7.0f, _ => 1.0f };
         int   finalDmg  = Mathf.RoundToInt(baseAtk * mergeMult * (1f + cmdAura) * biomeMultiplier);
 
-        FireBullet(best, finalDmg);
+        FireBullet(_currentTarget, finalDmg);
+    }
+
+    // DEĞİŞİKLİK
+    bool IsTargetValid(Collider col)
+    {
+        if (col == null || !col.gameObject.activeInHierarchy) return false;
+        if (!col.CompareTag("Enemy")) return false;
+
+        Vector3 delta = col.bounds.center - transform.position;
+        if (delta.z < -1f) return false;
+
+        return delta.sqrMagnitude <= KEEP_TARGET_RADIUS * KEEP_TARGET_RADIUS;
+    }
+
+    // DEĞİŞİKLİK
+    Collider AcquireTarget()
+    {
+        Collider[] cols = Physics.OverlapSphere(transform.position, DETECT_RADIUS);
+
+        Collider best = null;
+        float bestScore = float.MaxValue;
+
+        float playerZ = PlayerStats.Instance != null
+            ? PlayerStats.Instance.transform.position.z
+            : transform.position.z;
+
+        foreach (Collider col in cols)
+        {
+            if (!col.CompareTag("Enemy")) continue;
+
+            Vector3 p = col.bounds.center;
+            Vector3 delta = p - transform.position;
+
+            if (delta.z < -1f) continue;
+
+            float zToPlayer = Mathf.Max(0f, p.z - playerZ);
+            float xOffset   = Mathf.Abs(p.x - transform.position.x);
+            float distScore = delta.sqrMagnitude * 0.03f;
+
+            float score = (zToPlayer * 2.2f) + (xOffset * 1.6f) + distScore;
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                best = col;
+            }
+        }
+
+        return best;
     }
 
     void FireBullet(Collider target, int dmg)
     {
-        Vector3 dir = (target.transform.position - transform.position).normalized;
+        // DEĞİŞİKLİK
         Vector3 pos = transform.position + Vector3.up * 0.5f;
+        Vector3 aimPoint = target.bounds.center;
+        Vector3 dir = (aimPoint - pos).normalized;
 
-        // Bullet pool — null güvenli
         GameObject b = null;
         if (ObjectPooler.Instance != null)
             b = ObjectPooler.Instance.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
 
-        if (b == null) return;  // pool doluysa veya yoksa atla
+        if (b == null) return;
 
         Bullet bComp = b.GetComponent<Bullet>();
         if (bComp != null)
@@ -112,14 +155,12 @@ public class SoldierUnit : MonoBehaviour
         }
 
         Rigidbody rb = b.GetComponent<Rigidbody>();
-        if (rb) rb.linearVelocity = dir * 32f;
+        if (rb) rb.linearVelocity = dir * 38f;
 
-        // Asker path'ini Bullet'a kaydet (popup rengi için)
         Bullet blt = b.GetComponent<Bullet>();
         if (blt != null) blt.hitterPath = path.ToString();
     }
 
-    // ── Hasar / Heal ──────────────────────────────────────────────────────
     public void TakeDamage(int dmg)
     {
         if (_dead) return;
@@ -148,12 +189,11 @@ public class SoldierUnit : MonoBehaviour
     public void HealPercent(float pct)
         => currentHP = Mathf.Min(maxHP, currentHP + Mathf.RoundToInt(maxHP * pct));
 
-    // ── Renk ─────────────────────────────────────────────────────────────
     public Color GetPathColor() => path switch
     {
-        SoldierPath.Piyade    => new Color(0.2f, 0.85f, 0.2f),  // yeşil
-        SoldierPath.Mekanik   => new Color(0.65f, 0.65f, 0.65f), // gri
-        SoldierPath.Teknoloji => new Color(0.2f, 0.5f, 1.0f),   // mavi
+        SoldierPath.Piyade    => new Color(0.2f, 0.85f, 0.2f),
+        SoldierPath.Mekanik   => new Color(0.65f, 0.65f, 0.65f),
+        SoldierPath.Teknoloji => new Color(0.2f, 0.5f, 1.0f),
         _                     => Color.white
     } * (mergeLevel switch { 2 => 1.2f, 3 => 1.5f, 4 => 2.0f, _ => 1.0f });
 }

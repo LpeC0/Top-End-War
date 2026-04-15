@@ -22,10 +22,10 @@ public class WaveConfig : ScriptableObject
 
     [Header("Zamanlama")]
     [Tooltip("Gruplar arasi bekleme suresi")]
-    public float spawnGroupDelay = 3.5f;
+    public float spawnGroupDelay = 1.2f;
 
     [Tooltip("Ayni grup icinde dusman spawn araliginda saniye")]
-    public float intraGroupDelay = 1f;
+    public float intraGroupDelay = 0.25f;
 
 #if UNITY_EDITOR
     void OnValidate()
