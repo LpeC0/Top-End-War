@@ -1,57 +1,63 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dusman v6
+/// Top End War — Dusman v7
 ///
-/// DEĞİŞİKLİK:
-///   - Armor / Elite alanlari eklendi
-///   - TakeDamage armorPen ve elite multiplier alabiliyor
-///   - Eski Initialize(stats) korunuyor
-///   - Yeni Initialize(stats, armor, isElite) eklendi
-///   - AutoInit gizli scaling yerine sabit fallback oldu
+/// PATCH OZETI:
+/// - Eski calisan davranislar KORUNDU
+/// - Reservation / Threat eklendi
+/// - ConfigureCombat dolduruldu
+/// - Elite görsel tonu eklendi
 /// </summary>
 public class Enemy : MonoBehaviour
 {
     [Header("Varsayilan (Initialize cagrilmazsa)")]
     public float xLimit = 8f;
 
-    // DEĞİŞİKLİK
     [Header("Combat Flags (Debug / Fallback)")]
-    [SerializeField] int  _armor = 0;
+    [SerializeField] int _armor = 0;
     [SerializeField] bool _isElite = false;
 
-    int    _maxHealth;
-    int    _currentHealth;
-    int    _contactDamage;
-    float  _moveSpeed;
-    int    _cpReward;
-    bool   _initialized      = false;
-    bool   _isDead           = false;
-    bool   _hasDamagedPlayer = false;
+    int _maxHealth;
+    int _currentHealth;
+    int _contactDamage;
+    float _moveSpeed;
+    int _cpReward;
+    bool _initialized = false;
+    bool _isDead = false;
+    bool _hasDamagedPlayer = false;
 
-    Renderer       _bodyRenderer;
+    Renderer _bodyRenderer;
     EnemyHealthBar _hpBar;
 
-    float   _lastSepTime   = 0f;
+    float _lastSepTime = 0f;
     Vector3 _separationVec = Vector3.zero;
     const float SEP_INTERVAL = 0.15f;
+
+    // Reservation / threat
+    int _reservationCount = 0;
+    int _reservationCap = 2;
+    float _threatWeight = 1f;
+    Color _baseColor = Color.white;
 
     void Awake()
     {
         _bodyRenderer = GetComponentInChildren<Renderer>();
-        _hpBar        = GetComponent<EnemyHealthBar>();
+        _hpBar = GetComponent<EnemyHealthBar>();
         if (_hpBar == null) _hpBar = gameObject.AddComponent<EnemyHealthBar>();
+
         UseDefaults();
     }
 
     void OnEnable()
     {
-        _isDead           = false;
+        _isDead = false;
         _hasDamagedPlayer = false;
-        _separationVec    = Vector3.zero;
+        _separationVec = Vector3.zero;
+        _reservationCount = 0;
 
         if (_bodyRenderer != null)
-            _bodyRenderer.material.color = Color.white;
+            _bodyRenderer.material.color = _baseColor;
 
         if (!_initialized)
             AutoInit();
@@ -61,30 +67,28 @@ public class Enemy : MonoBehaviour
 
     public void Initialize(DifficultyManager.EnemyStats stats)
     {
-        _maxHealth        = stats.Health;
-        _currentHealth    = _maxHealth;
-        _contactDamage    = stats.Damage;
-        _moveSpeed        = stats.Speed;
-        _cpReward         = stats.CPReward;
-        _initialized      = true;
-        _isDead           = false;
+        _maxHealth = stats.Health;
+        _currentHealth = _maxHealth;
+        _contactDamage = stats.Damage;
+        _moveSpeed = stats.Speed;
+        _cpReward = stats.CPReward;
+        _initialized = true;
+        _isDead = false;
         _hasDamagedPlayer = false;
+        _reservationCount = 0;
 
         if (_bodyRenderer != null)
-            _bodyRenderer.material.color = Color.white;
+            _bodyRenderer.material.color = _baseColor;
 
         _hpBar?.Init(_maxHealth);
     }
 
-    // DEĞİŞİKLİK
     public void Initialize(DifficultyManager.EnemyStats stats, int armor, bool isElite)
     {
         Initialize(stats);
-        _armor = Mathf.Max(0, armor);
-        _isElite = isElite;
+        ConfigureCombat(armor, isElite);
     }
 
-    // DEĞİŞİKLİK
     void AutoInit()
     {
         UseDefaults();
@@ -99,13 +103,16 @@ public class Enemy : MonoBehaviour
         _cpReward = 15;
         _armor = 0;
         _isElite = false;
+        _reservationCap = 2;
+        _threatWeight = 1f;
+        _baseColor = Color.white;
     }
 
     void Update()
     {
         if (_isDead || PlayerStats.Instance == null) return;
 
-        float   pZ  = PlayerStats.Instance.transform.position.z;
+        float pZ = PlayerStats.Instance.transform.position.z;
         Vector3 pos = transform.position;
 
         if (pos.z > pZ + 0.5f)
@@ -118,7 +125,7 @@ public class Enemy : MonoBehaviour
         if (Time.time - _lastSepTime > SEP_INTERVAL)
         {
             _separationVec = CalcSeparation(pos);
-            _lastSepTime   = Time.time;
+            _lastSepTime = Time.time;
         }
 
         pos += _separationVec * Time.deltaTime;
@@ -142,7 +149,7 @@ public class Enemy : MonoBehaviour
             away.y = 0f;
 
             if (away.magnitude < 0.001f)
-                away = new Vector3(Random.Range(-1f, 1f), 0, 0).normalized * 0.1f;
+                away = new Vector3(Random.Range(-1f, 1f), 0f, 0f).normalized * 0.1f;
 
             sep += away.normalized / Mathf.Max(away.magnitude, 0.1f);
             count++;
@@ -151,16 +158,11 @@ public class Enemy : MonoBehaviour
         return count > 0 ? (sep / count) * 3.5f : Vector3.zero;
     }
 
-    // DEĞİŞİKLİK
     public void TakeDamage(int rawDamage, int armorPenValue = 0, float eliteMultiplier = 1f, Color? hitColor = null)
     {
         if (_isDead) return;
 
         int effectiveArmor = Mathf.Max(0, _armor - Mathf.Max(0, armorPenValue));
-
-        // Minimum kirilim icin basit ve anlasilir armor cozumu:
-        // finalDamage = rawDamage - effectiveArmor
-        // en az 1 hasar
         int finalDamage = Mathf.Max(1, rawDamage - effectiveArmor);
 
         if (_isElite)
@@ -172,6 +174,7 @@ public class Enemy : MonoBehaviour
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = Color.red;
 
+        CancelInvoke(nameof(ResetColor));
         Invoke(nameof(ResetColor), 0.1f);
 
         bool isCrit = finalDamage > 200;
@@ -182,10 +185,35 @@ public class Enemy : MonoBehaviour
             Die();
     }
 
+    public void ConfigureCombat(int armor, bool isElite)
+    {
+        _armor = Mathf.Max(0, armor);
+        _isElite = isElite;
+
+        _reservationCap = _isElite ? 3 : 2;
+        _threatWeight = _isElite ? 1.35f : 1f;
+        _baseColor = _isElite ? new Color(1f, 0.92f, 0.35f) : Color.white;
+
+        if (_bodyRenderer != null)
+            _bodyRenderer.material.color = _baseColor;
+    }
+
+    public bool TryReserve()
+    {
+        if (_reservationCount >= _reservationCap) return false;
+        _reservationCount++;
+        return true;
+    }
+
+    public void ReleaseReservation()
+    {
+        _reservationCount = Mathf.Max(0, _reservationCount - 1);
+    }
+
     void ResetColor()
     {
         if (!_isDead && _bodyRenderer != null)
-            _bodyRenderer.material.color = Color.white;
+            _bodyRenderer.material.color = _baseColor;
     }
 
     void Die()
@@ -194,6 +222,7 @@ public class Enemy : MonoBehaviour
 
         _isDead = true;
         _initialized = false;
+        _reservationCount = 0;
         CancelInvoke();
 
         PlayerStats.Instance?.AddCPFromKill(_cpReward);
@@ -220,19 +249,17 @@ public class Enemy : MonoBehaviour
         Die();
     }
 
-// Enemy.cs içine eklenecek bridge metot
-public void ConfigureCombat(int armor, bool isElite)
-{
-    // Buraya zırh ve elite görsel mantığını bağlayabilirsin
-    // Şimdilik boş kalsa bile hata vermesini engeller.
-}
     void OnDisable()
     {
         CancelInvoke();
         _initialized = false;
+        _reservationCount = 0;
     }
 
-    // DEĞİŞİKLİK
-    public int  Armor => _armor;
+    public int Armor => _armor;
     public bool IsElite => _isElite;
+    public int ReservationCount => _reservationCount;
+    public bool CanAcceptReservation => _reservationCount < _reservationCap;
+    public float ThreatWeight => _threatWeight;
+    public float HealthRatio => _maxHealth > 0 ? (float)_currentHealth / _maxHealth : 1f;
 }

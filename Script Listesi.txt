@@ -1,0 +1,51 @@
+Projedeki Scripts içindeki C# dosyalarını listeliyorum.
+
+İşte Scripts içindeki `.cs` dosyalarının sadece dosya adları:
+
+- Worldconfig.cs
+- Weaponarchetypeconfig.cs
+- Waveconfig.cs
+- Tiervisualizer.cs
+- Stagemanager.cs
+- Stageconfig.cs
+- SpawnManager.cs
+- Soliderunit.cs
+- SimpleCameraFollow.cs
+- Savemanager.cs
+- Runstate.cs
+- Progressionconfig.cs
+- PlayerStats.cs
+- PlayerController.cs
+- PetData.cs
+- Petcontroller.cs
+- ObjectPooler.cs
+- MorphController.cs
+- Mainmenuui.cs
+- Inventorymanager.cs
+- Gatepoolconfig.cs
+- Gatefeedback.cs
+- Gateconfig.cs
+- Gate.cs
+- Gamestartup.cs
+- GameOverUI.cs
+- GameHUD.cs
+- GameEvents.cs
+- Equipmentui.cs
+- Equipmentloadout.cs
+- EquipmentData.cs
+- EnemyHealthBar.cs
+- Enemyarchetypeconfig.cs
+- Enemy.cs
+- EconomyManager.cs
+- Economyconfig.cs
+- DifficultyManager.cs
+- Damagepopup.cs
+- Commanderdata.cs
+- ChunkManager.cs
+- Bullet.cs
+- BossManager.cs
+- Bosshitreceiver.cs
+- Bossconfig.cs
+- Biomevisuals.cs
+- BiomeManager.cs
+- ArmyManager.cs

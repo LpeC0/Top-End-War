@@ -1,30 +1,20 @@
-Risk kapısı 3 kapıya %50 bonus veriyor fakat bu oran kapılarımız için mantıklı bir geliştirme değil cp dışında herhangi bir kapımıza etki ediyor mu? bu kapıları daha mantıklı hale getirelim.
+9) Küçük yaratıcı fikirler
 
-Vuruşlarda vuran kişinin rengi ile hasar sayısı görünsün.Çok hızlı atışlar olduğu için bunu birbirine karışmayacak şekilde yapmalıyız.
+Bunları şimdilik not düş:
 
-Ekipmanları giyeceğimiz göreceğimiz bir UI Menüsü
+Overheat/Overclock: Beam ve SMG buildlerinde kısa süreli deli güç, sonra düşüş
+Mark Target: Teknoloji sniper vurduğu hedefe takım bonus hasarı
+Breach Armor: Mekanik shotgun ilk saçmada armor kırar
+Kill Chain: Piyade assault kill alınca kısa fire rate zinciri
 
-Oyuncu Hp'si hala gözükmüyor bunun için de bir Healthbar cs'i gerekir mi?Mevcutta SanırımPlayerStats.cs içinde
+Bunlar solo buildleri çok eğlenceli yapar.
+-----
+7) Küçük yaratıcı not
 
-Askerlerimizin HPsi var fakat bir işe yarıyor mu asker HP'sine heal veren kapımız da var çünkü bu konuda da bir arkaplan matematiği gerekebilir.
+İleriye not:
 
-Mobları zor öldürüyoruz sürekli kaçmak zorunda kalıyoruz doğru kapıları seçsek bile bu durumda asker hp'miz olması oyunu kötü etkileyebilir ama onlara hasar gelmemesi de boşluk hissi yaratır mı?
+Beam için target lock çok iyi çalışır
+Launcher için cluster score sistemi ekleriz
+Teknoloji sniper elite’i işaretleyip takım bonusu verebilir
 
-
-++yukarıdakiler claudeye yazıldı ve halledildi.
--------------------------------------------------------------------------------------------
-Kamera sabit kalmalı oyuncuyla hareket edip ona bakmamalı daha düzgün kamera açısı lazım.
-
-şuanda zorluğu düzelttik doğru kapı seçimi ile güzel bir oyun sağlanıyor ama üstünde çalışılacak.
-
-mermiler bizi geçen geride kalmış düşmanlara gitmemeli.
-
-equipment loadui cs dosyasıyla loadout oluşturuldu fakat player.cste bu kısım mevcut değil.
-
--------------------------------------------------------------------------------------------
-
-kamera eski haline dönse? telefon üzerinde oyuncu kayboluyor kaydırırken çünkü kamera sabit sağa sola bakmadan oyuncuyu takip mi etmeli?
-
-her CP alımında dotween ile player büyüyor kapıdan geçerken de büyüyor garip bir görünüm oluyor oyuncu 6-7 tane enemy kesince.
-
-kapılar heyecan verici değil. +45 ve +80 kapıları özellikle.Asker ekleme kapıları da cp oranına göre ayarlanmalı ve o asker kaç savaş gücü veriyorsa bize ona göre eklemeli.(CP kısmını saniye başı hasara mı dönüştürsek? mantıklı olur mu daha anlaşılır bir şey olabilir böylelikle karakterlerin ve askerlerin gücünü daha iyi hesaplayıp daha mantıklı ilerleriz.)
+Bu yapı onlara hazır olacak.
