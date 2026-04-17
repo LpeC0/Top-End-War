@@ -18,3 +18,9 @@ Launcher için cluster score sistemi ekleriz
 Teknoloji sniper elite’i işaretleyip takım bonusu verebilir
 
 Bu yapı onlara hazır olacak.
+-------
+Kapılar da birleşim mantığı olabilir mesela 3 tane Saldırı gücü kapısı Merge olduğunda üzerinde bunu belirten bir kapı sayısıyla mesela parıltı veya küçük yıldız sistemi gibi kaç kapının olduğunu kapıya baktığında görecek ve birleşim sonrası ek kazanç sağlayacak.
+-------
+Aklıma takılan en önemli nokta şu: **World Map + Stage Card + Loadout** üçlüsü zayıf kalırsa oyuncu neden o stage’e girdiğini ve neden o build’i seçtiğini anlamaz; bu da combat ne kadar iyi olursa olsun oyunu “ekransız prototip” gibi hissettirir. Bu yüzden bu üç ekran, sandığından daha kritik. Bible’daki core loop ve UI information hierarchy de bunu destekliyor. 
+
+Bir güzel ek fikir daha: **Stage Threat Tags + Build Snapshot** ikilisini gerçekten eklemeliyiz. Çünkü bu ikisi birlikte, oyuncuya açık taktik tavsiyesi vermeden “bu stage ne soruyor / benim build’im neye iyi” hissini verir. Özellikle commander equipment, weapon archetype ve gate economy sistemleri büyürken bu çok kurtarıcı olur; şu anki loadout ve equipment yönü de buna uygun bir temel sunuyor. 

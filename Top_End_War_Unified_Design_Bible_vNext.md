@@ -827,3 +827,367 @@ Eğer yeni bir konuşma açılırsa, bu projenin özü şudur:
 - scope disiplini
 
 Bu proje “şimdi her şeyi yapan” değil, **şimdi çekirdeği doğru kurup sonra büyüyen** bir oyundur.
+
+# Top End War — Design Patch v1
+_Critical Gaps Closure_
+
+## Amaç
+Bu patch’in amacı, mevcut tasarım omurgasında açık kalan ama vertical slice öncesi netleşmesi gereken 6 kritik noktayı kapatmaktır:
+
+1. Gate UX  
+2. Soldier Contract  
+3. Death / Retry Rule  
+4. Tutorial Onboarding Flow  
+5. Stage 1–10 TargetDPS görünürlüğü  
+6. Minimal Audio Placeholder Planı  
+
+Bu patch yeni büyük sistem önermez; yalnızca mevcut yapıyı üretilebilir hale getirir.
+
+---
+
+## 1) Gate UX Contract
+
+### Temel karar
+Runner içinde aynı anda **2 kapı** görünür.  
+Oyuncu bunlardan birini **karakterini fiziksel olarak sola/sağa yönlendirip içinden geçerek** seçer.
+
+### Yapılmayacaklar
+- ayrı seçim menüsü yok
+- pop-up karar ekranı yok
+- swipe ile ayrı UI seçimi yok
+- kapı üstüne uzun açıklama yok
+
+### Görsel sözleşme
+Her kapı:
+- üstte **ana etki**
+- altta **2 kısa etiket**
+gösterir.
+
+### Örnek
+```text
++12 Zırh Delme
+ARMOR • ELITE
+```
+
+### UX ilkeleri
+- Kapı etkisi 1 saniyede okunmalı
+- Oyuncuya “şunu seç” diye doğrudan yön verilmemeli
+- Kapı farkı renk + ikon + kısa etiket ile anlaşılmalı
+- Stage 1–5’te yalnızca en sade gate’ler görünmeli
+
+### İlk slice kuralı
+Vertical slice boyunca yalnızca şu gate tipi deneyimi gerekir:
+- Single gate mantığı
+- fiziksel geçişle seçim
+- kısa görünür etki
+- risk/duel sistemleri sonraya veya geç stage’lere kalabilir
+
+---
+
+## 2) Soldier Contract
+
+### Soldier sistemi ne yapar?
+Askerler, komutanın yanında veya çevresinde hareket eden, **otomatik destek ateşi** veren yardımcı birimlerdir.
+
+### Yapacakları
+- komutanla birlikte ilerlemek
+- otomatik saldırmak
+- DPS hissini büyütmek
+- build ve gate seçimlerini görünür kılmak
+- lane baskısını desteklemek
+
+### Yapmayacakları
+- oyuncu tarafından tek tek yönetilmeyecekler
+- mikro komut almayacaklar
+- ayrı “mini RTS” sistemine dönüşmeyecekler
+- vertical slice’ta karmaşık formation/patrol mantığı istemeyecekler
+
+### Vertical slice için sade sözleşme
+İlk dilimde askerler:
+- **otomatik saldırır**
+- komutana bağlı kalır
+- kaybedilebilir / iyileştirilebilir
+- gate ile sayıları artabilir
+- gate ile iyileşebilir
+
+### Türler
+Tam sistemde 3 aile tanımlı kalır:
+- Piyade
+- Mekanik
+- Teknoloji
+
+Ama vertical slice için davranış farkı **asgari** tutulur.
+
+#### Vertical slice yaklaşımı
+- Piyade = aktif ve net çalışan temel asker
+- Mekanik / Teknoloji = veri şemasında bulunabilir ama davranışta aşırı derinleşmez
+- İlk oynanabilir sürümde ordu davranışı tek çekirdek mantık üstünde çalışabilir
+
+### Özet
+Asker sistemi bu aşamada:
+**“ekstra taktik mikro yönetim” değil, “build görünürlüğü ve destek gücü”** sistemidir.
+
+---
+
+## 3) Death / Retry Rule
+
+### Temel karar
+Ölüm halinde oyuncu:
+- run içi geçici build’ini kaybeder
+- stage completion ödülünü alamaz
+- haritaya veya retry akışına döner
+
+### Ödül sözleşmesi
+#### Zaferde
+- stage completion reward verilir
+- stage clear kabul edilir
+- world progress ilerler
+
+#### Yenilgide
+- stage completion reward verilmez
+- run içi build resetlenir
+- stage başarısız sayılır
+
+### Mid-run reward kararı
+Collected mid-run micro reward’lar **korunur**.  
+Böylece oyuncu tamamen boş dönmez.
+
+### Revive
+Vertical slice için en sade karar:
+- en fazla **1 revive**
+- revive yoksa direkt fail akışı
+
+### Retry akışı
+Fail sonrası seçenekler:
+- Retry
+- Haritaya dön
+
+Bu kadar. Fazla ekran yok.
+
+---
+
+## 4) Tutorial Onboarding Flow
+
+### Temel karar
+Stage 1–5 “Tutorial Core” bandıdır.  
+Ama tutorial yalnızca stage bandı olarak değil, **oyuncuya neyin ne zaman gösterileceği** olarak da tanımlanmalıdır.
+
+### İlk açılış akışı
+Oyuncu ilk oyunu açtığında:
+- karmaşık menü görmez
+- World 1 / ilk stage erişilebilir olur
+- varsayılan loadout hazır gelir
+- “başla” kararı hızlı alınır
+
+### Tutorial prensipleri
+- Aynı stage içinde en fazla **1 ana yeni fikir**
+- Uzun metin yok
+- Gerekirse kısa tek satır ipucu
+- İpucu sadece ilk kez gösterilir
+- oyuncu oynayarak öğrenir
+
+### Stage bazlı onboarding
+
+#### Stage 1
+Öğret:
+- hareket
+- auto-shoot
+- basit kapı seçimi
+
+#### Stage 2
+Öğret:
+- swarm farkı
+- çoklu hedef temizliği
+
+#### Stage 3
+Öğret:
+- charger önceliği
+- yaklaşan tehdidi önce vur
+
+#### Stage 4
+Öğret:
+- sustain / toparlanma gate’i
+- army gate’in temel mantığı
+
+#### Stage 5
+Öğretmez, sınar:
+- Stage 1–4’te görülenlerin küçük birleşimi
+
+#### Stage 6
+Öğret:
+- armor farkı
+- bazı düşmanların normalden daha dayanıklı olduğu
+
+#### Stage 7
+Öğret:
+- armor pen / pierce gibi çözümlerin değeri
+
+#### Stage 8
+Öğret:
+- elite tehdidin önceliği
+
+#### Stage 10
+Öğretmez, sınar:
+- ilk mini-boss savaşı
+
+### Tutorial UI ilkesi
+Metin yerine:
+- kısa etiket
+- hedef işaretleme
+- sade vurgulama
+- kapı üstü okunurluk
+tercih edilir.
+
+---
+
+## 5) Stage 1–10 TargetDPS Table
+
+Aşağıdaki tablo, vertical slice’ın açık balans omurgasıdır.
+
+| Stage | TargetDPS |
+|---|---:|
+| 1 | 70 |
+| 2 | 81 |
+| 3 | 94 |
+| 4 | 109 |
+| 5 | 126 |
+| 6 | 142 |
+| 7 | 160 |
+| 8 | 181 |
+| 9 | 205 |
+| 10 | 232 |
+
+### Düşman HP hesabı
+Enemy HP, ayrı bir “base HP” yerine şu sistemle hesaplanır:
+
+```text
+EnemyHP = TargetDPS × HPFactor
+```
+
+### Slice enemy factor’ları
+- Trooper = 0.90
+- Swarm = 0.35
+- Charger = 0.65
+- Armored Brute = 1.25
+- Elite Charger = 3.40
+
+### Örnek hesap
+#### Stage 6
+- TargetDPS = 142
+- Trooper HP = 128
+- Brute HP = 178
+
+#### Stage 10
+- TargetDPS = 232
+- Trooper HP = 209
+- Swarm HP = 81
+- Charger HP = 151
+- Brute HP = 290
+- Elite Charger HP = 789
+
+### Boss formülü
+Mini-Boss 1 için:
+
+```text
+BossHP = TargetDPS × 13
+```
+
+Stage 10’da:
+- TargetDPS = 232
+- Gatekeeper Walker HP ≈ 3016
+
+### Not
+Bu tablo, economy, gate value ve boss pacing hesapları için referans alınacaktır.  
+Bundan sonra vertical slice içinde “hissettiğimize göre sayı” değil, bu omurgaya göre tuning yapılacaktır.
+
+---
+
+## 6) Minimal Audio Placeholder Plan
+
+### Temel karar
+Vertical slice’ta ses “sonradan bakarız” denecek bir konu değildir.  
+Vurma hissi ve tehlike okunurluğu için **minimum placeholder audio paketi** zorunludur.
+
+### İlk sürümde gereken ses kategorileri
+
+#### Silah
+- Assault fire
+- SMG fire
+- Sniper fire
+
+#### Vuruş
+- normal hit
+- armor hit
+- crit / güçlü hit
+
+#### Düşman
+- death pop / düşüş
+- elite spawn cue
+
+#### Gate
+- gate seçimi / aktivasyon
+- heal / reinforce alımı
+
+#### Boss
+- telegraph warning
+- phase transition cue
+- heavy impact cue
+- boss death cue
+
+#### Sistem
+- victory
+- fail
+- UI confirm / click
+
+### Kalite hedefi
+İlk aşamada bu seslerin final kalite olması gerekmez.  
+Ama:
+- ritim doğru olmalı
+- birbirinden ayırt edilebilir olmalı
+- gameplay feedback’e hizmet etmeli
+
+### Kural
+“Şimdilik sessiz test” yapılmayacak.  
+Placeholder ses bile olsa kullanılacak.
+
+---
+
+## 7) Park / Non-Canonical Systems Note
+
+Aşağıdaki sistemler bu patch ile **aktif çekirdeğin dışında** kabul edilir.  
+Kodbase’de dosyaları bulunabilir, ama vertical slice’ın zorunlu aktif tasarım parçası sayılmazlar:
+
+- Pet sistemi
+- Morph sistemi
+- Tier görselleştirme kalıntıları
+- tam equipment/CP legacy loop’ları
+- arena
+- challenge
+- alliance
+- level editor
+- world 2+
+- liveops / server rekabeti
+
+### Kural
+Kodbase’de bulunmaları, onları otomatik olarak aktif tasarım parçası yapmaz.  
+Bir sistem yalnızca tasarımda **yeniden açıkça aktive edilirse** MVP kapsamına girer.
+
+---
+
+## 8) Sonuç
+
+Bu patch ile şu boşluklar kapanmış sayılır:
+- Gate UX net
+- Soldier Contract net
+- Death / Retry net
+- Tutorial onboarding net
+- TargetDPS görünür
+- Audio placeholder kararı net
+
+Bu noktadan sonra vertical slice için tasarım tarafında yeni büyük sistem açmak yerine:
+- config
+- implementation
+- test
+- tuning
+
+akışına geçilmelidir.

@@ -2480,6 +2480,12 @@ MonoBehaviour:
   soldierPrefab: {fileID: 0}
   maxSoldiers: 20
   soldierVisualScale: 0.88
+  weaponConfigs:
+  - {fileID: 0}
+  rowSpacing: 1.15
+  colSpacing: 1.25
+  edgeCompression: 0.78
+  sideBiasStrength: 0.65
 --- !u!4 &1189380080
 Transform:
   m_ObjectHideFlags: 0
