@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 10
   locationName: Gate Approach
+  stageNameKey: loc_stage_w1_10_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_boss_approach
+  - loc_threat_w1_miniboss
   targetDps: 232
   gateBudgetMult: 1.55
   bossType: 1

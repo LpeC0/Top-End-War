@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bfa96b0030f272f469ab2c1763f516d7, type: 3}
+  m_Name: Weapon_Sniper
+  m_EditorClassIdentifier: Assembly-CSharp::WeaponArchetypeConfig
+  weaponId: sniper
+  weaponName: Sniper
+  family: 2
+  weaponNameKey: loc_weapon_sniper_name
+  descriptionKey: loc_weapon_sniper_desc
+  roleKey: loc_weapon_sniper_role
+  tag1Key: loc_weapon_sniper_tag1
+  tag2Key: loc_weapon_sniper_tag2
+  defaultTargetProfile: 0
+  baseDamage: 45
+  fireRate: 1.2
+  attackRange: 35
+  projectileSpeed: 45
+  armorPen: 18
+  projectileCount: 1
+  pierceCount: 0
+  bounceCount: 0
+  splashRadius: 0
+  packFactor: 1.05
+  runnerScore: 8
+  bossScore: 7
+  icon: {fileID: 0}
+  modelPrefab: {fileID: 0}

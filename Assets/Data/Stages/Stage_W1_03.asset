@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 3
   locationName: Broken Route
+  stageNameKey: loc_stage_w1_03_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_mixed
+  - loc_threat_w1_charger
   targetDps: 96
   gateBudgetMult: 1.4
   bossType: 0

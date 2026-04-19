@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 9
   locationName: Crossfire Yard
+  stageNameKey: loc_stage_w1_09_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_elite_pressure
+  - loc_threat_w1_armor
   targetDps: 210
   gateBudgetMult: 1.5
   bossType: 0

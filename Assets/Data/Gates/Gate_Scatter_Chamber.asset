@@ -10,20 +10,20 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8fbf73297373314a95e741ac2d67a8f, type: 3}
-  m_Name: Gate_Solve_execution_line
+  m_Name: Gate_Geometry_scatter_chamber
   m_EditorClassIdentifier: Assembly-CSharp::GateConfig
-  gateId: execution_line
+  gateId: scatter_chamber
   titleKey: 
   tag1Key: 
   tag2Key: 
   descriptionKey: 
-  title: "+12% Elite Hasar\u0131"
-  tag1: BOSS
-  tag2: ELITE
-  gateColor: {r: 0.92, g: 0.2, b: 0.2, a: 0.9}
+  title: Scatter Chamber
+  tag1: GEOMETRY
+  tag2: SPREAD
+  gateColor: {r: 0.15, g: 0.8, b: 0.15, a: 0.8}
   icon: {fileID: 0}
-  family: 2
-  balanceTier: 2
+  family: 3
+  balanceTier: 1
   deliveryType: 0
   minStage: 1
   maxStage: 999
@@ -32,8 +32,8 @@ MonoBehaviour:
   isBossPrepOnly: 0
   modifiers:
   - targetType: 0
-    statType: 1
-    operation: 1
-    value: 12
+    statType: 8
+    operation: 0
+    value: 1
   penaltyModifiers: []
   gateValueBudget: 1

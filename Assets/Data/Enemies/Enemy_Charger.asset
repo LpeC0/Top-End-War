@@ -15,6 +15,11 @@ MonoBehaviour:
   enemyId: charger
   enemyName: Charger
   enemyClass: 0
+  displayNameKey: loc_enemy_charger_name
+  descriptionKey: 
+  roleKey: loc_enemy_charger_role
+  threatTag1Key: loc_enemy_charger_threat1
+  threatTag2Key: loc_enemy_charger_threat2
   hpFactor: 0.65
   armor: 0
   moveSpeed: 5.8

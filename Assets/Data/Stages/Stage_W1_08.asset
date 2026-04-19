@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 8
   locationName: Pressure Fork
+  stageNameKey: loc_stage_w1_08_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_armor_wall
+  - loc_threat_w1_mixed
   targetDps: 190
   gateBudgetMult: 1.5
   bossType: 0

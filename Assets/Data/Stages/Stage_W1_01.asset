@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 1
   locationName: Frontier Entry
+  stageNameKey: loc_stage_w1_01_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_standard
+  - loc_threat_w1_skirmish
   targetDps: 70
   gateBudgetMult: 1.4
   bossType: 0

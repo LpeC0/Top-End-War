@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 4
   locationName: Supply Bend
+  stageNameKey: loc_stage_w1_04_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_armor
+  - loc_threat_w1_mixed
   targetDps: 110
   gateBudgetMult: 1.4
   bossType: 0

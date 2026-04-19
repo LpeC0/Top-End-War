@@ -16,6 +16,7 @@ MonoBehaviour:
   slot: 0
   icon: {fileID: 0}
   description: 
+  weaponArchetype: {fileID: 11400000, guid: 93d322664e93a894e9acf01a12544103, type: 2}
   weaponType: 2
   armorType: 0
   baseCPBonus: 0

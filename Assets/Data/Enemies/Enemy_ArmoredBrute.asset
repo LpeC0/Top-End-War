@@ -15,6 +15,11 @@ MonoBehaviour:
   enemyId: armored_brute
   enemyName: Armored Brute
   enemyClass: 0
+  displayNameKey: loc_enemy_armored_brute_name
+  descriptionKey: 
+  roleKey: loc_enemy_armored_brute_role
+  threatTag1Key: loc_enemy_armored_brute_threat1
+  threatTag2Key: loc_enemy_armored_brute_threat2
   hpFactor: 1.25
   armor: 28
   moveSpeed: 3.8

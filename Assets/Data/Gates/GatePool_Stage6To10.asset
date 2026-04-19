@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8584a736f3a31764099a876b3462bfe8, type: 3}
   m_Name: GatePool_Stage6To10
   m_EditorClassIdentifier: Assembly-CSharp::GatePoolConfig
-  poolId: GP_BasicPowerTempo
-  poolName: Basic Power/Tempo (Stage 1-5)
+  poolId: GP_W1_Mid
+  poolName: World 1 Mid (Stages 6-10)
   entries:
   - gate: {fileID: 11400000, guid: c5042f24f74f41d45a6a90300cd57f81, type: 2}
     overrideWeight: 0
@@ -31,5 +31,13 @@ MonoBehaviour:
     overrideWeight: 0
   - gate: {fileID: 11400000, guid: bd1daf6a6c000374e8bf666c6489a5ea, type: 2}
     overrideWeight: 0
+  - gate: {fileID: 11400000, guid: 64c86910762d9444eac25b9858179bd5, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: 6c87c055af35d2e499ce0d8d254e53ec, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: d7a48ee93d0f7c34688208f4129a9160, type: 2}
+    overrideWeight: 0
+  - gate: {fileID: 11400000, guid: 322a2777008318340ae99c882733eb42, type: 2}
+    overrideWeight: 0
   allowRisk: 0
-  bossPrepBias: 0
+  bossPrepBias: 1

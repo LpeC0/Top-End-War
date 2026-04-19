@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 5
   locationName: Trial Corridor
+  stageNameKey: loc_stage_w1_05_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_exam
+  - loc_threat_w1_tutorial
   targetDps: 125
   gateBudgetMult: 1.4
   bossType: 0

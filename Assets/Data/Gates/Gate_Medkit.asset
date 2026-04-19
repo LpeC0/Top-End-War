@@ -10,21 +10,26 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8fbf73297373314a95e741ac2d67a8f, type: 3}
-  m_Name: Gate_Power_medkit
+  m_Name: Gate_Sustain_medkit
   m_EditorClassIdentifier: Assembly-CSharp::GateConfig
   gateId: medkit
+  titleKey: 
+  tag1Key: 
+  tag2Key: 
+  descriptionKey: 
   title: +25% Komutan Can
   tag1: SUSTAIN
   tag2: RECOVER
   gateColor: {r: 1, g: 0.45, b: 0.72, a: 0.9}
   icon: {fileID: 0}
-  family: 0
+  family: 5
+  balanceTier: 4
   deliveryType: 0
   minStage: 1
   maxStage: 999
   spawnWeight: 0.12
   tutorialAllowed: 1
-  bossPrepPriority: 0
+  isBossPrepOnly: 0
   modifiers:
   - targetType: 1
     statType: 12

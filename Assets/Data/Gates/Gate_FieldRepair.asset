@@ -10,21 +10,26 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8fbf73297373314a95e741ac2d67a8f, type: 3}
-  m_Name: Gate_Power_field_repair
+  m_Name: Gate_Sustain_field_repair
   m_EditorClassIdentifier: Assembly-CSharp::GateConfig
   gateId: field_repair
+  titleKey: 
+  tag1Key: 
+  tag2Key: 
+  descriptionKey: 
   title: "+35% Asker \u0130yile\u015Fmesi"
   tag1: SUSTAIN
   tag2: ARMY
   gateColor: {r: 0.35, g: 0.95, b: 0.95, a: 0.9}
   icon: {fileID: 0}
-  family: 0
+  family: 5
+  balanceTier: 4
   deliveryType: 0
   minStage: 1
   maxStage: 999
   spawnWeight: 0.12
   tutorialAllowed: 1
-  bossPrepPriority: 0
+  isBossPrepOnly: 0
   modifiers:
   - targetType: 2
     statType: 13

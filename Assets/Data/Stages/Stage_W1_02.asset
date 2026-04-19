@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 2
   locationName: Open Flats
+  stageNameKey: loc_stage_w1_02_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_swarm
+  - loc_threat_w1_pressure
   targetDps: 82
   gateBudgetMult: 1.4
   bossType: 0

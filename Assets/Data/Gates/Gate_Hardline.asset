@@ -13,18 +13,23 @@ MonoBehaviour:
   m_Name: Gate_Power_hardline
   m_EditorClassIdentifier: Assembly-CSharp::GateConfig
   gateId: hardline
+  titleKey: 
+  tag1Key: 
+  tag2Key: 
+  descriptionKey: 
   title: "+8% Silah G\xFCc\xFC"
   tag1: POWER
   tag2: CORE
   gateColor: {r: 0.2, g: 0.85, b: 0.25, a: 0.9}
   icon: {fileID: 0}
   family: 0
+  balanceTier: 1
   deliveryType: 0
   minStage: 1
   maxStage: 999
   spawnWeight: 0.12
   tutorialAllowed: 1
-  bossPrepPriority: 0
+  isBossPrepOnly: 0
   modifiers:
   - targetType: 0
     statType: 0

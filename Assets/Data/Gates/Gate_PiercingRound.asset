@@ -10,21 +10,26 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8fbf73297373314a95e741ac2d67a8f, type: 3}
-  m_Name: Gate_Power_piercing_round
+  m_Name: Gate_Solve_piercing_round
   m_EditorClassIdentifier: Assembly-CSharp::GateConfig
   gateId: piercing_round
+  titleKey: 
+  tag1Key: 
+  tag2Key: 
+  descriptionKey: 
   title: +1 Delici Mermi
   tag1: GEOMETRY
   tag2: LINE
   gateColor: {r: 0.62, g: 0.35, b: 0.85, a: 0.9}
   icon: {fileID: 0}
-  family: 0
+  family: 2
+  balanceTier: 2
   deliveryType: 0
   minStage: 1
   maxStage: 999
   spawnWeight: 0.12
   tutorialAllowed: 1
-  bossPrepPriority: 0
+  isBossPrepOnly: 0
   modifiers:
   - targetType: 0
     statType: 6

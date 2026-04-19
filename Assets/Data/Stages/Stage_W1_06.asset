@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 6
   locationName: Iron Approach
+  stageNameKey: loc_stage_w1_06_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_brute
+  - loc_threat_w1_armor
   targetDps: 150
   gateBudgetMult: 1.5
   bossType: 0

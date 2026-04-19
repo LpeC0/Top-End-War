@@ -15,6 +15,12 @@ MonoBehaviour:
   worldID: 1
   stageID: 7
   locationName: Siege Lane
+  stageNameKey: loc_stage_w1_07_name
+  stageDescriptionKey: 
+  recommendedBuildKey: 
+  threatTagKeys:
+  - loc_threat_w1_elite_intro
+  - loc_threat_w1_pressure
   targetDps: 170
   gateBudgetMult: 1.5
   bossType: 0
