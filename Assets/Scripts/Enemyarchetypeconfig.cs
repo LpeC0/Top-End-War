@@ -1,10 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dusman Arketip Konfigurasyonu v2
+/// Top End War — Dusman Arketip Konfigurasyonu v2.1
 ///
-/// Runtime baglantisi ileride WaveConfig/SpawnEntry tarafindan verilir.
-/// Simdilik guvenli data asset'i olarak clamp'lenir.
+/// v2 → v2.1 Delta (Faz 2 / Localization Foundation):
+///   • Localization Header eklendi: displayNameKey, descriptionKey, roleKey, threatTag1Key, threatTag2Key
+///   • DisplayName, DisplayDescription, DisplayRole, DisplayThreatTag1, DisplayThreatTag2 property'leri eklendi
+///   • Mevcut enemyName ve tüm stat alanları DOKUNULMADI
+///
+/// Eski alanlar:
+///   enemyName → hâlâ okunabilir, fallback olarak çalışır.
+///
+/// ASSETS: Create > TopEndWar > EnemyArchetypeConfig
 /// </summary>
 [CreateAssetMenu(fileName = "Enemy_", menuName = "TopEndWar/EnemyArchetypeConfig")]
 public class EnemyArchetypeConfig : ScriptableObject
@@ -13,6 +20,28 @@ public class EnemyArchetypeConfig : ScriptableObject
     public string enemyId = "trooper";
     public string enemyName = "Trooper";
     public EnemyClass enemyClass = EnemyClass.Normal;
+
+    // ── Localization Keys ──────────────────────────────────────────────────
+    // Lokalizasyon sistemi hazır olduğunda bu alanlar kullanılır.
+    // Şimdilik boş bırakılabilir; Display property'leri fallback olarak enemyName vb. döner.
+    [Header("Localization Keys  (Boş = fallback display string kullan)")]
+    [Tooltip("Düşman görünen adı anahtarı  ör: enemy_trooper_name")]
+    public string displayNameKey  = "";
+    [Tooltip("Kısa açıklama / flavor text anahtarı  ör: enemy_trooper_desc")]
+    public string descriptionKey  = "";
+    [Tooltip("Rol / davranış etiketi anahtarı  ör: enemy_trooper_role  →  'Standart Piyade'")]
+    public string roleKey         = "";
+    [Tooltip("Tehdit UI sol tag anahtarı  ör: enemy_trooper_threat1  →  'HIZLI'")]
+    public string threatTag1Key   = "";
+    [Tooltip("Tehdit UI sağ tag anahtarı  ör: enemy_trooper_threat2  →  'SÜRÜ'")]
+    public string threatTag2Key   = "";
+
+    // ── Display Properties (Localization-ready fallback) ───────────────────
+    public string DisplayName        => string.IsNullOrEmpty(displayNameKey)  ? enemyName : displayNameKey;
+    public string DisplayDescription => string.IsNullOrEmpty(descriptionKey)  ? ""         : descriptionKey;
+    public string DisplayRole        => string.IsNullOrEmpty(roleKey)         ? ""         : roleKey;
+    public string DisplayThreatTag1  => string.IsNullOrEmpty(threatTag1Key)   ? ""         : threatTag1Key;
+    public string DisplayThreatTag2  => string.IsNullOrEmpty(threatTag2Key)   ? ""         : threatTag2Key;
 
     [Header("Stat Faktörleri")]
     [Tooltip("HP = StageConfig.targetDps * hpFactor")]
@@ -46,7 +75,6 @@ public class EnemyArchetypeConfig : ScriptableObject
     public int GetCPReward(float targetDps)
         => Mathf.Max(1, Mathf.RoundToInt(targetDps * cpRewardFactor));
 
-    // DEĞİŞİKLİK
     public bool IsEliteLike =>
         enemyClass == EnemyClass.Elite ||
         threatType == EnemyThreatType.ElitePressure;

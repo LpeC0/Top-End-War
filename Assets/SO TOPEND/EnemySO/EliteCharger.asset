@@ -15,6 +15,11 @@ MonoBehaviour:
   enemyId: elitecharger
   enemyName: EliteCharger
   enemyClass: 1
+  displayNameKey: 
+  descriptionKey: 
+  roleKey: 
+  threatTag1Key: 
+  threatTag2Key: 
   hpFactor: 3.4
   armor: 8
   moveSpeed: 4.5

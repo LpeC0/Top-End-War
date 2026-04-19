@@ -2,22 +2,19 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Kapi Konfigurasyonu v2 (Claude)
+/// Top End War — Kapı Konfigürasyonu v3 (Claude)
 ///
-/// Yeni gate sistemi. Eski GateData.cs ile birlikte calisabilir (migration bridge).
-/// CP toplama mantigi KALDIRILDI. Her kapi stat/modifier verisi tasir.
+/// v2 → v3 Delta:
+///   • GateFamily2 → GateFamily  (Solve + BossPrep eklendi, Tactical korundu)
+///   • GateBalanceTier eklendi   (Minor | Standard | Solve | Army | Sustain | BossPrep)
+///   • Localization key alanları eklendi: titleKey / tag1Key / tag2Key / descriptionKey
+///   • title / tag1 / tag2 KORUNDU  → Gate.cs runtime'ı kırılmaz, fallback olarak çalışır
+///   • bossPrepPriority → isBossPrepOnly (anlam aynı, isim netleşti)
+///   • GateDeliveryType2 / GateModifier2 ve tüm alt enumlar DOKUNULMADI
 ///
-/// GATE SUNUMU:
-///   Kapi ustunde: title  ("+10% Ates Hizi")
-///   Kapi altinda: tag1 + tag2 ("TEMPO • SWARM")
-///   Oyuncuya "bunu sec" diye yonlendirme yapilmaz, etki alani hissettirilir.
-///
-/// DELIVERY TIPI:
-///   Single   = tek olumlu etki
-///   Duel     = iki farkli uzmanlikh kapidan secim (SpawnManager cift yerlesirir)
-///   Risk     = buyuk oluml + penaltyModifiers
-///   Recovery = toparlanma odakli
-///   BossPrep = boss oncesi ogullu, seyrek normal havuzda
+/// GATE UI SÖZLEŞMESİ:
+///   Üst satır : title  (veya titleKey → lokalize metin)
+///   Alt satır : tag1 • tag2
 ///
 /// ASSETS: Create > TopEndWar > GateConfig
 /// </summary>
@@ -26,51 +23,88 @@ public class GateConfig : ScriptableObject
 {
     // ── Kimlik ────────────────────────────────────────────────────────────
     [Header("Kimlik")]
-    public string gateId   = "gate_hardline";
-    public string title    = "+8% Silah Gucu";
-    public string tag1     = "BOSS";
-    public string tag2     = "ELITE";
+    public string gateId = "gate_hardline";
 
-    // ── Gorsel ───────────────────────────────────────────────────────────
-    [Header("Gorsel")]
-    public Color gateColor = new Color(0.15f, 0.80f, 0.15f, 0.80f);
+    // ── Localization Keys ─────────────────────────────────────────────────
+    // Lokalizasyon sistemi hazır olduğunda bu alanlar kullanılır.
+    // Şimdilik boş bırakılabilir; Gate.cs fallback olarak title/tag1/tag2'yi okur.
+    [Header("Localization Keys  (Boş = fallback display string kullan)")]
+    [Tooltip("Ana etki metni anahtarı  ör: gate_hardline_title")]
+    public string titleKey       = "";
+    [Tooltip("Alt satır sol tag anahtarı  ör: gate_hardline_tag1")]
+    public string tag1Key        = "";
+    [Tooltip("Alt satır sağ tag anahtarı  ör: gate_hardline_tag2")]
+    public string tag2Key        = "";
+    [Tooltip("Detay / tooltip açıklaması anahtarı  ör: gate_hardline_desc")]
+    public string descriptionKey = "";
+
+    // ── Runtime / Fallback Görüntü Metinleri ─────────────────────────────
+    // Lokalizasyon sistemi aktif değilken Gate.cs bunları doğrudan kullanır.
+    // Key alanları doldurulunca bu alanlar tasarım referansı olarak kalır.
+    [Header("Görüntü  (Fallback — Lokalizasyon hazır olana kadar)")]
+    [Tooltip("Kapi üst satır metni")]
+    public string title = "+8% Silah Gücü";
+    [Tooltip("Alt satır sol tag")]
+    public string tag1  = "POWER";
+    [Tooltip("Alt satır sağ tag")]
+    public string tag2  = "EARLY";
+
+    // ── Görsel ───────────────────────────────────────────────────────────
+    [Header("Görsel")]
+    public Color  gateColor = new Color(0.15f, 0.80f, 0.15f, 0.80f);
     public Sprite icon;
 
-    // ── Siniflandirma ─────────────────────────────────────────────────────
-    [Header("Siniflandirma")]
-    public GateFamily2     family       = GateFamily2.Power;
+    // ── Sınıflandırma ─────────────────────────────────────────────────────
+    [Header("Sınıflandırma")]
+    [Tooltip("Ailenin içerik kimliği: Power / Tempo / Solve / Geometry / Army / Sustain / Tactical / BossPrep")]
+    public GateFamily        family       = GateFamily.Power;
+    [Tooltip("Güç bandı: Minor / Standard / Solve / Army / Sustain / BossPrep")]
+    public GateBalanceTier   balanceTier  = GateBalanceTier.Standard;
+    [Tooltip("Sunum türü: Single / Duel / Risk / Recovery / BossPrep")]
     public GateDeliveryType2 deliveryType = GateDeliveryType2.Single;
 
     // ── Spawn Kontrol ─────────────────────────────────────────────────────
     [Header("Spawn Kontrol")]
-    [Tooltip("Bu kapiyi hangi stage'den itibaren havuza al")]
-    public int  minStage         = 1;
-    [Tooltip("Bu kapiyi hangi stage'den sonra havuzdan cikar (999 = her zaman)")]
-    public int  maxStage         = 999;
+    [Tooltip("Bu kapıyı hangi stage'den itibaren havuza al")]
+    public int   minStage        = 1;
+    [Tooltip("Bu kapıyı hangi stage'den sonra havuzdan çıkar  (999 = her zaman)")]
+    public int   maxStage        = 999;
     [Range(0f, 1f)]
-    [Tooltip("Havuz icindeki goreli spawn agirligi")]
+    [Tooltip("Havuz içindeki göreli spawn ağırlığı")]
     public float spawnWeight     = 0.12f;
-    [Tooltip("Tutorial stage'lerinde de cikabilir mi?")]
-    public bool tutorialAllowed  = true;
-    [Tooltip("Boss prep stage'lerinde oncelikli mi?")]
-    public bool bossPrepPriority = false;
+    [Tooltip("Tutorial stage'lerinde de çıkabilir mi?")]
+    public bool  tutorialAllowed = true;
+    [Tooltip("Yalnızca boss prep stage'lerinde kullanılabilir; normal havuza eklenmez")]
+    public bool  isBossPrepOnly  = false;
 
     // ── Etkiler ───────────────────────────────────────────────────────────
-    [Header("Modifiers (Ana Etki)")]
+    [Header("Modifiers  (Ana Etki)")]
     public List<GateModifier2> modifiers = new List<GateModifier2>();
 
-    [Header("Ceza Modifiers (Risk delivery icin)")]
+    [Header("Ceza Modifiers  (Risk delivery için)")]
     public List<GateModifier2> penaltyModifiers = new List<GateModifier2>();
 
     // ── Dengeleme Notu ────────────────────────────────────────────────────
-    [Header("Denge (Tasarim referansi, oyuncuya gosterilmez)")]
+    [Header("Denge  (Tasarım referansı — oyuncuya gösterilmez)")]
     [Range(0.5f, 3f)]
     public float gateValueBudget = 1.0f;
 
-    // ── Yardimcilar ───────────────────────────────────────────────────────
+    // ── Yardımcı Property'ler ─────────────────────────────────────────────
     public bool IsRisk     => deliveryType == GateDeliveryType2.Risk;
-    public bool IsBossPrep => deliveryType == GateDeliveryType2.BossPrep;
     public bool IsRecovery => deliveryType == GateDeliveryType2.Recovery;
+
+    /// <summary>
+    /// Boss prep alanı: hem family hem de isBossPrepOnly bayrağını kontrol eder.
+    /// </summary>
+    public bool IsBossPrep => family == GateFamily.BossPrep || isBossPrepOnly;
+
+    /// <summary>
+    /// Lokalizasyon sistemi varsa key döner, yoksa fallback display string.
+    /// Gate.cs ve UI bu property'leri kullanabilir; doğrudan title/tag1/tag2 yerine.
+    /// </summary>
+    public string DisplayTitle => string.IsNullOrEmpty(titleKey) ? title : titleKey;
+    public string DisplayTag1  => string.IsNullOrEmpty(tag1Key)  ? tag1  : tag1Key;
+    public string DisplayTag2  => string.IsNullOrEmpty(tag2Key)  ? tag2  : tag2Key;
 
 #if UNITY_EDITOR
     void OnValidate()
@@ -82,31 +116,54 @@ public class GateConfig : ScriptableObject
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+/// <summary>
+/// Kapı Ailesi — yeni kanon (v3).
+/// Solve: problem-çözücü, burst-power veya niche etki.
+/// BossPrep: yalnızca boss öncesi stage'lerde çıkan güçlü hazırlık kapıları.
+/// </summary>
+public enum GateFamily
+{
+    Power,
+    Tempo,
+    Solve,
+    Geometry,
+    Army,
+    Sustain,
+    Tactical,
+    BossPrep,
+}
+
+/// <summary>
+/// Güç / etki bandı — spawn havuzlarında gruplama ve dengeleme için.
+/// </summary>
+public enum GateBalanceTier
+{
+    Minor,      // Küçük, güvenli etki
+    Standard,   // Normal orta etki (en yaygın bant)
+    Solve,      // Niche veya problem-çözücü, genelde geç stage
+    Army,       // Ordu büyütme odaklı, orta-geç stage
+    Sustain,    // Toparlanma odaklı, her aşamada olabilir
+    BossPrep,   // Boss öncesi: büyük etki, seyrek çıkar
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Aşağıdaki tipler v2'den DOKUNULMADAN korundu.
+// PlayerStats.ApplyGateConfig, SpawnManager ve diğer runtime sistemleri bunlara bağlı.
+// ─────────────────────────────────────────────────────────────────────────
+
 [System.Serializable]
 public class GateModifier2
 {
-    [Tooltip("Bu modifier kime uygulanir?")]
+    [Tooltip("Bu modifier kime uygulanır?")]
     public GateTargetType2 targetType = GateTargetType2.CommanderWeapon;
 
     [Tooltip("Hangi stat?")]
     public GateStatType2   statType   = GateStatType2.WeaponPowerPercent;
 
-    [Tooltip("Islem: AddFlat=duz ekle, AddPercent=yuzde ekle, Promote=seviye atla, HealPercent=HP orani")]
+    [Tooltip("İşlem: AddFlat=düz ekle, AddPercent=yüzde ekle, Promote=seviye atla, HealPercent=HP oranı")]
     public GateOperation2  operation  = GateOperation2.AddPercent;
 
     public float value = 8f;
-}
-
-// ── Enumlar ───────────────────────────────────────────────────────────────
-
-public enum GateFamily2
-{
-    Power,
-    Tempo,
-    Geometry,
-    Army,
-    Sustain,
-    Tactical,
 }
 
 public enum GateDeliveryType2
@@ -120,9 +177,9 @@ public enum GateDeliveryType2
 
 public enum GateTargetType2
 {
-    CommanderWeapon,    // Komutan silahi
-    Commander,          // Komutanin kendisi
-    AllSoldiers,        // Tum askerler
+    CommanderWeapon,    // Komutan silahı
+    Commander,          // Komutanın kendisi
+    AllSoldiers,        // Tüm askerler
     PiyadeSoldiers,
     MekanikSoldiers,
     TeknolojiSoldiers,
@@ -155,7 +212,7 @@ public enum GateStatType2
     HealCommanderPercent,
     HealSoldiersPercent,
 
-    // Penalty (Risk icin)
+    // Penalty (Risk için)
     CommanderMaxHpPercent,      // Negatif value ile ceza
     SoldierDamagePercentMalus,
 }
@@ -164,6 +221,6 @@ public enum GateOperation2
 {
     AddFlat,
     AddPercent,
-    Promote,        // Field Promotion: en zayif birlik +1 seviye
-    HealPercent,    // Toparlanma: mevcut max HP'nin yuzde X'i
+    Promote,        // Field Promotion: en zayıf birlik +1 seviye
+    HealPercent,    // Toparlanma: mevcut max HP'nin yüzde X'i
 }

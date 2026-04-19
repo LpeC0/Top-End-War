@@ -1,17 +1,17 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Silah Arketip Konfigurasyonu v2
+/// Top End War — Silah Arketip Konfigurasyonu v2.1
 ///
-/// Bu dosya SILAH AILESININ TEMEL DOGASIDIR.
-/// Runtime state veya item rarity tasimaz.
+/// v2 → v2.1 Delta (Faz 2 / Localization Foundation):
+///   • Localization Header eklendi: weaponNameKey, descriptionKey, roleKey, tag1Key, tag2Key
+///   • DisplayWeaponName, DisplayDescription, DisplayRole, DisplayTag1, DisplayTag2 property'leri eklendi
+///   • Mevcut weaponName ve tüm combat alanları DOKUNULMADI
 ///
-/// Ornek:
-///   - Assault nasil ates eder?
-///   - SMG kac menzilden vurur?
-///   - Sniper hangi hedefi sever?
+/// Eski alanlar:
+///   weaponName → hâlâ okunabilir, fallback olarak çalışır.
 ///
-/// Item bonuslari EquipmentData tarafinda kalir.
+/// ASSETS: Create > TopEndWar > WeaponArchetypeConfig
 /// </summary>
 [CreateAssetMenu(fileName = "Weapon_", menuName = "TopEndWar/WeaponArchetypeConfig")]
 public class WeaponArchetypeConfig : ScriptableObject
@@ -20,6 +20,28 @@ public class WeaponArchetypeConfig : ScriptableObject
     public string weaponId = "assault";
     public string weaponName = "Assault Rifle";
     public WeaponFamily family = WeaponFamily.Assault;
+
+    // ── Localization Keys ──────────────────────────────────────────────────
+    // Lokalizasyon sistemi hazır olduğunda bu alanlar kullanılır.
+    // Şimdilik boş bırakılabilir; Display property'leri fallback olarak weaponName vb. döner.
+    [Header("Localization Keys  (Boş = fallback display string kullan)")]
+    [Tooltip("Silah adı lokalizasyon anahtarı  ör: weapon_assault_name")]
+    public string weaponNameKey  = "";
+    [Tooltip("Kısa açıklama / flavor text anahtarı  ör: weapon_assault_desc")]
+    public string descriptionKey = "";
+    [Tooltip("Silahın rolünü tanımlayan anahtar  ör: weapon_assault_role  →  'Orta Menzil Genel Amaç'")]
+    public string roleKey        = "";
+    [Tooltip("UI alt satır sol tag anahtarı  ör: weapon_assault_tag1  →  'HIZLI'")]
+    public string tag1Key        = "";
+    [Tooltip("UI alt satır sağ tag anahtarı  ör: weapon_assault_tag2  →  'DENGE'")]
+    public string tag2Key        = "";
+
+    // ── Display Properties (Localization-ready fallback) ───────────────────
+    public string DisplayWeaponName  => string.IsNullOrEmpty(weaponNameKey)  ? weaponName : weaponNameKey;
+    public string DisplayDescription => string.IsNullOrEmpty(descriptionKey) ? ""          : descriptionKey;
+    public string DisplayRole        => string.IsNullOrEmpty(roleKey)        ? ""          : roleKey;
+    public string DisplayTag1        => string.IsNullOrEmpty(tag1Key)        ? ""          : tag1Key;
+    public string DisplayTag2        => string.IsNullOrEmpty(tag2Key)        ? ""          : tag2Key;
 
     [Header("Combat Kimligi")]
     public TargetProfile defaultTargetProfile = TargetProfile.Balanced;
