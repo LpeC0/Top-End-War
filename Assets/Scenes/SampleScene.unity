@@ -2240,12 +2240,10 @@ GameObject:
   - component: {fileID: 734728282}
   - component: {fileID: 734728281}
   - component: {fileID: 734728280}
-  - component: {fileID: 734728285}
   - component: {fileID: 734728286}
-  - component: {fileID: 734728287}
-  - component: {fileID: 734728288}
-  - component: {fileID: 734728289}
   - component: {fileID: 734728290}
+  - component: {fileID: 734728289}
+  - component: {fileID: 734728291}
   m_Layer: 0
   m_Name: Player
   m_TagString: Player
@@ -2278,7 +2276,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 2b2d9d9ec998c3146bd18e493497c3c0, type: 2}
+  - {fileID: 2100000, guid: b8ffe0376e45a0847a172a896e4865e0, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -2309,7 +2307,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 734728276}
-  m_Mesh: {fileID: 0}
+  m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!4 &734728282
 Transform:
   m_ObjectHideFlags: 0
@@ -2319,32 +2317,13 @@ Transform:
   m_GameObject: {fileID: 734728276}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.1, z: 0}
+  m_LocalPosition: {x: 0, y: 2, z: 0}
   m_LocalScale: {x: 1, y: 2, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1648944150}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &734728285
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 734728276}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 07426ef8eacb6fc4ebef4e0f7f0843f9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  forwardSpeed: 2.75
-  dragSensitivity: 0.04
-  smoothing: 15
-  xLimit: 7
-  firePoint: {fileID: 1648944150}
-  bulletPrefab: {fileID: 9019558392980015069, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
-  detectRange: 25
 --- !u!136 &734728286
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -2367,58 +2346,7 @@ CapsuleCollider:
   m_Radius: 0.4
   m_Height: 2
   m_Direction: 1
-  m_Center: {x: 0, y: 1, z: 0}
---- !u!114 &734728287
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 734728276}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0d5501f385fe8294d91df056bd6524e2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
-  activeCommander: {fileID: 11400000, guid: 1f71b5668c32e8943bffee1c79829c85, type: 2}
-  equippedLoadout: {fileID: 11400000, guid: 7f4c7bf8423669f43b0b40eca6f00474, type: 2}
-  equippedWeapon: {fileID: 11400000, guid: 84ac2adb9cb28bf47b9d23369c532092, type: 2}
-  equippedArmor: {fileID: 0}
-  equippedShoulder: {fileID: 0}
-  equippedKnee: {fileID: 0}
-  equippedNecklace: {fileID: 0}
-  equippedRing: {fileID: 0}
-  equippedPet: {fileID: 0}
-  weaponSlotLevel: 1
-  armorSlotLevel: 1
-  shoulderSlotLevel: 1
-  kneeSlotLevel: 1
-  necklaceSlotLevel: 1
-  ringSlotLevel: 1
-  invincibilityDuration: 0.5
---- !u!114 &734728288
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 734728276}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cf5e32205403ef04bb218b750905c43c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::MorphController
-  tierPrefabs:
-  - {fileID: 310774240586564310, guid: d1aa1772d87af1341a3987f988d6f68d, type: 3}
-  - {fileID: 310774240586564310, guid: d1aa1772d87af1341a3987f988d6f68d, type: 3}
-  - {fileID: 310774240586564310, guid: d1aa1772d87af1341a3987f988d6f68d, type: 3}
-  - {fileID: 310774240586564310, guid: d1aa1772d87af1341a3987f988d6f68d, type: 3}
-  - {fileID: 310774240586564310, guid: d1aa1772d87af1341a3987f988d6f68d, type: 3}
-  morphParticlePrefab: {fileID: 0}
-  shrinkDuration: 0.15
-  popDuration: 0.35
-  popPeak: 1.35
-  characterRenderer: {fileID: -1747788276198721777, guid: d1aa1772d87af1341a3987f988d6f68d, type: 3}
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &734728289
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2447,16 +2375,45 @@ MonoBehaviour:
   m_GameObject: {fileID: 734728276}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c107ef02c0cdfa243bf3d5ff48168e01, type: 3}
+  m_Script: {fileID: 11500000, guid: 07426ef8eacb6fc4ebef4e0f7f0843f9, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PetController
+  m_EditorClassIdentifier: Assembly-CSharp::Playercontroller
   forwardSpeed: 10
-  dragSensitivity: 0.05
-  smoothing: 14
+  playerY: 2
+  dragSensitivity: 0.04
+  smoothing: 15
   xLimit: 8
-  firePoint: {fileID: 0}
-  bulletPrefab: {fileID: 0}
+  firePoint: {fileID: 1648944150}
+  bulletPrefab: {fileID: 9019558392980015069, guid: 6e48e979d1b6ecf4699917adf68e4d4f, type: 3}
   detectRange: 35
+--- !u!114 &734728291
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 734728276}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d5501f385fe8294d91df056bd6524e2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerStats
+  activeCommander: {fileID: 11400000, guid: 1f71b5668c32e8943bffee1c79829c85, type: 2}
+  equippedLoadout: {fileID: 11400000, guid: 7f4c7bf8423669f43b0b40eca6f00474, type: 2}
+  equippedWeapon: {fileID: 11400000, guid: 84ac2adb9cb28bf47b9d23369c532092, type: 2}
+  equippedArmor: {fileID: 0}
+  equippedShoulder: {fileID: 0}
+  equippedKnee: {fileID: 0}
+  equippedNecklace: {fileID: 0}
+  equippedRing: {fileID: 0}
+  equippedPet: {fileID: 0}
+  weaponSlotLevel: 1
+  armorSlotLevel: 1
+  shoulderSlotLevel: 1
+  kneeSlotLevel: 1
+  necklaceSlotLevel: 1
+  ringSlotLevel: 1
+  invincibilityDuration: 0.25
 --- !u!1 &778947035
 GameObject:
   m_ObjectHideFlags: 0
@@ -4760,6 +4717,7 @@ MonoBehaviour:
   bossDistance: 1200
   minEnemies: 2
   maxEnemies: 5
+  rhythmTable: {fileID: 0}
 --- !u!4 &1661570128
 Transform:
   m_ObjectHideFlags: 0
@@ -4989,7 +4947,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &1840715574
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5460,18 +5418,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c5c507b28a1782448982d3099b295aff, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameOverUI
-  gameOverPanel: {fileID: 0}
-  distanceText: {fileID: 0}
-  killText: {fileID: 0}
-  cpText: {fileID: 0}
-  highScoreText: {fileID: 0}
-  newRecordBadge: {fileID: 0}
-  reviveButton: {fileID: 0}
-  reviveInfoText: {fileID: 0}
-  retreatButton: {fileID: 0}
-  retreatRewardText: {fileID: 0}
-  restartButton: {fileID: 0}
-  mainMenuButton: {fileID: 0}
+  gameOverPanel: {fileID: 2002027417}
+  distanceText: {fileID: 1341140338}
+  killText: {fileID: 1021836000}
+  cpText: {fileID: 878533282}
+  highScoreText: {fileID: 1582845585}
+  newRecordBadge: {fileID: 1913085225}
+  reviveButton: {fileID: 311130832}
+  reviveInfoText: {fileID: 500655802}
+  retreatButton: {fileID: 1980966511}
+  retreatRewardText: {fileID: 935919412}
+  restartButton: {fileID: 1295811376}
+  mainMenuButton: {fileID: 2035953486}
   mainMenuSceneName: MainMenu
 --- !u!4 &1888040134
 Transform:
@@ -5661,7 +5619,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &2002027418
 RectTransform:
   m_ObjectHideFlags: 0
@@ -6414,6 +6372,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 556656290}
     m_Modifications:
+    - target: {fileID: 5272436261972872147, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
+      propertyPath: m_IsTrigger
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 6287005186596623403, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0

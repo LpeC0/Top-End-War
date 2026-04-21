@@ -6,14 +6,11 @@ using TMPro;
 /// <summary>
 /// Top End War — Game Over Arayuzu v4 (Claude)
 ///
-/// v3 → v4 Bootstrap Patch:
-///   • mainMenuSceneName alani eklendi; OnMainMenuClicked artik sahneyi yukler.
-///   • ShowGameOver → Time.timeScale = 0f  (oyun durur, UI calisir)
-///   • Inspector referanslari null ise BuildFallbackPanel() otomatik cagrilir.
-///     Tasarimci gercek paneli baglayinca fallback kodu hic calismaz.
-///   • UpdateScoreDisplay: SaveManager null ise RunState.Instance.KillCount fallback.
-///   • Revive sonrasi oyun resume edilir (zaten vardi, dokunulmadi).
-///   • Retreat / Restart: null-safe, mevcut mantik KORUNDU.
+/// v4 → v4.1 Runtime Patch Delta:
+///   • _gameOverShown flag eklendi: ShowGameOver() ayni run'da ikinci kez
+///     cagrilirsa hic bir sey yapmaz. Bu; PlayerStats._isDead guard'i ve
+///     PlayerController._gameOver flag'i ile birlikte uclu savunma hatti olusturur.
+///   • ResetRunTracking(): _gameOverShown sifirlanir — yeni run temiz baslar.
 /// </summary>
 public class GameOverUI : MonoBehaviour
 {
@@ -48,6 +45,9 @@ public class GameOverUI : MonoBehaviour
     int  _runTechEarned = 0;
     bool _fallbackBuilt = false;
 
+    // PATCH: Ayni run icinde GameOver'in ikinci kez tetiklenmesini engeller.
+    bool _gameOverShown = false;
+
     // ── Yasam Dongusu ─────────────────────────────────────────────────────
 
     void Awake()
@@ -65,27 +65,37 @@ public class GameOverUI : MonoBehaviour
 
     // ── Run Takibi ────────────────────────────────────────────────────────
 
-    public void RegisterRunGold(int amount)    => _runGoldEarned += amount;
-    public void RegisterRunTechCore(int amount) => _runTechEarned += amount;
+    public void RegisterRunGold(int amount)     => _runGoldEarned += amount;
+    public void RegisterRunTechCore(int amount)  => _runTechEarned += amount;
 
     public void ResetRunTracking()
     {
-        _runGoldEarned = 0;
-        _runTechEarned = 0;
-        _reviveUsed    = false;
+        _runGoldEarned  = 0;
+        _runTechEarned  = 0;
+        _reviveUsed     = false;
+        _gameOverShown  = false;   // PATCH: yeni run icin sifirla
     }
 
     // ── Game Over ─────────────────────────────────────────────────────────
 
     void ShowGameOver()
     {
-        // Inspector paneli yoksa kod paneli oluştur (bootstrap)
+        // PATCH: Cift tetiklenme korumasi.
+        // PlayerStats._isDead ve PlayerController._gameOver zaten engellemeye calisiyor;
+        // bu ucuncu hat olarak burada da erken cikis saglar.
+        if (_gameOverShown)
+        {
+            Debug.Log("[GameOverUI] ShowGameOver BLOCKED — zaten gosterildi.");
+            return;
+        }
+        _gameOverShown = true;
+
         if (gameOverPanel == null && !_fallbackBuilt)
             BuildFallbackPanel();
 
         if (gameOverPanel != null) gameOverPanel.SetActive(true);
 
-        Time.timeScale = 0f;  // Oyunu durdur; Revive/Restart geri acar
+        Time.timeScale = 0f;
 
         UpdateScoreDisplay();
         UpdateReviveButton();
@@ -98,18 +108,17 @@ public class GameOverUI : MonoBehaviour
 
     void UpdateScoreDisplay()
     {
-        int dist  = Mathf.RoundToInt(
+        int dist = Mathf.RoundToInt(
             PlayerStats.Instance != null ? PlayerStats.Instance.transform.position.z : 0f);
-        int cp    = PlayerStats.Instance != null ? PlayerStats.Instance.CP : 0;
+        int cp = PlayerStats.Instance != null ? PlayerStats.Instance.CP : 0;
 
-        // SaveManager null ise RunState fallback
         int kills = SaveManager.Instance != null
             ? SaveManager.Instance.CurrentRunKills
             : (RunState.Instance != null ? RunState.Instance.KillCount : 0);
 
-        if (distanceText != null) distanceText.text = $"{dist} m";
-        if (killText     != null) killText.text      = $"{kills}";
-        if (cpText       != null) cpText.text        = $"{cp}";
+        if (distanceText  != null) distanceText.text  = $"{dist} m";
+        if (killText      != null) killText.text       = $"{kills}";
+        if (cpText        != null) cpText.text         = $"{cp}";
 
         int  prevBest = PlayerPrefs.GetInt("HighScore_CP", 0);
         bool isRecord = cp > prevBest;
@@ -142,7 +151,6 @@ public class GameOverUI : MonoBehaviour
         if (_reviveUsed) return;
         _reviveUsed = true;
         UpdateReviveButton();
-        // TODO: Gercek reklam SDK buraya
         Debug.Log("[GameOverUI] Reklam placeholder — Revive verildi.");
         OnReviveGranted();
     }
@@ -150,7 +158,13 @@ public class GameOverUI : MonoBehaviour
     void OnReviveGranted()
     {
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
-        PlayerStats.Instance?.HealCommander(PlayerStats.Instance.CommanderMaxHP);
+
+        PlayerStats.Instance?.ReviveFromGameOver();
+        FindObjectOfType<Playercontroller>()?.ResumeRun();
+
+        // PATCH: Revive sonrasi bir sonraki olum tekrar GameOver gosterebilsin.
+        _gameOverShown = false;
+
         Time.timeScale = 1f;
         Debug.Log("[GameOverUI] Oyuncu diriltildi.");
     }
@@ -189,35 +203,30 @@ public class GameOverUI : MonoBehaviour
     }
 
     // ── Fallback Panel (Inspector refs yoksa) ─────────────────────────────
-    // Tasarimci gercek paneli baglayinca bu blok hic calismaz.
 
     void BuildFallbackPanel()
     {
         _fallbackBuilt = true;
 
-        // Canvas
         var canvasGO = new GameObject("GameOver_FallbackCanvas");
         var canvas   = canvasGO.AddComponent<Canvas>();
-        canvas.renderMode  = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 99;  // HUD'un ustune cik
+        canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 99;
 
         var scaler = canvasGO.AddComponent<CanvasScaler>();
-        scaler.uiScaleMode        = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);
         canvasGO.AddComponent<GraphicRaycaster>();
 
-        gameOverPanel = canvasGO;  // panel referansini guncelle
+        gameOverPanel = canvasGO;
 
-        // Arkaplan
         var bg = MakeFBImage(canvasGO, "BG", new Color(0.05f, 0.05f, 0.12f, 0.92f));
         StretchRT(bg.GetComponent<RectTransform>());
 
-        // Baslik
         MakeFBText(canvasGO, "GAME OVER",
             new Vector2(0.5f, 0.78f), new Vector2(0, 0), 80,
             new Color(1f, 0.25f, 0.25f), FontStyles.Bold);
 
-        // Stat satirlari (referanslari ata — UpdateScoreDisplay bunlari kullanir)
         distanceText = MakeFBText(canvasGO, "— m",
             new Vector2(0.5f, 0.62f), new Vector2(0, 0), 34, Color.white, FontStyles.Normal);
 
@@ -229,19 +238,16 @@ public class GameOverUI : MonoBehaviour
             new Vector2(0.5f, 0.50f), new Vector2(0, 0), 30,
             new Color(0.8f, 0.8f, 0.8f), FontStyles.Normal);
 
-        // Retry butonu
         restartButton = MakeFBButton(canvasGO, "TEKRAR OYNA",
             new Vector2(0.5f, 0.32f), new Vector2(400, 100),
             new Color(0.15f, 0.70f, 0.20f));
         restartButton.onClick.AddListener(OnRestartClicked);
 
-        // Ana Menu butonu
         mainMenuButton = MakeFBButton(canvasGO, "ANA MENU",
             new Vector2(0.5f, 0.20f), new Vector2(400, 80),
             new Color(0.20f, 0.20f, 0.55f));
         mainMenuButton.onClick.AddListener(OnMainMenuClicked);
 
-        // Revive butonu (sade)
         reviveButton = MakeFBButton(canvasGO, "REKLAM: DEVAM ET",
             new Vector2(0.5f, 0.44f), new Vector2(400, 80),
             new Color(0.70f, 0.55f, 0.10f));
@@ -252,8 +258,6 @@ public class GameOverUI : MonoBehaviour
 
         Debug.Log("[GameOverUI] Fallback panel olusturuldu. Inspector'dan gercek paneli bagla.");
     }
-
-    // ── Fallback Yardimcilar ──────────────────────────────────────────────
 
     TextMeshProUGUI MakeFBText(GameObject parent, string text,
         Vector2 anchor, Vector2 offset, float size, Color color, FontStyles style)

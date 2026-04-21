@@ -1,15 +1,30 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Hareketi v8 (Boss Damage Mult Eklendi)
+/// Top End War — Oyuncu Hareketi v7 (Patch 4 Entegrasyonu)
+///
+/// v7 → v7.1 Runtime Patch Delta:
+///   • playerY alani eklendi: Y yuksekligini Inspector'dan ayarla.
+///     Start() ve MovePlayer() hardcode 1.2f yerine bu degeri kullanir.
+///   • Start(): transform.position = new Vector3(0,1.2f,0) sifirliyordu.
+///     Simdi sadece X=0 ve Y=playerY yazilir; Z sahne pozisyonundan korunur.
+///   • _gameOver flag + OnGameOver subscribe: Update tamamen bloke edilir.
+///   • OnGameOver / OnDestroy unsubscribe eklendi.
+///
+/// NOT: Sahnede ayni anda hem PlayerController (v7) hem Playercontroller (v9) varsa
+/// ikisi cakisir. Player GameObject'inde yalnizca biri aktif olmali.
+/// GameOverUI FindObjectOfType<Playercontroller>() (kucuk c) arar — v9 kullanan
+/// projelerde bu dosya yerine v9'u (Playercontroller.cs) kullan.
 /// </summary>
 public class Playercontroller : MonoBehaviour
 {
     [Header("Hareket")]
     public float forwardSpeed    = 10f;
+    [Tooltip("Oyuncunun sabit Y yuksekligi — Inspector'dan degistirilebilir.")]
+    public float playerY         = 1.2f;   // PATCH: hardcode kaldirildi
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
-    public float xLimit          = 6.8f;
+    public float xLimit          = 8f;
 
     [Header("Ates")]
     public Transform  firePoint;
@@ -30,15 +45,35 @@ public class Playercontroller : MonoBehaviour
     bool  _dragging   = false;
     float _lastMouseX;
     bool  _anchorMode = false;
+    bool  _gameOver   = false;   // PATCH
 
     void Start()
     {
-        transform.position = new Vector3(0f, 1.2f, 0f);
+        // PATCH: Sadece X ve Y'yi yaz; Z sahne pozisyonundan kalsin.
+        Vector3 p = transform.position;
+        p.x = 0f;
+        p.y = playerY;
+        transform.position = p;
+
         EnsureCollider();
         GameEvents.OnAnchorModeChanged += OnAnchorMode;
+        GameEvents.OnGameOver          += OnGameOver;    // PATCH
     }
 
-    void OnDestroy() => GameEvents.OnAnchorModeChanged -= OnAnchorMode;
+    void OnDestroy()
+    {
+        GameEvents.OnAnchorModeChanged -= OnAnchorMode;
+        GameEvents.OnGameOver          -= OnGameOver;    // PATCH
+    }
+
+    // PATCH: Game Over geldiginde Update tamamen bloke edilir.
+    void OnGameOver()
+    {
+        _gameOver = true;
+        _dragging = false;
+        _nextFire = float.MaxValue;
+        Debug.Log("[PlayerController] Game Over — hareket durduruldu.");
+    }
 
     void OnAnchorMode(bool active)
     {
@@ -58,6 +93,8 @@ public class Playercontroller : MonoBehaviour
 
     void Update()
     {
+        if (_gameOver) return;   // PATCH
+
         HandleDrag();
         MovePlayer();
         AutoShoot();
@@ -73,7 +110,7 @@ public class Playercontroller : MonoBehaviour
 
         if (Input.GetMouseButtonDown(0))
         {
-            _dragging = true;
+            _dragging   = true;
             _lastMouseX = Input.mousePosition.x;
         }
 
@@ -85,7 +122,6 @@ public class Playercontroller : MonoBehaviour
             _targetX = Mathf.Clamp(
                 _targetX + (Input.mousePosition.x - _lastMouseX) * dragSensitivity,
                 -xLimit, xLimit);
-
             _lastMouseX = Input.mousePosition.x;
         }
     }
@@ -94,9 +130,9 @@ public class Playercontroller : MonoBehaviour
     {
         Vector3 p = transform.position;
         p.z += forwardSpeed * Time.deltaTime;
-        p.x = Mathf.Lerp(p.x, _targetX, Time.deltaTime * smoothing);
-        p.x = Mathf.Clamp(p.x, -xLimit, xLimit);
-        p.y = 1.2f;
+        p.x  = Mathf.Lerp(p.x, _targetX, Time.deltaTime * smoothing);
+        p.x  = Mathf.Clamp(p.x, -xLimit, xLimit);
+        p.y  = playerY;    // PATCH: hardcode 1.2f kaldirildi
         transform.position = p;
     }
 
@@ -114,32 +150,27 @@ public class Playercontroller : MonoBehaviour
         int bCount = PlayerStats.Instance.BulletCount;
         int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDPS / (finalFireRate * bCount)));
 
-        // YENİ: BossDamageMult alındı
-        float bossDamageMult = GetCurrentBossDamageMultiplier();
-
         Transform target = FindTarget();
         if (target == null) return;
 
         Vector3 aimPos  = target.position;
         Vector3 baseDir = (aimPos - firePoint.position).normalized;
 
-        int armorPen = GetCurrentArmorPen();
-        int pierceCount = GetCurrentPierceCount();
+        int   armorPen        = GetCurrentArmorPen();
+        int   pierceCount     = GetCurrentPierceCount();
         float eliteDamageMult = GetCurrentEliteDamageMultiplier();
 
         int spreadIdx = Mathf.Clamp(bCount - 1, 0, SPREAD.Length - 1);
         foreach (float angle in SPREAD[spreadIdx])
         {
             Vector3 dir = Quaternion.Euler(0f, angle, 0f) * baseDir;
-            // YENİ: bossDamageMult FireOne'a eklendi
-            FireOne(firePoint.position, dir.normalized, bulletDamage, armorPen, pierceCount, eliteDamageMult, bossDamageMult);
+            FireOne(firePoint.position, dir.normalized, bulletDamage, armorPen, pierceCount, eliteDamageMult);
         }
 
         _nextFire = Time.time + 1f / finalFireRate;
     }
 
-    // YENİ İMZA
-    void FireOne(Vector3 pos, Vector3 dir, int dmg, int armorPen, int pierceCount, float eliteDamageMult, float bossDamageMult)
+    void FireOne(Vector3 pos, Vector3 dir, int dmg, int armorPen, int pierceCount, float eliteDamageMult)
     {
         GameObject b = ObjectPooler.Instance?.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
         if (b == null && bulletPrefab != null)
@@ -154,91 +185,74 @@ public class Playercontroller : MonoBehaviour
         if (bullet != null)
         {
             bullet.hitterPath = "Commander";
-            // YENİ SETCOMBATSTATS
-            bullet.SetCombatStats(dmg, armorPen, pierceCount, eliteDamageMult, bossDamageMult);
+            bullet.SetCombatStats(dmg, armorPen, pierceCount, eliteDamageMult);
         }
 
         Rigidbody rb = b.GetComponent<Rigidbody>();
-        if (rb) rb.linearVelocity = dir * 50f;
+        if (rb) rb.linearVelocity = dir * 30f;
     }
 
     int GetCurrentArmorPen()
     {
-        EquipmentData w = PlayerStats.Instance != null ? PlayerStats.Instance.equippedWeapon : null;
-        int equipValue = w != null ? w.armorPen : 0;
-        int gateValue  = PlayerStats.Instance != null ? PlayerStats.Instance.RunArmorPenFlat : 0;
-        return equipValue + gateValue;
+        EquipmentData w = PlayerStats.Instance?.equippedWeapon;
+        return (w != null ? w.armorPen : 0)
+             + (PlayerStats.Instance != null ? PlayerStats.Instance.RunArmorPenFlat : 0);
     }
 
     int GetCurrentPierceCount()
     {
-        EquipmentData w = PlayerStats.Instance != null ? PlayerStats.Instance.equippedWeapon : null;
-        int equipValue = w != null ? w.pierceCount : 0;
-        int gateValue  = PlayerStats.Instance != null ? PlayerStats.Instance.RunPierceCount : 0;
-        return equipValue + gateValue;
+        EquipmentData w = PlayerStats.Instance?.equippedWeapon;
+        return (w != null ? w.pierceCount : 0)
+             + (PlayerStats.Instance != null ? PlayerStats.Instance.RunPierceCount : 0);
     }
 
     float GetCurrentEliteDamageMultiplier()
     {
-        EquipmentData w = PlayerStats.Instance != null ? PlayerStats.Instance.equippedWeapon : null;
-        float equipMult = w != null ? w.eliteDamageMultiplier : 1f;
-        float gateMult  = PlayerStats.Instance != null
-            ? (1f + PlayerStats.Instance.RunEliteDamagePercent / 100f)
-            : 1f;
-
+        EquipmentData w      = PlayerStats.Instance?.equippedWeapon;
+        float  equipMult     = w != null ? w.eliteDamageMultiplier : 1f;
+        float  gateMult      = PlayerStats.Instance != null
+                                ? (1f + PlayerStats.Instance.RunEliteDamagePercent / 100f) : 1f;
         return equipMult * gateMult;
-    }
-
-    // YENİ HELPER
-    float GetCurrentBossDamageMultiplier()
-    {
-        return PlayerStats.Instance != null
-            ? 1f + (PlayerStats.Instance.RunBossDamagePercent / 100f)
-            : 1f;
     }
 
     Transform FindTarget()
     {
         if (_anchorMode)
         {
-            float bestDist = 70f * 70f;
-            Transform best = null;
+            float     bestDist = 70f * 70f;
+            Transform best     = null;
 
             foreach (Collider c in Physics.OverlapSphere(transform.position, 70f))
             {
                 bool isEnemy = c.GetComponent<Enemy>() != null || c.GetComponentInParent<Enemy>() != null;
                 bool isBoss  = c.GetComponent<BossHitReceiver>() != null || c.GetComponentInParent<BossHitReceiver>() != null;
-
                 if (!isEnemy && !isBoss) continue;
-
                 float d = (c.transform.position - transform.position).sqrMagnitude;
-                if (d < bestDist)
-                {
-                    bestDist = d;
-                    best = c.transform;
-                }
+                if (d < bestDist) { bestDist = d; best = c.transform; }
             }
             return best;
         }
         else
         {
-            RaycastHit hit;
             bool found = Physics.BoxCast(
                 transform.position + Vector3.up,
                 new Vector3(xLimit * 0.6f, 1.2f, 0.5f),
-                Vector3.forward,
-                out hit,
-                Quaternion.identity,
-                detectRange);
+                Vector3.forward, out RaycastHit hit,
+                Quaternion.identity, detectRange);
 
             if (!found) return null;
 
             bool isEnemy = hit.collider.GetComponent<Enemy>() != null || hit.collider.GetComponentInParent<Enemy>() != null;
             bool isBoss  = hit.collider.GetComponent<BossHitReceiver>() != null || hit.collider.GetComponentInParent<BossHitReceiver>() != null;
-
             return (isEnemy || isBoss) ? hit.transform : null;
         }
     }
 
-    public void ResumeRun() => OnAnchorMode(false);
+    // PATCH: GameOver sonrasi Revive icin.
+    public void ResumeRun()
+    {
+        _gameOver   = false;
+        _anchorMode = false;
+        forwardSpeed = 10f;
+    }
 }

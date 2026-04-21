@@ -69,6 +69,9 @@ public class StageManager : MonoBehaviour
         if (_activeWorld != null)
             BiomeManager.Instance?.SetBiome(_activeWorld.biome);
 
+        // DEĞİŞİKLİK: stage runtime spawn state reset
+        SpawnManager.Instance?.ResetForStage();
+
         // SpawnManager'a mob HP'yi ilet
         ApplyMobHP();
 
