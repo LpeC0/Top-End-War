@@ -77,7 +77,7 @@ public class BossManager : MonoBehaviour
 
         GameEvents.OnBossHPChanged?.Invoke(_currentHP, bossMaxHP);
         GameEvents.OnBossEncountered?.Invoke();
-        GameEvents.OnAnchorModeChanged?.Invoke(true);
+        //GameEvents.OnAnchorModeChanged?.Invoke(true);
 
         Debug.Log($"[BossManager] Basliyor. HP: {bossMaxHP}");
     }

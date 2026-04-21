@@ -28,8 +28,8 @@ MonoBehaviour:
   waveSequence:
   - {fileID: 11400000, guid: 5b06d210ab8cbf14bb8076cc0a6d522f, type: 2}
   spawnDensity: 1
-  goldRewardOverride: 0
+  goldRewardOverride: 95
   hasMidStageLoot: 1
   techCoreDropChance: 0.15
   offlineBoostPerHour: 5
-  isTutorialStage: 0
+  isTutorialStage: 1

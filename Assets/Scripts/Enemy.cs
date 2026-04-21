@@ -1,13 +1,19 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dusman v7
+/// Top End War — Dusman v7 (Runtime Stabilite Patch)
 ///
 /// PATCH OZETI:
 /// - Eski calisan davranislar KORUNDU
 /// - Reservation / Threat eklendi
 /// - ConfigureCombat dolduruldu
-/// - Elite görsel tonu eklendi
+/// - Elite gorsel tonu eklendi
+///
+/// v7 → Patch Delta:
+///   • OnTriggerEnter: PlayerStats.Instance fallback eklendi.
+///     other.GetComponent<PlayerStats>() child collider durumunda null donuyordu;
+///     Instance uzerinden giderek contact damage garantilenir.
+///   • OnTriggerEnter: null check log eklendi — sessiz kayip olmaz.
 /// </summary>
 public class Enemy : MonoBehaviour
 {
@@ -25,7 +31,11 @@ public class Enemy : MonoBehaviour
     int _cpReward;
     bool _initialized = false;
     bool _isDead = false;
-    bool _hasDamagedPlayer = false;
+
+    // DEĞİŞİKLİK: Player temasında enemy artık kendini öldürmüyor;
+    // kontrollü aralıkla tekrar hasar denemesi yapıyor.
+    float _nextPlayerDamageTime = 0f;
+    [SerializeField] float playerTouchInterval = 0.20f;
 
     Renderer _bodyRenderer;
     EnemyHealthBar _hpBar;
@@ -52,7 +62,7 @@ public class Enemy : MonoBehaviour
     void OnEnable()
     {
         _isDead = false;
-        _hasDamagedPlayer = false;
+        _nextPlayerDamageTime = 0f;
         _separationVec = Vector3.zero;
         _reservationCount = 0;
 
@@ -74,7 +84,7 @@ public class Enemy : MonoBehaviour
         _cpReward = stats.CPReward;
         _initialized = true;
         _isDead = false;
-        _hasDamagedPlayer = false;
+        _nextPlayerDamageTime = 0f;
         _reservationCount = 0;
 
         if (_bodyRenderer != null)
@@ -163,7 +173,7 @@ public class Enemy : MonoBehaviour
         if (_isDead) return;
 
         int effectiveArmor = Mathf.Max(0, _armor - Mathf.Max(0, armorPenValue));
-        int finalDamage = Mathf.Max(1, rawDamage - effectiveArmor);
+        int finalDamage    = Mathf.Max(1, rawDamage - effectiveArmor);
 
         if (_isElite)
             finalDamage = Mathf.Max(1, Mathf.RoundToInt(finalDamage * Mathf.Max(1f, eliteMultiplier)));
@@ -187,12 +197,12 @@ public class Enemy : MonoBehaviour
 
     public void ConfigureCombat(int armor, bool isElite)
     {
-        _armor = Mathf.Max(0, armor);
+        _armor   = Mathf.Max(0, armor);
         _isElite = isElite;
 
         _reservationCap = _isElite ? 3 : 2;
-        _threatWeight = _isElite ? 1.35f : 1f;
-        _baseColor = _isElite ? new Color(1f, 0.92f, 0.35f) : Color.white;
+        _threatWeight   = _isElite ? 1.35f : 1f;
+        _baseColor      = _isElite ? new Color(1f, 0.92f, 0.35f) : Color.white;
 
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = _baseColor;
@@ -242,24 +252,57 @@ public class Enemy : MonoBehaviour
             return;
         }
 
-        if (!other.CompareTag("Player") || _hasDamagedPlayer) return;
+        if (other.CompareTag("Player"))
+            TryDamagePlayer(other);
+    }
 
-        _hasDamagedPlayer = true;
-        other.GetComponent<PlayerStats>()?.TakeContactDamage(_contactDamage);
-        Die();
+    // DEĞİŞİKLİK: Aynı enemy, player ile temas sürüyorsa tekrar hasar deneyebilir.
+    void OnTriggerStay(Collider other)
+    {
+        if (_isDead) return;
+        if (!other.CompareTag("Player")) return;
+        TryDamagePlayer(other);
+    }
+
+    // DEĞİŞİKLİK: Player temasında enemy kendini yok etmez; hasar gerçekten işlendiğinde
+    // tekrar deneme aralığı PlayerStats invincibility ile birlikte doğal çalışır.
+    void TryDamagePlayer(Collider other)
+    {
+        if (Time.time < _nextPlayerDamageTime) return;
+
+        PlayerStats ps = PlayerStats.Instance
+                      ?? other.GetComponent<PlayerStats>()
+                      ?? other.GetComponentInParent<PlayerStats>();
+
+        if (ps == null)
+        {
+            Debug.LogWarning($"[Enemy] PlayerStats bulunamadi — contact damage uygulanamadi. " +
+                             $"Player objesinin Tag'i 'Player' ve PlayerStats script'i root'ta olmali.");
+            _nextPlayerDamageTime = Time.time + playerTouchInterval;
+            return;
+        }
+
+        bool applied = ps.TryTakeContactDamage(_contactDamage);
+
+_nextPlayerDamageTime = Time.time + playerTouchInterval;
+
+if (applied)
+    Debug.Log($"[Enemy] Contact damage APPLIED: {_contactDamage}");
+else
+    Debug.Log($"[Enemy] Contact damage BLOCKED");
     }
 
     void OnDisable()
     {
         CancelInvoke();
-        _initialized = false;
+        _initialized  = false;
         _reservationCount = 0;
     }
 
-    public int Armor => _armor;
-    public bool IsElite => _isElite;
-    public int ReservationCount => _reservationCount;
-    public bool CanAcceptReservation => _reservationCount < _reservationCap;
-    public float ThreatWeight => _threatWeight;
-    public float HealthRatio => _maxHealth > 0 ? (float)_currentHealth / _maxHealth : 1f;
+    public int   Armor                => _armor;
+    public bool  IsElite              => _isElite;
+    public int   ReservationCount     => _reservationCount;
+    public bool  CanAcceptReservation => _reservationCount < _reservationCap;
+    public float ThreatWeight         => _threatWeight;
+    public float HealthRatio          => _maxHealth > 0 ? (float)_currentHealth / _maxHealth : 1f;
 }

@@ -32,4 +32,4 @@ MonoBehaviour:
   hasMidStageLoot: 1
   techCoreDropChance: 0.15
   offlineBoostPerHour: 5
-  isTutorialStage: 0
+  isTutorialStage: 1

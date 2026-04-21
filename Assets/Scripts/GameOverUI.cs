@@ -150,7 +150,11 @@ public class GameOverUI : MonoBehaviour
     void OnReviveGranted()
     {
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
-        PlayerStats.Instance?.HealCommander(PlayerStats.Instance.CommanderMaxHP);
+
+        // DEĞİŞİKLİK: Sadece HP doldurmak yetmez; ölüm ve hareket flagleri de temizlenmeli.
+        PlayerStats.Instance?.ReviveFromGameOver();
+        FindObjectOfType<Playercontroller>()?.ResumeRun();
+
         Time.timeScale = 1f;
         Debug.Log("[GameOverUI] Oyuncu diriltildi.");
     }

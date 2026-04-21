@@ -2,12 +2,12 @@ using UnityEngine;
 using System.Collections.Generic;
 
 /// <summary>
-/// Top End War — Oyuncu Istatistikleri v8 (Claude & Patch)
+/// Top End War — Oyuncu Istatistikleri v9 (Runtime Stabilite Patch)
 ///
-/// DEGISIKLIKLER:
-///   + GateConfig ve Modifier destegi (Slice kural seti)
-///   + Run-time kapı bonus alanları eklendi
-///   + Eski ApplyGateEffect(GateData) destekli ama yeni yapıya adapte edildi
+/// v8 → v9 Delta:
+///   • _isDead flag eklendi: TakeContactDamage tekrar GameOver tetiklemez.
+///   • ResetRunGateBonuses(): _isDead, _lastDmgTime ve HP sifirlanir —
+///     StageManager bu metodu zaten cagirir, yeni run temiz baslar.
 /// </summary>
 [DefaultExecutionOrder(-10)]
 public class PlayerStats : MonoBehaviour
@@ -50,7 +50,10 @@ public class PlayerStats : MonoBehaviour
     private float _expectedCP    = 200f;
     private float _lastDmgTime   = -99f;
 
-    // ── RUN-TIME GATE BONUSLARI (Vertical Slice) ─────────────────────────
+    // PATCH: Cift GameOver tetiklenmesini onler.
+    private bool _isDead = false;
+
+    // ── RUN-TIME GATE BONUSLARI ───────────────────────────────────────────
     float _runWeaponPowerPercent = 0f;
     float _runFireRatePercent    = 0f;
     float _runEliteDamagePercent = 0f;
@@ -93,10 +96,8 @@ public class PlayerStats : MonoBehaviour
         float slotMult   = GetSlotLevelMult(weaponSlotLevel);
         float rarityMult = GetRarityMult(equippedWeapon != null ? equippedWeapon.rarity : 1);
         float globalMult = 1f;
-
         if (equippedNecklace != null) globalMult *= equippedNecklace.globalDmgMultiplier;
         if (equippedRing     != null) globalMult *= equippedRing.globalDmgMultiplier;
-
         return baseDMG * weaponMult * slotMult * rarityMult * globalMult;
     }
 
@@ -120,9 +121,7 @@ public class PlayerStats : MonoBehaviour
     }
 
     public static float GetRarityMult(int rarity)
-    {
-        return rarity switch { 1 => 1.0f, 2 => 1.3f, 3 => 1.7f, 4 => 2.2f, 5 => 3.0f, _ => 1.0f };
-    }
+        => rarity switch { 1 => 1.0f, 2 => 1.3f, 3 => 1.7f, 4 => 2.2f, 5 => 3.0f, _ => 1.0f };
 
     public float TotalDamageReduction()
     {
@@ -176,20 +175,59 @@ public class PlayerStats : MonoBehaviour
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
     }
 
+    // DEĞİŞİKLİK: Enemy tarafı artık hasarın gerçekten işlenip işlenmediğini bilmek istiyor.
+    // DEĞİŞİKLİK
+public bool TryTakeContactDamage(int amount)
+{
+    if (_isDead)
+    {
+        Debug.Log("[PlayerStats] ContactDamage BLOCKED -> already dead");
+        return false;
+    }
+
+    float dt = Time.time - _lastDmgTime;
+    if (dt < invincibilityDuration)
+    {
+        Debug.Log($"[PlayerStats] ContactDamage BLOCKED -> iFrame aktif | dt={dt:F2} / inv={invincibilityDuration:F2}");
+        return false;
+    }
+
+    _lastDmgTime = Time.time;
+
+    float dr = TotalDamageReduction();
+    int finalAmount = Mathf.RoundToInt(amount * (1f - dr));
+    int oldHp = CommanderHP;
+
+    CommanderHP = Mathf.Max(0, CommanderHP - finalAmount);
+
+    GameEvents.OnCommanderDamaged?.Invoke(finalAmount, CommanderHP);
+    GameEvents.OnPlayerDamaged?.Invoke(amount);
+    GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
+
+    Debug.Log($"[PlayerStats] ContactDamage APPLIED -> raw={amount} final={finalAmount} hp:{oldHp}->{CommanderHP}");
+
+    if (CommanderHP <= 0)
+    {
+        _isDead = true;
+        Debug.Log("[PlayerStats] ContactDamage APPLIED -> player dead, GameOver");
+        GameEvents.OnGameOver?.Invoke();
+    }
+
+    return true;
+}
+
     public void TakeContactDamage(int amount)
     {
-        if (Time.time - _lastDmgTime < invincibilityDuration) return;
-        _lastDmgTime = Time.time;
+        TryTakeContactDamage(amount);
+    }
 
-        float dr         = TotalDamageReduction();
-        int finalAmount  = Mathf.RoundToInt(amount * (1f - dr));
-
-        CommanderHP = Mathf.Max(0, CommanderHP - finalAmount);
-        GameEvents.OnCommanderDamaged?.Invoke(finalAmount, CommanderHP);
-        GameEvents.OnPlayerDamaged?.Invoke(amount);
+    // DEĞİŞİKLİK: Revive sonrası ölüm flagi ve hasar zamanlayıcısı temizlenir.
+    public void ReviveFromGameOver()
+    {
+        _isDead = false;
+        _lastDmgTime = -99f;
+        CommanderHP = CommanderMaxHP;
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
-
-        if (CommanderHP <= 0) GameEvents.OnGameOver?.Invoke();
     }
 
     public void HealCommander(int amount)
@@ -208,7 +246,8 @@ public class PlayerStats : MonoBehaviour
         if (CurrentTier != oldTier) OnTierChanged();
     }
 
-    // ── YENİ SİSTEM: GATE CONFIG ──────────────────────────────────────────
+    // ── Gate Config ───────────────────────────────────────────────────────
+
     public void ResetRunGateBonuses()
     {
         _runWeaponPowerPercent = 0f;
@@ -217,24 +256,28 @@ public class PlayerStats : MonoBehaviour
         _runBossDamagePercent  = 0f;
         _runArmorPenFlat       = 0;
         _runPierceCount        = 0;
+
+        // PATCH: yeni run baslarken olum flagini ve hasar zamanlayicisini sifirla.
+        _isDead      = false;
+        _lastDmgTime = -99f;
+        CommanderHP  = CommanderMaxHP;
+
+        GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
     }
 
     public void ApplyGateConfig(GateConfig gate)
     {
         if (gate == null) return;
-
         ApplyModifierList(gate.modifiers);
         if (gate.IsRisk && gate.penaltyModifiers != null && gate.penaltyModifiers.Count > 0)
             ApplyModifierList(gate.penaltyModifiers);
-
         Debug.Log($"[PlayerStats] Gate applied: {gate.title}");
     }
 
     void ApplyModifierList(List<GateModifier2> list)
     {
         if (list == null) return;
-        foreach (var mod in list)
-            ApplyModifier(mod);
+        foreach (var mod in list) ApplyModifier(mod);
     }
 
     void ApplyModifier(GateModifier2 mod)
@@ -242,72 +285,42 @@ public class PlayerStats : MonoBehaviour
         if (mod == null) return;
         switch (mod.statType)
         {
-            case GateStatType2.WeaponPowerPercent:
-                _runWeaponPowerPercent += mod.value;
-                break;
-            case GateStatType2.FireRatePercent:
-                _runFireRatePercent += mod.value;
-                break;
-            case GateStatType2.EliteDamagePercent:
-                _runEliteDamagePercent += mod.value;
-                break;
-            case GateStatType2.BossDamagePercent:
-                _runBossDamagePercent += mod.value;
-                break;
-            case GateStatType2.ArmorPenFlat:
-                _runArmorPenFlat += Mathf.RoundToInt(mod.value);
-                break;
-            case GateStatType2.PierceCount:
-                _runPierceCount += Mathf.RoundToInt(mod.value);
-                break;
+            case GateStatType2.WeaponPowerPercent:        _runWeaponPowerPercent += mod.value; break;
+            case GateStatType2.FireRatePercent:            _runFireRatePercent    += mod.value; break;
+            case GateStatType2.EliteDamagePercent:         _runEliteDamagePercent += mod.value; break;
+            case GateStatType2.BossDamagePercent:          _runBossDamagePercent  += mod.value; break;
+            case GateStatType2.ArmorPenFlat:               _runArmorPenFlat += Mathf.RoundToInt(mod.value); break;
+            case GateStatType2.PierceCount:                _runPierceCount  += Mathf.RoundToInt(mod.value); break;
             case GateStatType2.AddSoldierCount:
             {
                 int count = Mathf.RoundToInt(mod.value);
                 switch (mod.targetType)
                 {
-                    case GateTargetType2.PiyadeSoldiers:
-                        ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade, count: count);
-                        break;
-                    case GateTargetType2.MekanikSoldiers:
-                        ArmyManager.Instance?.AddSoldier(SoldierPath.Mekanik, count: count);
-                        break;
-                    case GateTargetType2.TeknolojiSoldiers:
-                        ArmyManager.Instance?.AddSoldier(SoldierPath.Teknoloji, count: count);
-                        break;
-                    case GateTargetType2.AllSoldiers:
-                    default:
-                        ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade, count: count);
-                        break;
+                    case GateTargetType2.PiyadeSoldiers:     ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade,    count: count); break;
+                    case GateTargetType2.MekanikSoldiers:    ArmyManager.Instance?.AddSoldier(SoldierPath.Mekanik,   count: count); break;
+                    case GateTargetType2.TeknolojiSoldiers:  ArmyManager.Instance?.AddSoldier(SoldierPath.Teknoloji, count: count); break;
+                    default:                                  ArmyManager.Instance?.AddSoldier(SoldierPath.Piyade,    count: count); break;
                 }
                 break;
             }
             case GateStatType2.HealCommanderPercent:
-            {
-                int heal = Mathf.RoundToInt(CommanderMaxHP * (mod.value / 100f));
-                HealCommander(heal);
+                HealCommander(Mathf.RoundToInt(CommanderMaxHP * (mod.value / 100f)));
                 break;
-            }
             case GateStatType2.HealSoldiersPercent:
-            {
-                float pct = mod.value / 100f;
-                ArmyManager.Instance?.HealAll(pct);
+                ArmyManager.Instance?.HealAll(mod.value / 100f);
                 break;
-            }
             default:
                 Debug.Log($"[PlayerStats] Unsupported gate stat for slice now: {mod.statType}");
                 break;
         }
     }
 
-    // ── ESKİ SİSTEM: (Legacy uyumluluk) ──────────────────────────────────
-
-    // ── Tier Degisimi ─────────────────────────────────────────────────────
+    // ── Tier ─────────────────────────────────────────────────────────────
     void OnTierChanged()
     {
         if (activeCommander == null) return;
         int oldMax = CommanderMaxHP;
         CommanderMaxHP = activeCommander.GetBaseHP(CurrentTier) + TotalEquipmentHPBonus();
-
         if (CommanderMaxHP > oldMax)
         {
             int bonusHP = CommanderMaxHP - oldMax;

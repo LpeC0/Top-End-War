@@ -131,6 +131,7 @@ MonoBehaviour:
   xLimit: 8
   _armor: 0
   _isElite: 0
+  playerTouchInterval: 0.2
 --- !u!54 &8327776685101101047
 Rigidbody:
   m_ObjectHideFlags: 0
