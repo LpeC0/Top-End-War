@@ -230,14 +230,11 @@ public class SpawnManager : MonoBehaviour
 
             for (int i = 0; i < spawnCount; i++)
             {
-                Vector2 shape = GetPacketShapeOffset(packet.packetType, g, i, spawnCount, packet.intraZStep);
                 float z = groupBaseZ
-                        + shape.y
-                        + (i * packet.intraZStep * 0.35f)
+                        + (i * packet.intraZStep)
                         + Random.Range(-packet.jitterZ * 0.5f, packet.jitterZ * 0.5f);
 
                 Vector3 pos = GetLaneBiasedSpawnPos(group.laneBias, i, spawnCount, z);
-                pos.x += shape.x;
 
                 // X jitter (saf Spread dis diger lane'ler icin dogallik)
                 if (packet.jitterX > 0f)
@@ -247,51 +244,6 @@ public class SpawnManager : MonoBehaviour
 
                 SpawnArchetypeEnemy(group.archetype, pos);
             }
-        }
-    }
-
-    // Packet bazli hafif formation offset'leri.
-    // Amaç: line-string hissini kırmak; mevcut lane ve rhythm akışını bozmamak.
-    Vector2 GetPacketShapeOffset(PacketType type, int groupIndex, int memberIndex, int groupCount, float intraZStep)
-    {
-        float t = groupCount <= 1 ? 0f : (float)memberIndex / (groupCount - 1); // 0..1
-        float centered = t - 0.5f;                                              // -0.5..0.5
-        float zig = (memberIndex % 2 == 0) ? -1f : 1f;
-
-        switch (type)
-        {
-            case PacketType.Baseline:
-                // Hafif staggered line
-                return new Vector2(centered * 0.55f + zig * 0.15f, zig * intraZStep * 0.35f);
-
-            case PacketType.DenseSwarm:
-            {
-                // Cluster/blob: merkez etrafında küçük bulut
-                float angle = memberIndex * 1.618f;
-                float ring = 0.25f + (memberIndex % 3) * 0.22f;
-                float x = Mathf.Cos(angle) * ring * 1.4f;
-                float z = Mathf.Sin(angle) * ring * 1.0f + zig * intraZStep * 0.18f;
-                return new Vector2(x, z);
-            }
-
-            case PacketType.DelayedCharger:
-                // Support -> daha yaygın; Charger -> center biased ama üst üste değil
-                if (groupIndex == 0)
-                    return new Vector2(centered * 0.85f + zig * 0.12f, zig * intraZStep * 0.28f);
-                return new Vector2(centered * 0.35f + zig * 0.18f, zig * intraZStep * 0.22f);
-
-            case PacketType.ArmorCheck:
-                // Front anchor (group0) + arka/yan destek (group1+)
-                if (groupIndex == 0)
-                    return new Vector2(centered * 0.28f, -0.45f * intraZStep);
-                return new Vector2(centered * 0.75f + zig * 0.15f, 0.55f * intraZStep + zig * 0.12f);
-
-            case PacketType.Relief:
-                // Seyrek, rahat, ama tek çizgi değil
-                return new Vector2(centered * 0.95f + zig * 0.20f, zig * intraZStep * 0.55f);
-
-            default:
-                return Vector2.zero;
         }
     }
 

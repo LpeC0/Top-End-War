@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2340e45c07a9fe9438a0a58cf1be95f4, type: 3}
+  m_Name: Packet_ArmorCheck_armor_check
+  m_EditorClassIdentifier: Assembly-CSharp::SpawnPacketConfig
+  packetId: armor_check
+  packetType: 3
+  groups:
+  - archetype: {fileID: 11400000, guid: ae559ec988f6721479a83bde983febe1, type: 2}
+    count: 2
+    laneBias: 1
+  - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+    count: 3
+    laneBias: 0
+  groupZStep: 7.5
+  jitterZ: 1
+  jitterX: 0.4
+  intraZStep: 1.5
+  hasLeadGap: 0
+  leadGapZ: 8

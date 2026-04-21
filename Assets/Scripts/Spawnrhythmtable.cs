@@ -37,6 +37,7 @@ public class SpawnRhythmTable : ScriptableObject
         foreach (RhythmEntry e in entries)
         {
             if (e.packet == null) continue;
+            if (e.worldID != currentWorld) continue;
             if (currentStage < e.minStage || currentStage > e.maxStage) continue;
 
             // Son secilen packet'i tamamen eleme; agirligini yarisla (cesitlilik saglanir)

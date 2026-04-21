@@ -4717,7 +4717,7 @@ MonoBehaviour:
   bossDistance: 1200
   minEnemies: 2
   maxEnemies: 5
-  rhythmTable: {fileID: 0}
+  rhythmTable: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410116, type: 2}
 --- !u!4 &1661570128
 Transform:
   m_ObjectHideFlags: 0

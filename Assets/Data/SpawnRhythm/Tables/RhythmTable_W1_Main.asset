@@ -1,0 +1,175 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 027f4b285fbb6794eb1b27b7b24174ec, type: 3}
+  m_Name: RhythmTable_W1_Main
+  m_EditorClassIdentifier: Assembly-CSharp::SpawnRhythmTable
+  entries:
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410111, type: 2}
+    weight: 3
+    minStage: 1
+    maxStage: 3
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 1.4
+    minStage: 1
+    maxStage: 3
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 0.8
+    minStage: 1
+    maxStage: 3
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410111, type: 2}
+    weight: 2.2
+    minStage: 4
+    maxStage: 6
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 1.8
+    minStage: 4
+    maxStage: 6
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 1.2
+    minStage: 4
+    maxStage: 6
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 1
+    minStage: 4
+    maxStage: 6
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410111, type: 2}
+    weight: 1.6
+    minStage: 7
+    maxStage: 10
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 2.3
+    minStage: 7
+    maxStage: 10
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410113, type: 2}
+    weight: 1.8
+    minStage: 7
+    maxStage: 10
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 1.8
+    minStage: 7
+    maxStage: 10
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 0.8
+    minStage: 7
+    maxStage: 10
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 2.2
+    minStage: 11
+    maxStage: 15
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410113, type: 2}
+    weight: 2
+    minStage: 11
+    maxStage: 15
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 1.8
+    minStage: 11
+    maxStage: 15
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 0.7
+    minStage: 11
+    maxStage: 15
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 2.4
+    minStage: 16
+    maxStage: 20
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410113, type: 2}
+    weight: 2.2
+    minStage: 16
+    maxStage: 20
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 2
+    minStage: 16
+    maxStage: 20
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 0.6
+    minStage: 16
+    maxStage: 20
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 2
+    minStage: 21
+    maxStage: 24
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410113, type: 2}
+    weight: 2.1
+    minStage: 21
+    maxStage: 24
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 2.2
+    minStage: 21
+    maxStage: 24
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 0.5
+    minStage: 21
+    maxStage: 24
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410113, type: 2}
+    weight: 2
+    minStage: 25
+    maxStage: 29
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 2.4
+    minStage: 25
+    maxStage: 29
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 1.8
+    minStage: 25
+    maxStage: 29
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 0.4
+    minStage: 25
+    maxStage: 29
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 2.3
+    minStage: 30
+    maxStage: 35
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410113, type: 2}
+    weight: 1.8
+    minStage: 30
+    maxStage: 35
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410112, type: 2}
+    weight: 1.6
+    minStage: 30
+    maxStage: 35
+    worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410115, type: 2}
+    weight: 0.3
+    minStage: 30
+    maxStage: 35
+    worldID: 1
