@@ -87,9 +87,6 @@ public class EnemyArchetypeConfig : ScriptableObject
         moveSpeed = Mathf.Max(0.1f, moveSpeed);
         contactDamage = Mathf.Max(0, contactDamage);
         cpRewardFactor = Mathf.Max(0f, cpRewardFactor);
-
-        if (!string.IsNullOrEmpty(enemyId))
-            name = $"Enemy_{enemyClass}_{enemyId}";
     }
 #endif
 }

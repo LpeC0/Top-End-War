@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.Rendering;
 
 public class Bullet : MonoBehaviour
 {
@@ -16,6 +17,8 @@ public class Bullet : MonoBehaviour
     const float LIFETIME   = 1.8f;
 
     Renderer _rend;
+    TrailRenderer _trail;
+    static Material _trailMaterial;
     bool _hit = false;
 
     int _remainingPierce = 0;
@@ -24,13 +27,18 @@ public class Bullet : MonoBehaviour
     // DEĞİŞİKLİK
     Vector3 _lastPos;
 
-    void Awake() => _rend = GetComponentInChildren<Renderer>();
+    void Awake()
+    {
+        _rend = GetComponentInChildren<Renderer>();
+        EnsureTrail();
+    }
 
     void OnEnable()
     {
         _hit = false;
         _remainingPierce = Mathf.Max(0, pierceCount);
         _hitTargets.Clear();
+        EnsureTrail();
         ApplyColor();
 
         // DEĞİŞİKLİK
@@ -45,9 +53,16 @@ public class Bullet : MonoBehaviour
         _hit = false;
         _remainingPierce = 0;
         _hitTargets.Clear();
+        if (_trail != null) _trail.Clear();
     }
 
     public void SetDamage(int d) => damage = d;
+
+    public void SetTracerColor(Color color)
+    {
+        bulletColor = color;
+        ApplyColor();
+    }
 
     public void SetCombatStats(int newDamage, int newArmorPen = 0, int newPierceCount = 0, float newEliteDamageMult = 1f, float newBossDamageMult = 1f)
     {
@@ -92,6 +107,7 @@ public class Bullet : MonoBehaviour
                 bossRecv.TakeDamage(damage, armorPen, bossDamageMult);
                 DamagePopup.Show(col.transform.position, damage,
                     DamagePopup.GetColor(hitterPath), damage > 500);
+                SpawnImpactVfx(col.transform.position, DamagePopup.GetColor(hitterPath));
             }
             else if (enemy != null)
             {
@@ -100,6 +116,7 @@ public class Bullet : MonoBehaviour
                     armorPenValue: armorPen,
                     eliteMultiplier: eliteDamageMult,
                     hitColor: DamagePopup.GetColor(hitterPath));
+                SpawnImpactVfx(col.transform.position, DamagePopup.GetColor(hitterPath));
             }
 
             _hitTargets.Add(targetId);
@@ -135,10 +152,79 @@ public class Bullet : MonoBehaviour
 
     void ApplyColor()
     {
-        if (_rend == null) return;
-        if (_rend.material.HasProperty("_BaseColor"))
-            _rend.material.SetColor("_BaseColor", bulletColor);
-        else
-            _rend.material.color = bulletColor;
+        if (_rend != null)
+        {
+            _rend.enabled = false;
+            if (_rend.material.HasProperty("_BaseColor"))
+                _rend.material.SetColor("_BaseColor", bulletColor);
+            else
+                _rend.material.color = bulletColor;
+        }
+
+        if (_trail != null)
+        {
+            _trail.startColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0.9f);
+            _trail.endColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0f);
+        }
+    }
+
+    void EnsureTrail()
+    {
+        if (_trail == null)
+            _trail = GetComponent<TrailRenderer>() ?? gameObject.AddComponent<TrailRenderer>();
+
+        _trail.time = 0.08f;
+        _trail.minVertexDistance = 0.05f;
+        _trail.startWidth = 0.10f;
+        _trail.endWidth = 0.01f;
+        _trail.alignment = LineAlignment.View;
+        _trail.shadowCastingMode = ShadowCastingMode.Off;
+        _trail.receiveShadows = false;
+        _trail.material = GetTrailMaterial();
+        _trail.emitting = true;
+        ApplyColor();
+    }
+
+    void SpawnImpactVfx(Vector3 pos, Color color)
+    {
+        var go = new GameObject("BulletImpactVfx");
+        go.transform.position = pos;
+
+        var light = go.AddComponent<Light>();
+        light.type = LightType.Point;
+        light.range = 1.5f;
+        light.intensity = 1.2f;
+        light.color = color;
+
+        var ps = go.AddComponent<ParticleSystem>();
+        var main = ps.main;
+        main.startLifetime = 0.12f;
+        main.startSpeed = 1.8f;
+        main.startSize = 0.12f;
+        main.startColor = color;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.loop = false;
+
+        var emission = ps.emission;
+        emission.enabled = true;
+        emission.SetBursts(new[]
+        {
+            new ParticleSystem.Burst(0f, 6)
+        });
+
+        var shape = ps.shape;
+        shape.enabled = true;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.05f;
+
+        ps.Play();
+        Destroy(go, 0.35f);
+    }
+
+    static Material GetTrailMaterial()
+    {
+        if (_trailMaterial == null)
+            _trailMaterial = new Material(Shader.Find("Sprites/Default"));
+        return _trailMaterial;
     }
 }

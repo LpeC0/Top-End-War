@@ -160,7 +160,7 @@ public class GameOverUI : MonoBehaviour
         if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
         PlayerStats.Instance?.ReviveFromGameOver();
-        FindObjectOfType<Playercontroller>()?.ResumeRun();
+        Object.FindAnyObjectByType<Playercontroller>()?.ResumeRun();
 
         // PATCH: Revive sonrasi bir sonraki olum tekrar GameOver gosterebilsin.
         _gameOverShown = false;

@@ -107,9 +107,6 @@ public class WeaponArchetypeConfig : ScriptableObject
         pierceCount = Mathf.Max(0, pierceCount);
         bounceCount = Mathf.Max(0, bounceCount);
         splashRadius = Mathf.Max(0f, splashRadius);
-
-        if (!string.IsNullOrEmpty(weaponId))
-            name = $"Weapon_{family}";
     }
 #endif
 }

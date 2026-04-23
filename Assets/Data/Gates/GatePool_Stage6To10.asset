@@ -33,11 +33,8 @@ MonoBehaviour:
     overrideWeight: 0
   - gate: {fileID: 11400000, guid: 64c86910762d9444eac25b9858179bd5, type: 2}
     overrideWeight: 0
-  - gate: {fileID: 11400000, guid: 6c87c055af35d2e499ce0d8d254e53ec, type: 2}
-    overrideWeight: 0
-  - gate: {fileID: 11400000, guid: d7a48ee93d0f7c34688208f4129a9160, type: 2}
-    overrideWeight: 0
   - gate: {fileID: 11400000, guid: 322a2777008318340ae99c882733eb42, type: 2}
     overrideWeight: 0
   allowRisk: 0
   bossPrepBias: 1
+

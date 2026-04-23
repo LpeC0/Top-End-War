@@ -34,22 +34,47 @@ public class StageManager : MonoBehaviour
 
     StageConfig _activeStage;
     WorldConfig _activeWorld;
+    bool _stageClearLocked = false;
 
     // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Awake()
     {
         if (Instance != null) { Destroy(gameObject); return; }
         Instance = this;
+        GameEvents.OnBossDefeated += HandleBossDefeated;
     }
 
-    void Start() => LoadStage(_currentWorldID, _currentStageID);
+    void Start() => LoadStage(_currentWorldID, _currentStageID, true);
+
+    void OnDestroy()
+    {
+        GameEvents.OnBossDefeated -= HandleBossDefeated;
+    }
+
+    void Update()
+    {
+        if (_activeStage == null) return;
+        if (_stageClearLocked) return;
+        if (_activeStage.IsBossStage) return;
+        if (PlayerStats.Instance == null) return;
+
+        if (PlayerStats.Instance.transform.position.z >= GetStageEndZ())
+            OnStageComplete();
+    }
 
     // ── Stage Yukle ───────────────────────────────────────────────────────
    
-    public void LoadStage(int worldID, int stageID)
+    public void LoadStage(int worldID, int stageID, bool resetRunState = true)
     {
-        RunState.Instance.Reset();
-        SaveManager.Instance?.BeginRun();
+        if (resetRunState)
+        {
+            RunState.Instance.Reset();
+            SaveManager.Instance?.BeginRun();
+            PlayerStats.Instance?.ResetRunGateBonuses();
+        }
+
+        Time.timeScale = 1f;
+        _stageClearLocked = false;
         _currentWorldID = worldID;
         _currentStageID = stageID;
 
@@ -62,8 +87,7 @@ public class StageManager : MonoBehaviour
             return;
         }
 
-        // Stage başında gate bonuslarını sıfırla
-        PlayerStats.Instance?.ResetRunGateBonuses();
+        PlayerStats.Instance?.SetExpectedCP(_activeStage.targetDps);
 
         // Biyomu guncelle
         if (_activeWorld != null)
@@ -105,9 +129,10 @@ public class StageManager : MonoBehaviour
     // ── Stage Tamamlandi ─────────────────────────────────────────────────
     public void OnStageComplete()
     {
-        
-
         if (_activeStage == null) return;
+        if (_stageClearLocked) return;
+        if (_activeStage.IsBossStage && BossManager.Instance != null && BossManager.Instance.IsActive())
+            return;
 
         // Altin odulu
         int gold = _activeStage.goldRewardOverride > 0
@@ -117,30 +142,30 @@ public class StageManager : MonoBehaviour
                 : 150;
         RunState.Instance.AddRunGold(gold);
         EconomyManager.Instance?.AddGold(gold);
+        SaveManager.Instance?.RegisterStageComplete();
         
         // Vertical slice'ta offline boost kapali.
         // EconomyManager.Instance?.AddOfflineRate(_activeStage.offlineBoostPerHour);
 
         Debug.Log($"[StageManager] Stage tamamlandi. Altin: +{gold}");
+        _stageClearLocked = true;
+        Time.timeScale = 0f;
 
-        // Sadece FinalBoss world complete sayilsin.
-        if (_activeStage.bossType == BossType.FinalBoss)
-        {
-            OnWorldComplete();
-            return;
-        }
-
-        // MiniBoss ise normal stage gibi ilerlesin; sonraki stage yoksa slice biter.
         StageConfig nextStage = FindStage(_currentWorldID, _currentStageID + 1);
-        
-        if (nextStage != null)
-        {
-            LoadStage(_currentWorldID, _currentStageID + 1);
-            return;
-        }
+        bool worldCleared = _activeStage.bossType == BossType.FinalBoss || nextStage == null;
 
-        Debug.Log("[StageManager] Vertical slice tamamlandi.");
-        GameEvents.OnWorldChanged?.Invoke(_currentWorldID); // mevcut event sistemi bozulmasin
+        GameEvents.OnStageCleared?.Invoke(new GameEvents.StageClearInfo
+        {
+            worldID = _currentWorldID,
+            stageID = _currentStageID,
+            stageName = _activeStage.DisplayStageName,
+            goldReward = gold,
+            hasNextStage = nextStage != null,
+            worldCleared = worldCleared
+        });
+
+        if (worldCleared)
+            GameEvents.OnVictory?.Invoke();
     }
 
     // ── Stage Ortasi Micro-Loot ───────────────────────────────────────────
@@ -175,7 +200,52 @@ public class StageManager : MonoBehaviour
         }
 
         GameEvents.OnWorldChanged?.Invoke(_currentWorldID);
-        LoadStage(_currentWorldID + 1, stageID: 1);
+        GameEvents.OnVictory?.Invoke();
+    }
+
+    void HandleBossDefeated()
+    {
+        if (_activeStage != null && _activeStage.IsBossStage)
+            OnStageComplete();
+    }
+
+    public float GetStageLength()
+    {
+        float bossDistance = SpawnManager.Instance != null ? SpawnManager.Instance.bossDistance : 1200f;
+        return Mathf.Max(60f, bossDistance / 10f);
+    }
+
+    public float GetStageStartZ()
+    {
+        return (_currentStageID - 1) * GetStageLength();
+    }
+
+    public float GetStageEndZ()
+    {
+        return _currentStageID * GetStageLength();
+    }
+
+    public float GetStageProgress01()
+    {
+        if (PlayerStats.Instance == null) return 0f;
+        return Mathf.InverseLerp(GetStageStartZ(), GetStageEndZ(), PlayerStats.Instance.transform.position.z);
+    }
+
+    public void ContinueAfterStageClear()
+    {
+        StageConfig nextStage = FindStage(_currentWorldID, _currentStageID + 1);
+        if (nextStage == null) return;
+        LoadStage(_currentWorldID, _currentStageID + 1, false);
+    }
+
+    public void RestartCurrentStage()
+    {
+        LoadStage(_currentWorldID, _currentStageID, true);
+    }
+
+    public bool HasNextStage()
+    {
+        return FindStage(_currentWorldID, _currentStageID + 1) != null;
     }
 
     // ── Yardimcilar ───────────────────────────────────────────────────────

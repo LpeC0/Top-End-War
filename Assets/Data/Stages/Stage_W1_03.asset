@@ -25,8 +25,7 @@ MonoBehaviour:
   gateBudgetMult: 1.4
   bossType: 0
   bossConfig: {fileID: 0}
-  waveSequence:
-  - {fileID: 11400000, guid: 47b3535884bd1c048894bb06302b2a15, type: 2}
+  waveSequence: []
   spawnDensity: 1
   goldRewardOverride: 0
   hasMidStageLoot: 1

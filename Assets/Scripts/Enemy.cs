@@ -31,6 +31,16 @@ public class Enemy : MonoBehaviour
 
     float _nextPlayerDamageTime = 0f;
     [SerializeField] float playerTouchInterval = 0.20f;
+    // DEĞİŞİKLİK: 2-faz steering ayarları
+[SerializeField] float engageDistance = 14f;
+[SerializeField] float hardEngageDistance = 8f;
+[SerializeField] float preEngageLateralSpeed = 0.45f;
+[SerializeField] float engageLateralSpeed = 1.8f;
+[SerializeField] float hardEngageLateralBoost = 1.35f;
+[SerializeField] float outerLaneInwardFactor = 0.72f;
+
+float _spawnLaneX = 0f;
+bool _spawnLaneCaptured = false;
 
     Renderer _bodyRenderer;
     EnemyHealthBar _hpBar;
@@ -59,6 +69,8 @@ public class Enemy : MonoBehaviour
         _nextPlayerDamageTime = 0f;
         _separationVec = Vector3.zero;
         _reservationCount = 0;
+        // DEĞİŞİKLİK: pooled / fresh spawn lane capture
+CaptureSpawnLane();
 
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = _baseColor;
@@ -91,6 +103,8 @@ public class Enemy : MonoBehaviour
         _isDead        = false;
         _nextPlayerDamageTime = 0f;
         _reservationCount = 0;
+        // DEĞİŞİKLİK: initialize sonrası lane capture güvenliği
+CaptureSpawnLane();
 
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = _baseColor;
@@ -110,6 +124,13 @@ public class Enemy : MonoBehaviour
         _initialized = true;
     }
 
+// DEĞİŞİKLİK: enemy'nin doğduğu lane'i hatırla
+void CaptureSpawnLane()
+{
+    _spawnLaneX = transform.position.x;
+    _spawnLaneCaptured = true;
+}
+
     void UseDefaults()
     {
         _maxHealth = _currentHealth = 100;
@@ -124,32 +145,56 @@ public class Enemy : MonoBehaviour
     }
 
     void Update()
+{
+    if (_isDead || PlayerStats.Instance == null) return;
+
+    if (!_spawnLaneCaptured)
+        CaptureSpawnLane();
+
+    float dt = Time.deltaTime;
+
+    Transform playerTf = PlayerStats.Instance.transform;
+    float pZ = playerTf.position.z;
+    float pX = playerTf.position.x;
+
+    Vector3 pos = transform.position;
+
+    // DEĞİŞİKLİK: ileri akış devam etsin
+    if (pos.z > pZ + 0.5f)
+        pos.z -= _moveSpeed * dt;
+
+    float distanceAhead = pos.z - pZ;
+
+    // DEĞİŞİKLİK: dış lane'de doğanları hafif içe toparla ama lane hissini öldürme
+    float approachTargetX = _spawnLaneX;
+    if (Mathf.Abs(_spawnLaneX) > xLimit * 0.45f)
+        approachTargetX = _spawnLaneX * outerLaneInwardFactor;
+
+    // DEĞİŞİKLİK: uzakta lane koru, yakında player'a geç
+    float engageT = Mathf.InverseLerp(engageDistance, hardEngageDistance, distanceAhead);
+    float targetX = Mathf.Lerp(approachTargetX, pX, engageT);
+
+    float lateralSpeed = Mathf.Lerp(preEngageLateralSpeed, engageLateralSpeed, engageT);
+
+    // DEĞİŞİKLİK: çok yakında ama hâlâ yandan uzaktaysa hafif catch-up ver
+    if (distanceAhead <= hardEngageDistance && Mathf.Abs(pos.x - pX) > 2.5f)
+        lateralSpeed *= hardEngageLateralBoost;
+
+    pos.x = Mathf.MoveTowards(pos.x, targetX, lateralSpeed * dt);
+
+    if (Time.time - _lastSepTime > SEP_INTERVAL)
     {
-        if (_isDead || PlayerStats.Instance == null) return;
-
-        float pZ = PlayerStats.Instance.transform.position.z;
-        Vector3 pos = transform.position;
-
-        if (pos.z > pZ + 0.5f)
-            pos.z -= _moveSpeed * Time.deltaTime;
-
-        pos.x = Mathf.Clamp(
-            Mathf.MoveTowards(pos.x, PlayerStats.Instance.transform.position.x, 1.5f * Time.deltaTime),
-            -xLimit, xLimit);
-
-        if (Time.time - _lastSepTime > SEP_INTERVAL)
-        {
-            _separationVec = CalcSeparation(pos);
-            _lastSepTime   = Time.time;
-        }
-
-        pos += _separationVec * Time.deltaTime;
-        pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
-        transform.position = pos;
-
-        if (pos.z < pZ - 15f)
-            gameObject.SetActive(false);
+        _separationVec = CalcSeparation(pos);
+        _lastSepTime   = Time.time;
     }
+
+    pos += _separationVec * dt;
+    pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
+    transform.position = pos;
+
+    if (pos.z < pZ - 15f)
+        gameObject.SetActive(false);
+}
 
     Vector3 CalcSeparation(Vector3 pos)
     {
@@ -178,7 +223,8 @@ public class Enemy : MonoBehaviour
         if (_isDead) return;
 
         int effectiveArmor = Mathf.Max(0, _armor - Mathf.Max(0, armorPenValue));
-        int finalDamage    = Mathf.Max(1, rawDamage - effectiveArmor);
+        float armorMult    = 100f / (100f + effectiveArmor);
+        int finalDamage    = Mathf.Max(1, Mathf.RoundToInt(rawDamage * armorMult));
 
         if (_isElite)
             finalDamage = Mathf.Max(1, Mathf.RoundToInt(finalDamage * Mathf.Max(1f, eliteMultiplier)));

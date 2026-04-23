@@ -28,7 +28,7 @@ public class SpawnRhythmTable : ScriptableObject
     /// exclude: son secilen packet — ayni packet ust uste gelmemesi icin
     ///          agirliginin %25'ine dusurilur (tamamen elenmez, sonuz dongu olmaz).
     /// </summary>
-    public SpawnPacketConfig Pick(int currentWorld,int currentStage, SpawnPacketConfig exclude = null)
+    public SpawnPacketConfig Pick(int currentWorld,int currentStage, SpawnPacketConfig exclude = null, float stageProgress01 = -1f)
     {
         // Aktif stage araligina uyan kayitlari topla
         var pool  = new List<(SpawnPacketConfig packet, float weight)>();
@@ -42,6 +42,9 @@ public class SpawnRhythmTable : ScriptableObject
 
             // Son secilen packet'i tamamen eleme; agirligini yarisla (cesitlilik saglanir)
             float w = (e.packet == exclude) ? e.weight * 0.25f : e.weight;
+            if (stageProgress01 >= 0f)
+                w *= GetProgressMultiplier(e.packet.packetType, stageProgress01);
+
             pool.Add((e.packet, w));
             total += w;
         }
@@ -57,6 +60,28 @@ public class SpawnRhythmTable : ScriptableObject
         }
 
         return pool[pool.Count - 1].packet;   // float tolerans kapama
+    }
+
+    float GetProgressMultiplier(PacketType packetType, float progress01)
+    {
+        progress01 = Mathf.Clamp01(progress01);
+        float mid    = Mathf.InverseLerp(0.26f, 0.66f, progress01);
+        float early  = 1f - Mathf.InverseLerp(0.0f, 0.24f, progress01);
+        float spike  = Mathf.InverseLerp(0.52f, 0.86f, progress01);
+        float finish = Mathf.InverseLerp(0.78f, 1.0f, progress01);
+
+        return packetType switch
+        {
+            PacketType.Relief       => Mathf.Lerp(2.8f, 0.4f, progress01),
+            PacketType.Baseline     => 0.85f + early * 1.05f + Mathf.Max(0f, 0.3f - Mathf.Abs(progress01 - 0.18f)),
+            PacketType.DenseSwarm   => 0.55f + mid * 1.25f + spike * 0.35f,
+            PacketType.DelayedCharger => 0.35f + mid * 0.65f + spike * 1.25f + finish * 0.6f,
+            PacketType.ArmorCheck   => 0.30f + mid * 0.35f + spike * 1.55f + finish * 1.15f,
+            PacketType.GuardedCore  => 0.55f + spike * 0.55f + finish * 0.85f,
+            PacketType.EliteSpike   => 0.25f + spike * 1.55f + finish * 1.3f,
+            PacketType.BossPrep     => 0.20f + finish * 2.25f,
+            _                       => 1f,
+        };
     }
 }
 

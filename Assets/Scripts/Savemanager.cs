@@ -36,6 +36,7 @@ public class SaveManager : MonoBehaviour
 
     // Mevcut oyun
     public int   CurrentRunKills     { get; private set; } = 0;
+    public int   CurrentRunStagesCleared { get; private set; } = 0;
     public float CurrentRunStartTime { get; private set; }
 
     // Okunabilir özellikler
@@ -100,6 +101,7 @@ public class SaveManager : MonoBehaviour
 
     // ── Kill sayacı ───────────────────────────────────────────────────────
     public void RegisterKill() => CurrentRunKills++;
+    public void RegisterStageComplete() => CurrentRunStagesCleared++;
 
     // ── IO ────────────────────────────────────────────────────────────────
     public void Save()
@@ -140,6 +142,7 @@ public class SaveManager : MonoBehaviour
     public void BeginRun()
 {
     CurrentRunKills = 0;
+    CurrentRunStagesCleared = 0;
     CurrentRunStartTime = Time.time;
 }
 }

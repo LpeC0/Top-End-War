@@ -109,8 +109,6 @@ public class GateConfig : ScriptableObject
 #if UNITY_EDITOR
     void OnValidate()
     {
-        if (!string.IsNullOrEmpty(gateId))
-            name = $"Gate_{family}_{gateId}";
     }
 #endif
 }

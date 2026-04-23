@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5ef6eb4e7f65a2a40942cd88632f62d0, type: 3}
-  m_Name: Enemy_Normal_charger
+  m_Name: Enemy_Charger
   m_EditorClassIdentifier: Assembly-CSharp::EnemyArchetypeConfig
   enemyId: charger
   enemyName: Charger
@@ -24,9 +24,10 @@ MonoBehaviour:
   armor: 0
   moveSpeed: 5.8
   contactDamage: 35
-  threatType: 0
+  threatType: 2
   canSpawnInRunner: 1
   canSpawnInAnchor: 1
   cpRewardFactor: 0.07
   icon: {fileID: 0}
   animatorOverride: {fileID: 0}
+

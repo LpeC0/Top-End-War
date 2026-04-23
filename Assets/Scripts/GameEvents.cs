@@ -7,6 +7,16 @@ using System;
 /// </summary>
 public static class GameEvents
 {
+    public struct StageClearInfo
+    {
+        public int worldID;
+        public int stageID;
+        public string stageName;
+        public int goldReward;
+        public bool hasNextStage;
+        public bool worldCleared;
+    }
+
     // ── Oyuncu / Komutan ─────────────────────────────────────────────────
     public static Action<int>        OnCPUpdated;
     public static Action<int>        OnBulletCountChanged;
@@ -47,6 +57,7 @@ public static class GameEvents
     // ── Oyun Akisi ────────────────────────────────────────────────────────
     public static Action             OnGameOver;
     public static Action             OnVictory;
+    public static Action<StageClearInfo> OnStageCleared;
 
     // ── Biyom / Dunya ────────────────────────────────────────────────────
     public static Action<string>     OnBiomeChanged;

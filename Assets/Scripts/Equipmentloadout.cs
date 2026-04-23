@@ -37,6 +37,7 @@ public class EquipmentLoadout : ScriptableObject
         ps.equippedNecklace = ValidateForSlot(necklace, EquipmentSlot.Necklace, "necklace");
         ps.equippedRing     = ValidateForSlot(ring,     EquipmentSlot.Ring,     "ring");
         ps.equippedPet      = pet;
+        ps.RefreshWeaponDerivedStats();
     }
 
     public void ReadFrom(PlayerStats ps)

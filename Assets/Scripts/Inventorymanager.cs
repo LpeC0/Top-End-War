@@ -181,6 +181,7 @@ public class InventoryManager : MonoBehaviour
     }
 
     PlayerStats.Instance.equippedLoadout?.ReadFrom(PlayerStats.Instance);
+    PlayerStats.Instance.RefreshWeaponDerivedStats();
     GameEvents.OnCPUpdated?.Invoke(PlayerStats.Instance.CP);
     GameEvents.OnCommanderHPChanged?.Invoke(PlayerStats.Instance.CommanderHP, PlayerStats.Instance.CommanderMaxHP);
 

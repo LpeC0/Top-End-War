@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8fbf73297373314a95e741ac2d67a8f, type: 3}
-  m_Name: Gate_BossPrep_final_prep_stabilizer
+  m_Name: Gate_FinalPrep_Stabilizer
   m_EditorClassIdentifier: Assembly-CSharp::GateConfig
   gateId: final_prep_stabilizer
   titleKey: 
@@ -37,3 +37,4 @@ MonoBehaviour:
     value: 20
   penaltyModifiers: []
   gateValueBudget: 1
+

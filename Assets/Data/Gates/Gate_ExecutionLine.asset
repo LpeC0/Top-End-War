@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d8fbf73297373314a95e741ac2d67a8f, type: 3}
-  m_Name: Gate_Solve_execution_line
+  m_Name: Gate_ExecutionLine
   m_EditorClassIdentifier: Assembly-CSharp::GateConfig
   gateId: execution_line
   titleKey: 
@@ -37,3 +37,4 @@ MonoBehaviour:
     value: 12
   penaltyModifiers: []
   gateValueBudget: 1
+

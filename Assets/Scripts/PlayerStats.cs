@@ -60,6 +60,7 @@ public class PlayerStats : MonoBehaviour
     float _runBossDamagePercent  = 0f;
     int   _runArmorPenFlat       = 0;
     int   _runPierceCount        = 0;
+    int   _runPelletCount        = 0;
 
     public float RunWeaponPowerPercent => _runWeaponPowerPercent;
     public float RunFireRatePercent    => _runFireRatePercent;
@@ -67,6 +68,7 @@ public class PlayerStats : MonoBehaviour
     public float RunBossDamagePercent  => _runBossDamagePercent;
     public int   RunArmorPenFlat       => _runArmorPenFlat;
     public int   RunPierceCount        => _runPierceCount;
+    public int   RunPelletCount        => _runPelletCount;
 
     // ── CP Property ───────────────────────────────────────────────────────
     public int CP
@@ -163,6 +165,7 @@ public class PlayerStats : MonoBehaviour
 
         equippedLoadout?.ApplyTo(this);
         _baseCP = 0;
+        RefreshWeaponDerivedStats();
 
         CommanderMaxHP = (activeCommander != null ? activeCommander.GetBaseHP(1) : 500)
                        + TotalEquipmentHPBonus();
@@ -248,18 +251,19 @@ public bool TryTakeContactDamage(int amount)
 
     // ── Gate Config ───────────────────────────────────────────────────────
 
-    public void ResetRunGateBonuses()
-    {
-        _runWeaponPowerPercent = 0f;
-        _runFireRatePercent    = 0f;
-        _runEliteDamagePercent = 0f;
-        _runBossDamagePercent  = 0f;
-        _runArmorPenFlat       = 0;
-        _runPierceCount        = 0;
+public void ResetRunGateBonuses()
+{
+    _runWeaponPowerPercent = 0f;
+    _runFireRatePercent    = 0f;
+    _runEliteDamagePercent = 0f;
+    _runBossDamagePercent  = 0f;
+    _runArmorPenFlat       = 0;
+    _runPierceCount        = 0;
+    _runPelletCount        = 0;
 
-        // PATCH: yeni run baslarken olum flagini ve hasar zamanlayicisini sifirla.
-        _isDead      = false;
-        _lastDmgTime = -99f;
+    // PATCH: yeni run baslarken olum flagini ve hasar zamanlayicisini sifirla.
+    _isDead      = false;
+    _lastDmgTime = -99f;
         CommanderHP  = CommanderMaxHP;
 
         GameEvents.OnCommanderHPChanged?.Invoke(CommanderHP, CommanderMaxHP);
@@ -271,6 +275,17 @@ public bool TryTakeContactDamage(int amount)
         ApplyModifierList(gate.modifiers);
         if (gate.IsRisk && gate.penaltyModifiers != null && gate.penaltyModifiers.Count > 0)
             ApplyModifierList(gate.penaltyModifiers);
+        RefreshWeaponDerivedStats();
+        Debug.Log($"[PlayerStats] Gate applied: {gate.title}");
+    }
+
+    public void ApplyGateConfig(GateRuntimeData gate)
+    {
+        if (gate == null) return;
+        ApplyModifierList(gate.modifiers);
+        if (gate.isRisk && gate.penaltyModifiers != null && gate.penaltyModifiers.Count > 0)
+            ApplyModifierList(gate.penaltyModifiers);
+        RefreshWeaponDerivedStats();
         Debug.Log($"[PlayerStats] Gate applied: {gate.title}");
     }
 
@@ -291,6 +306,7 @@ public bool TryTakeContactDamage(int amount)
             case GateStatType2.BossDamagePercent:          _runBossDamagePercent  += mod.value; break;
             case GateStatType2.ArmorPenFlat:               _runArmorPenFlat += Mathf.RoundToInt(mod.value); break;
             case GateStatType2.PierceCount:                _runPierceCount  += Mathf.RoundToInt(mod.value); break;
+            case GateStatType2.PelletCount:                _runPelletCount  += Mathf.RoundToInt(mod.value); break;
             case GateStatType2.AddSoldierCount:
             {
                 int count = Mathf.RoundToInt(mod.value);
@@ -357,4 +373,23 @@ public bool TryTakeContactDamage(int amount)
     }
 
     public int GetRiskBonus() => _riskBonusLeft;
+
+    public void RefreshWeaponDerivedStats()
+    {
+        int baseCount = equippedWeapon != null && equippedWeapon.weaponArchetype != null
+            ? equippedWeapon.weaponArchetype.projectileCount
+            : 1;
+
+        int nextCount = Mathf.Clamp(baseCount + _runPelletCount, 1, MAX_BULLETS);
+        if (BulletCount == nextCount) return;
+
+        BulletCount = nextCount;
+        GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
+    }
+
+    public void SetBulletCount(int count)
+    {
+        BulletCount = Mathf.Clamp(count, 1, MAX_BULLETS);
+        GameEvents.OnBulletCountChanged?.Invoke(BulletCount);
+    }
 }

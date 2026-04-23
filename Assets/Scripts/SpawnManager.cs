@@ -193,7 +193,8 @@ public class SpawnManager : MonoBehaviour
 
         int currentWorld = StageManager.Instance != null ? StageManager.Instance.CurrentWorldID : 1;
         int currentStage = StageManager.Instance != null ? StageManager.Instance.CurrentStageID : 1;
-        SpawnPacketConfig packet = rhythmTable.Pick(currentWorld, currentStage, _lastPacket);
+        float stageProgress = StageManager.Instance != null ? StageManager.Instance.GetStageProgress01() : -1f;
+        SpawnPacketConfig packet = rhythmTable.Pick(currentWorld, currentStage, _lastPacket, stageProgress);
 
         if (packet == null) return false;
 
@@ -357,8 +358,7 @@ public class SpawnManager : MonoBehaviour
         Gate gate = obj.GetComponent<Gate>();
         if (gate != null)
         {
-            gate.gateConfig = data;
-            gate.Refresh();
+            gate.BindGateConfig(data);
         }
 
         if (scale != 1f)

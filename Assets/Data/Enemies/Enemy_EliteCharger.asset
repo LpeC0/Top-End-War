@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 5ef6eb4e7f65a2a40942cd88632f62d0, type: 3}
-  m_Name: Enemy_Normal_elite_charger
+  m_Name: Enemy_EliteCharger
   m_EditorClassIdentifier: Assembly-CSharp::EnemyArchetypeConfig
   enemyId: elite_charger
   enemyName: Elite Charger
-  enemyClass: 0
+  enemyClass: 1
   displayNameKey: loc_enemy_elite_charger_name
   descriptionKey: 
   roleKey: loc_enemy_elite_charger_role
@@ -24,9 +24,10 @@ MonoBehaviour:
   armor: 8
   moveSpeed: 6.2
   contactDamage: 55
-  threatType: 0
+  threatType: 4
   canSpawnInRunner: 1
   canSpawnInAnchor: 1
   cpRewardFactor: 0.14
   icon: {fileID: 0}
   animatorOverride: {fileID: 0}
+
