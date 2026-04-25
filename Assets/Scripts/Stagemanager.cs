@@ -1,18 +1,12 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Stage Yoneticisi v2 (Claude) + Vertical Slice Patch
-///
-/// v2: StageConfig.targetDps formullerine gore HP degerlerini
-///     SpawnManager ve BossManager'a iletir.
-///     EconomyManager'a altin ekler (Offline boost slice'ta kapali).
-///     Dunya bitisinde WorldConfig'deki komutani acar.
-///
-/// KURULUM:
-///   Hierarchy > Create Empty > "StageManager" > bu scripti ekle.
-///   worlds[]      : WorldConfig SO'lari sur (World 1, 2, 3...).
-///   stageConfigs[]: StageConfig SO'lari sur (veya Resources/Stages/'a koy).
-///   economyConfig : EconomyConfig SO'sunu sur.
+/// Top End War — Stage Yoneticisi v2.1 (Patched)
+/// 
+/// Yenilikler: 
+/// - Her stage başında sahne temizliği (ClearRuntimeObjects) eklendi.
+/// - Oyuncunun pozisyonu ve durumu her stage başında sıfırlanıyor.
+/// - Stage mesafeleri yerel (0'dan başlar) hale getirildi.
 /// </summary>
 public class StageManager : MonoBehaviour
 {
@@ -63,7 +57,6 @@ public class StageManager : MonoBehaviour
     }
 
     // ── Stage Yukle ───────────────────────────────────────────────────────
-   
     public void LoadStage(int worldID, int stageID, bool resetRunState = true)
     {
         if (resetRunState)
@@ -87,25 +80,53 @@ public class StageManager : MonoBehaviour
             return;
         }
 
+        // PATCH: Kirli runtime objelerini temizle
+        ClearRuntimeObjects();
+
+        // PATCH: Oyuncuyu yeni stage başlangıcına al
+        Playercontroller pc = FindFirstObjectByType<Playercontroller>();
+        if (pc != null)
+            pc.ResetForStage(0f);
+
+        // PATCH: HP ve ölüm state sıfırlama (Güvenlik için revive)
+        PlayerStats.Instance?.ReviveFromGameOver();
         PlayerStats.Instance?.SetExpectedCP(_activeStage.targetDps);
 
         // Biyomu guncelle
         if (_activeWorld != null)
             BiomeManager.Instance?.SetBiome(_activeWorld.biome);
 
-        // DEĞİŞİKLİK: stage runtime spawn state reset
+        // SpawnManager reset
         SpawnManager.Instance?.ResetForStage();
 
-        // SpawnManager'a mob HP'yi ilet
+        // Mob HP ilet
         ApplyMobHP();
 
-        // Boss stage ise BossManager'a HP'yi ilet
+        // Boss stage ise BossManager'a HP ilet
         if (_activeStage.IsBossStage)
             ApplyBossHP();
 
         GameEvents.OnStageChanged?.Invoke(worldID, stageID);
         Debug.Log($"[StageManager] W{worldID}-{stageID} | targetDps={_activeStage.targetDps} " +
                   $"| mobHP={_activeStage.GetNormalMobHP()} | bossHP={_activeStage.GetBossHP()}");
+    }
+
+    // ── Runtime Temizliği (PATCH) ──────────────────────────────────────────
+    void ClearRuntimeObjects()
+    {
+        foreach (var enemy in FindObjectsByType<Enemy>(FindObjectsSortMode.None))
+            if (enemy != null) Destroy(enemy.gameObject);
+
+        foreach (var gate in FindObjectsByType<Gate>(FindObjectsSortMode.None))
+            if (gate != null) Destroy(gate.gameObject);
+
+        foreach (var bullet in FindObjectsByType<Bullet>(FindObjectsSortMode.None))
+            if (bullet != null && bullet.gameObject.activeSelf)
+                bullet.gameObject.SetActive(false);
+
+        foreach (var boss in FindObjectsByType<BossHitReceiver>(FindObjectsSortMode.None))
+            if (boss != null)
+                boss.gameObject.SetActive(false);
     }
 
     // ── HP Dagitimi ───────────────────────────────────────────────────────
@@ -134,19 +155,16 @@ public class StageManager : MonoBehaviour
         if (_activeStage.IsBossStage && BossManager.Instance != null && BossManager.Instance.IsActive())
             return;
 
-        // Altin odulu
         int gold = _activeStage.goldRewardOverride > 0
             ? _activeStage.goldRewardOverride
             : economyConfig != null
                 ? economyConfig.GetGoldReward(_activeStage.stageID, _activeStage.targetDps)
                 : 150;
+
         RunState.Instance.AddRunGold(gold);
         EconomyManager.Instance?.AddGold(gold);
         SaveManager.Instance?.RegisterStageComplete();
         
-        // Vertical slice'ta offline boost kapali.
-        // EconomyManager.Instance?.AddOfflineRate(_activeStage.offlineBoostPerHour);
-
         Debug.Log($"[StageManager] Stage tamamlandi. Altin: +{gold}");
         _stageClearLocked = true;
         Time.timeScale = 0f;
@@ -165,10 +183,9 @@ public class StageManager : MonoBehaviour
         });
 
         if (worldCleared)
-            GameEvents.OnVictory?.Invoke();
+            OnWorldComplete();
     }
 
-    // ── Stage Ortasi Micro-Loot ───────────────────────────────────────────
     public void OnMidStageReached()
     {
         if (_activeStage == null || !_activeStage.hasMidStageLoot) return;
@@ -179,15 +196,8 @@ public class StageManager : MonoBehaviour
 
         EconomyManager.Instance?.AddGold(midGold);
         Debug.Log($"[StageManager] Micro-loot: +{midGold} Altin");
-
-        // Vertical slice economy: TechCore kapali.
-        // if (Random.value < _activeStage.techCoreDropChance)
-        // {
-        //     EconomyManager.Instance?.AddTechCore(1);
-        // }
     }
 
-    // ── Dunya Tamamlandi ─────────────────────────────────────────────────
     void OnWorldComplete()
     {
         if (_activeWorld != null)
@@ -195,8 +205,6 @@ public class StageManager : MonoBehaviour
             EconomyManager.Instance?.AddOfflineRate(_activeWorld.offlineIncomeBoost);
             if (_activeWorld.unlockedCommander != null)
                 Debug.Log($"[StageManager] Komutan acildi: {_activeWorld.unlockedCommander.commanderName}");
-            
-            // TODO: Komutan unlock UI
         }
 
         GameEvents.OnWorldChanged?.Invoke(_currentWorldID);
@@ -209,21 +217,15 @@ public class StageManager : MonoBehaviour
             OnStageComplete();
     }
 
+    // ── Mesafe Hesaplamaları (PATCH) ───────────────────────────────────────
     public float GetStageLength()
     {
         float bossDistance = SpawnManager.Instance != null ? SpawnManager.Instance.bossDistance : 1200f;
-        return Mathf.Max(60f, bossDistance / 10f);
+        return Mathf.Max(300f, bossDistance);
     }
 
-    public float GetStageStartZ()
-    {
-        return (_currentStageID - 1) * GetStageLength();
-    }
-
-    public float GetStageEndZ()
-    {
-        return _currentStageID * GetStageLength();
-    }
+    public float GetStageStartZ() => 0f;
+    public float GetStageEndZ() => GetStageLength();
 
     public float GetStageProgress01()
     {
@@ -231,6 +233,7 @@ public class StageManager : MonoBehaviour
         return Mathf.InverseLerp(GetStageStartZ(), GetStageEndZ(), PlayerStats.Instance.transform.position.z);
     }
 
+    // ── Kontroller ────────────────────────────────────────────────────────
     public void ContinueAfterStageClear()
     {
         StageConfig nextStage = FindStage(_currentWorldID, _currentStageID + 1);
@@ -238,15 +241,8 @@ public class StageManager : MonoBehaviour
         LoadStage(_currentWorldID, _currentStageID + 1, false);
     }
 
-    public void RestartCurrentStage()
-    {
-        LoadStage(_currentWorldID, _currentStageID, true);
-    }
-
-    public bool HasNextStage()
-    {
-        return FindStage(_currentWorldID, _currentStageID + 1) != null;
-    }
+    public void RestartCurrentStage() => LoadStage(_currentWorldID, _currentStageID, true);
+    public bool HasNextStage() => FindStage(_currentWorldID, _currentStageID + 1) != null;
 
     // ── Yardimcilar ───────────────────────────────────────────────────────
     WorldConfig FindWorld(int id)
@@ -266,7 +262,6 @@ public class StageManager : MonoBehaviour
         return Resources.Load<StageConfig>($"Stages/Stage_W{worldID}_{stageID:D2}");
     }
 
-    // ── Getter'lar ────────────────────────────────────────────────────────
     public StageConfig ActiveStage => _activeStage;
     public WorldConfig ActiveWorld => _activeWorld;
     public int CurrentWorldID => _currentWorldID;

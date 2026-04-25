@@ -150,23 +150,30 @@ public class Bullet : MonoBehaviour
         gameObject.SetActive(false);
     }
 
-    void ApplyColor()
+   void ApplyColor()
+{
+    if (_rend != null)
     {
-        if (_rend != null)
-        {
-            _rend.enabled = false;
-            if (_rend.material.HasProperty("_BaseColor"))
-                _rend.material.SetColor("_BaseColor", bulletColor);
-            else
-                _rend.material.color = bulletColor;
-        }
+        // DEĞİŞİKLİK: mermi gövdesini yeniden görünür yap
+        _rend.enabled = true;
 
-        if (_trail != null)
-        {
-            _trail.startColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0.9f);
-            _trail.endColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0f);
-        }
+        if (_rend.material.HasProperty("_BaseColor"))
+            _rend.material.SetColor("_BaseColor", bulletColor);
+        else
+            _rend.material.color = bulletColor;
     }
+
+    if (_trail != null)
+    {
+        _trail.startColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0.95f);
+        _trail.endColor   = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0f);
+
+        // DEĞİŞİKLİK: biraz daha okunur tracer
+        _trail.time       = 0.12f;
+        _trail.startWidth = 0.14f;
+        _trail.endWidth   = 0.02f;
+    }
+}
 
     void EnsureTrail()
     {

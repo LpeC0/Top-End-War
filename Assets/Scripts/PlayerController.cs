@@ -422,10 +422,26 @@ public class Playercontroller : MonoBehaviour
     }
 
     // PATCH: GameOver sonrasi Revive icin.
-    public void ResumeRun()
-    {
-        _gameOver   = false;
-        _anchorMode = false;
-        forwardSpeed = 10f;
-    }
+   public void ResumeRun()
+{
+    // DEĞİŞİKLİK: sadece gameOver kapatmak yetmez
+    _gameOver    = false;
+    _anchorMode  = false;
+    _dragging    = false;
+    _targetX     = 0f;
+    _nextFire    = 0f;
+    forwardSpeed = 10f;
+}
+
+public void ResetForStage(float startZ = 0f)
+{
+    ResumeRun();
+
+    Vector3 p = transform.position;
+    p.x = 0f;
+    p.y = playerY;
+    p.z = startZ;
+    transform.position = p;
+}
+
 }
