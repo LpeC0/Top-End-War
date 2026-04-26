@@ -35,16 +35,16 @@ namespace TopEndWar.UI.Data
                 currentStageName = GetStageName(_playerProgress.currentStageId),
                 completedStages = world.completedStages,
                 totalStages = world.stageCount,
-                playerPower = 28450,
-                targetPower = 32000,
-                powerState = "stage.underpowered",
-                upgradeRecommended = true,
-                playerLevel = 18,
-                energy = 72,
-                gold = save != null ? Mathf.Max(14500, save.HighScoreCP) : 14500,
-                premiumCurrency = 320,
-                mailCount = 3,
-                totalRuns = save != null ? save.TotalRuns : 17
+                playerPower = 120,
+                targetPower = 100,
+                powerState = "stage.ready",
+                upgradeRecommended = false,
+                playerLevel = 1,
+                energy = 50,
+                gold = save != null ? Mathf.Max(0, save.HighScoreCP) : 0,
+                premiumCurrency = 0,
+                mailCount = 0,
+                totalRuns = save != null ? save.TotalRuns : 0
             };
         }
 
@@ -57,6 +57,7 @@ namespace TopEndWar.UI.Data
                 commanderName = "Cmdr. Voss",
                 playerLevel = home.playerLevel,
                 energy = home.energy,
+                maxEnergy = 50,
                 gold = home.gold,
                 premiumCurrency = home.premiumCurrency,
                 mailCount = home.mailCount,
@@ -105,8 +106,8 @@ namespace TopEndWar.UI.Data
             WorldConfig world = GetCurrentWorld();
             int stageId = Mathf.Clamp(_selectedStageId, 1, world.stageCount);
             bool isBossStage = stageId == world.bossStageId;
-            int targetPower = 27000 + (stageId * 450);
-            int playerPower = 28450;
+            int targetPower = stageId == 1 ? 100 : 27000 + (stageId * 450);
+            int playerPower = 120;
 
             return new StageDetailData
             {
@@ -118,19 +119,19 @@ namespace TopEndWar.UI.Data
                 powerStateKey = playerPower >= targetPower ? "stage.ready" : stageId < world.currentStageId ? "stage.risky" : "stage.underpowered",
                 isBossStage = isBossStage,
                 hasFirstClearBonus = stageId >= world.currentStageId,
+                entryCost = stageId == 1 ? 5 : 10,
                 loadoutName = "Assault Grid / Mk-II",
                 briefingText = isBossStage ? "Fortified enemy command node. Expect armor and artillery pressure." : "Advance through the canyon approach and secure the outpost lane.",
                 threatKeys = new List<string> { "Armored", "Swarm", isBossStage ? "Boss" : "Mid Range" },
                 enemyNames = isBossStage ? new List<string> { "Shield Trooper", "Rocket Crew", "Boss Walker" } : new List<string> { "Rifle Squad", "Turret Nest", "Scout Bike" },
                 rewards = new List<RewardItemData>
                 {
-                    new RewardItemData { labelKey = "topbar.gold", fallbackLabel = "Gold", amount = 1250 + (stageId * 20), accent = "gold" },
-                    new RewardItemData { labelKey = "equipment.tech_core", fallbackLabel = "Tech Core", amount = isBossStage ? 3 : 1, accent = "teal" }
+                    new RewardItemData { labelKey = "topbar.gold", fallbackLabel = "Gold", amount = stageId == 1 ? 100 : 1250 + (stageId * 20), accent = "gold" },
+                    new RewardItemData { labelKey = "topbar.xp", fallbackLabel = "XP", amount = stageId == 1 ? 25 : 100 + (stageId * 5), accent = "yellow" }
                 },
                 firstClearRewards = new List<RewardItemData>
                 {
-                    new RewardItemData { labelKey = "equipment.gear_box", fallbackLabel = "Gear Box", amount = 1, accent = "purple" },
-                    new RewardItemData { labelKey = "topbar.gems", fallbackLabel = "Gems", amount = 40, accent = "teal" }
+                    new RewardItemData { labelKey = "topbar.gold", fallbackLabel = "Gold", amount = stageId == 1 ? 50 : 200, accent = "gold" }
                 }
             };
         }
@@ -140,11 +141,11 @@ namespace TopEndWar.UI.Data
             EnsureSeeded();
             return new CommanderScreenData
             {
-                commanderName = "Commander Hale",
-                totalPower = 28450,
-                hp = 12800,
-                dps = 3410,
-                defense = 1760,
+                commanderName = "Cmdr. Voss",
+                totalPower = 120,
+                hp = 500,
+                dps = 35,
+                defense = 20,
                 roleDescription = "Assault leader tuned for mid-range pressure and squad sustain.",
                 slots = new List<EquipmentSlotData>
                 {
@@ -201,9 +202,9 @@ namespace TopEndWar.UI.Data
         public string GetStageName(int stageId)
         {
             EnsureSeeded();
-            if (stageId == 12)
+            if (stageId == 1)
             {
-                return "Canyon Outpost";
+                return "Coastal Landing";
             }
 
             if (stageId == GetCurrentWorld().bossStageId)
@@ -222,8 +223,8 @@ namespace TopEndWar.UI.Data
                 worldId = 1,
                 worldName = "Frontier Conflict",
                 stageCount = 35,
-                completedStages = 11,
-                currentStageId = 12,
+                completedStages = 0,
+                currentStageId = 1,
                 bossStageId = 35,
                 layoutTemplateId = "arc"
             });

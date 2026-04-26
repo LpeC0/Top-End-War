@@ -8,6 +8,7 @@ namespace TopEndWar.UI.Data
         public string commanderName;
         public int playerLevel;
         public int energy;
+        public int maxEnergy;
         public int gold;
         public int premiumCurrency;
         public int mailCount;

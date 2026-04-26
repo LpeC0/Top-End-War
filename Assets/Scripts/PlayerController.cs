@@ -1,27 +1,22 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Oyuncu Hareketi v7 (Patch 4 Entegrasyonu)
+/// Top End War — Oyuncu Hareketi v7.2 (Gameplay Fix Patch)
 ///
-/// v7 → v7.1 Runtime Patch Delta:
-///   • playerY alani eklendi: Y yuksekligini Inspector'dan ayarla.
-///     Start() ve MovePlayer() hardcode 1.2f yerine bu degeri kullanir.
-///   • Start(): transform.position = new Vector3(0,1.2f,0) sifirliyordu.
-///     Simdi sadece X=0 ve Y=playerY yazilir; Z sahne pozisyonundan korunur.
-///   • _gameOver flag + OnGameOver subscribe: Update tamamen bloke edilir.
-///   • OnGameOver / OnDestroy unsubscribe eklendi.
-///
-/// NOT: Sahnede ayni anda hem PlayerController (v7) hem Playercontroller (v9) varsa
-/// ikisi cakisir. Player GameObject'inde yalnizca biri aktif olmali.
-/// GameOverUI FindObjectOfType<Playercontroller>() (kucuk c) arar — v9 kullanan
-/// projelerde bu dosya yerine v9'u (Playercontroller.cs) kullan.
+/// v7.1 → v7.2 Fix Delta:
+///   • FindFrontTarget(): Physics.BoxCast → Physics.BoxCastAll
+///     BoxCast sadece ilk çarpışmayı döner; terrain/prop önde varsa
+///     enemy hiç hedeflenemiyordu. BoxCastAll tüm hitleri tarar,
+///     geçerli ilk enemy/boss seçilir.
+///   • IsCombatTarget(): activeInHierarchy kontrolü eklendi.
+///     Ölü/deaktif enemy'lerin frame-edge durumlarına karşı savunmacı hat.
 /// </summary>
 public class Playercontroller : MonoBehaviour
 {
     [Header("Hareket")]
     public float forwardSpeed    = 10f;
     [Tooltip("Oyuncunun sabit Y yuksekligi — Inspector'dan degistirilebilir.")]
-    public float playerY         = 1.2f;   // PATCH: hardcode kaldirildi
+    public float playerY         = 1.2f;
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
     public float xLimit          = 8f;
@@ -45,12 +40,11 @@ public class Playercontroller : MonoBehaviour
     bool  _dragging   = false;
     float _lastMouseX;
     bool  _anchorMode = false;
-    bool  _gameOver   = false;   // PATCH
+    bool  _gameOver   = false;
     static Material _flashMaterial;
 
     void Start()
     {
-        // PATCH: Sadece X ve Y'yi yaz; Z sahne pozisyonundan kalsin.
         Vector3 p = transform.position;
         p.x = 0f;
         p.y = playerY;
@@ -58,16 +52,15 @@ public class Playercontroller : MonoBehaviour
 
         EnsureCollider();
         GameEvents.OnAnchorModeChanged += OnAnchorMode;
-        GameEvents.OnGameOver          += OnGameOver;    // PATCH
+        GameEvents.OnGameOver          += OnGameOver;
     }
 
     void OnDestroy()
     {
         GameEvents.OnAnchorModeChanged -= OnAnchorMode;
-        GameEvents.OnGameOver          -= OnGameOver;    // PATCH
+        GameEvents.OnGameOver          -= OnGameOver;
     }
 
-    // PATCH: Game Over geldiginde Update tamamen bloke edilir.
     void OnGameOver()
     {
         _gameOver = true;
@@ -94,7 +87,7 @@ public class Playercontroller : MonoBehaviour
 
     void Update()
     {
-        if (_gameOver) return;   // PATCH
+        if (_gameOver) return;
 
         HandleDrag();
         MovePlayer();
@@ -133,7 +126,7 @@ public class Playercontroller : MonoBehaviour
         p.z += forwardSpeed * Time.deltaTime;
         p.x  = Mathf.Lerp(p.x, _targetX, Time.deltaTime * smoothing);
         p.x  = Mathf.Clamp(p.x, -xLimit, xLimit);
-        p.y  = playerY;    // PATCH: hardcode 1.2f kaldirildi
+        p.y  = playerY;
         transform.position = p;
     }
 
@@ -149,7 +142,11 @@ public class Playercontroller : MonoBehaviour
                        * (1f + PlayerStats.Instance.RunWeaponPowerPercent / 100f);
 
         int bCount = PlayerStats.Instance.BulletCount;
-        int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDPS / (finalFireRate * bCount)));
+
+        // FIX: DPS asker sayisina degil, mermi sayisina ve fire rate'e bolunur.
+        // Her mermi esit pay alir; toplam DPS korunur.
+        int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDPS / (finalFireRate * Mathf.Max(1, bCount))));
+
         Color tracerColor = GetWeaponTracerColor();
 
         Transform target = FindTarget();
@@ -170,12 +167,14 @@ public class Playercontroller : MonoBehaviour
         }
 
         SpawnMuzzleFlash(firePoint.position, baseDir, tracerColor);
-        _nextFire = Time.time + 1f / finalFireRate;
+        _nextFire = Time.time + 1f / Mathf.Max(0.01f, finalFireRate);
     }
 
     void FireOne(Vector3 pos, Vector3 dir, int dmg, int armorPen, int pierceCount, float eliteDamageMult, Color tracerColor)
     {
         GameObject b = ObjectPooler.Instance?.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
+
+        // FIX: Pool yoksa prefab'dan instantiate et — asla null kalmasın.
         if (b == null && bulletPrefab != null)
         {
             b = Instantiate(bulletPrefab, pos, Quaternion.LookRotation(dir));
@@ -286,22 +285,46 @@ public class Playercontroller : MonoBehaviour
         }
     }
 
+    // FIX: Eskiden Physics.BoxCast kullanılıyordu — sadece ilk physics hit'i döner.
+    // Önde terrain/prop/başka collider varsa enemy hiç seçilemiyordu.
+    // Physics.BoxCastAll ile tüm hitler taranır; geçerli en yakın enemy/boss seçilir.
     Transform FindFrontTarget()
     {
         if (_anchorMode)
             return FindClosestTargetInSphere(70f);
 
-        bool found = Physics.BoxCast(
+        RaycastHit[] hits = Physics.BoxCastAll(
             transform.position + Vector3.up,
             new Vector3(xLimit * 0.6f, 1.2f, 0.5f),
-            Vector3.forward, out RaycastHit hit,
-            Quaternion.identity, detectRange);
+            Vector3.forward,
+            Quaternion.identity,
+            detectRange);
 
-        if (!found) return null;
+        Transform best    = null;
+        float     bestDist = float.MaxValue;
 
-        bool isEnemy = hit.collider.GetComponent<Enemy>() != null || hit.collider.GetComponentInParent<Enemy>() != null;
-        bool isBoss  = hit.collider.GetComponent<BossHitReceiver>() != null || hit.collider.GetComponentInParent<BossHitReceiver>() != null;
-        return (isEnemy || isBoss) ? hit.transform : null;
+        foreach (RaycastHit hit in hits)
+        {
+            // FIX: Deaktif/ölü objeler physics'ten çıkar ama savunmacı kontrol.
+            if (!hit.collider.gameObject.activeInHierarchy) continue;
+
+            bool isEnemy = hit.collider.GetComponent<Enemy>() != null
+                        || hit.collider.GetComponentInParent<Enemy>() != null;
+            bool isBoss  = hit.collider.GetComponent<BossHitReceiver>() != null
+                        || hit.collider.GetComponentInParent<BossHitReceiver>() != null;
+
+            if (!isEnemy && !isBoss) continue;
+
+            // En yakın geçerli hedefi seç (mesafe bazlı)
+            float d = (hit.transform.position - transform.position).sqrMagnitude;
+            if (d < bestDist)
+            {
+                bestDist = d;
+                best     = hit.transform;
+            }
+        }
+
+        return best;
     }
 
     Transform FindPackTarget()
@@ -381,6 +404,7 @@ public class Playercontroller : MonoBehaviour
             }
         }
 
+        // Fallback: en yakın geçerli hedef
         return best ?? FindClosestTargetInSphere(detectRange);
     }
 
@@ -399,9 +423,17 @@ public class Playercontroller : MonoBehaviour
         return IsCombatTarget(col, out target, out _, out _);
     }
 
+    // FIX: activeInHierarchy kontrolü eklendi.
+    // SetActive(false) physics'ten kaldırır ama aynı frame içinde edge case olabilir.
     bool IsCombatTarget(Collider col, out Transform target, out Enemy enemy, out bool isBoss)
     {
         target = null;
+        isBoss = false;
+        enemy  = null;
+
+        // FIX: Deaktif obje hedeflenemez.
+        if (col == null || !col.gameObject.activeInHierarchy) return false;
+
         enemy = col.GetComponent<Enemy>() ?? col.GetComponentInParent<Enemy>();
         BossHitReceiver boss = col.GetComponent<BossHitReceiver>() ?? col.GetComponentInParent<BossHitReceiver>();
         isBoss = boss != null;
@@ -421,27 +453,24 @@ public class Playercontroller : MonoBehaviour
         return false;
     }
 
-    // PATCH: GameOver sonrasi Revive icin.
-   public void ResumeRun()
-{
-    // DEĞİŞİKLİK: sadece gameOver kapatmak yetmez
-    _gameOver    = false;
-    _anchorMode  = false;
-    _dragging    = false;
-    _targetX     = 0f;
-    _nextFire    = 0f;
-    forwardSpeed = 10f;
-}
+    public void ResumeRun()
+    {
+        _gameOver    = false;
+        _anchorMode  = false;
+        _dragging    = false;
+        _targetX     = 0f;
+        _nextFire    = 0f;
+        forwardSpeed = 10f;
+    }
 
-public void ResetForStage(float startZ = 0f)
-{
-    ResumeRun();
+    public void ResetForStage(float startZ = 0f)
+    {
+        ResumeRun();
 
-    Vector3 p = transform.position;
-    p.x = 0f;
-    p.y = playerY;
-    p.z = startZ;
-    transform.position = p;
-}
-
+        Vector3 p = transform.position;
+        p.x = 0f;
+        p.y = playerY;
+        p.z = startZ;
+        transform.position = p;
+    }
 }

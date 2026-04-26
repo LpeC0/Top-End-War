@@ -14,6 +14,7 @@ namespace TopEndWar.UI.Data
         public string powerStateKey;
         public bool isBossStage;
         public bool hasFirstClearBonus;
+        public int entryCost = 10;
         public string loadoutName;
         public string briefingText;
         public List<string> threatKeys = new List<string>();

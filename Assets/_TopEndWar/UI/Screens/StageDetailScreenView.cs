@@ -27,6 +27,7 @@ namespace TopEndWar.UI.Screens
         GameObject _firstClearPanel;
         Transform _firstClearRewardContainer;
         TMP_Text _loadoutText;
+        TMP_Text _energyCostText;
         TMP_Text _statusText;
         PrimaryButtonView _startRunButton;
         PrimaryButtonView _changeLoadoutButton;
@@ -53,6 +54,7 @@ namespace TopEndWar.UI.Screens
             _stateBadge.SetLabel(UILocalization.Get(data.powerStateKey, data.powerStateKey), data.powerStateKey == "stage.underpowered");
             _bossBadge.gameObject.SetActive(data.isBossStage);
             _loadoutText.text = $"{UILocalization.Get("stage.loadout", "ACTIVE LOADOUT")}\n{data.loadoutName}";
+            _energyCostText.text = $"ENERGY\n{data.entryCost}";
             _firstClearPanel.SetActive(data.hasFirstClearBonus);
             _enemyContainer.gameObject.SetActive(data.enemyNames.Count > 0);
             _statusText.text = "Ready to deploy.";
@@ -197,6 +199,7 @@ namespace TopEndWar.UI.Screens
             footerLayout.childForceExpandHeight = false;
 
             TMP_Text energyCost = UIFactory.CreateText("EnergyCost", footer.ContentRoot, "ENERGY\n10", 24, UITheme.ButtonGoldTop, FontStyles.Bold, TextAlignmentOptions.Center);
+            _energyCostText = energyCost;
             UIFactory.AddLayoutElement(energyCost.gameObject, preferredWidth: 170f, preferredHeight: 76f, minHeight: 72f);
 
             GameObject actionRow = UIFactory.CreateUIObject("ActionRow", footer.ContentRoot);

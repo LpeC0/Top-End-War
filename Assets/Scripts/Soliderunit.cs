@@ -11,13 +11,14 @@ public enum SoldierPath
 }
 
 /// <summary>
-/// Top End War — Bireysel Asker v4
+/// Top End War — Bireysel Asker v4.1 (Gameplay Fix Patch)
 ///
-/// PATCH OZETI:
-/// - Eski follow + ates akisi korundu
-/// - WeaponArchetypeConfig entegrasyonu eklendi
-/// - Reservation hedef sistemi eklendi
-/// - weaponConfig yoksa guvenli fallback ile calisir
+/// v4 → v4.1 Fix Delta:
+///   • FireBullet(): ObjectPooler null olunca fallback Instantiate eklendi.
+///     Önceki kodda pool yoksa b == null → return ile askerler hiç ateş etmiyordu.
+///     Fallback olarak PlayerController'ın bulletPrefab'ı kullanılır.
+///   • _cachedPC: PlayerController referansı OnEnable'da bir kez önbelleğe alınır,
+///     her shot'ta FindObjectOfType maliyeti önlenir.
 /// </summary>
 public class SoldierUnit : MonoBehaviour
 {
@@ -43,6 +44,9 @@ public class SoldierUnit : MonoBehaviour
     const float FALLBACK_RANGE = 18f;
     const float FALLBACK_PROJECTILE_SPEED = 32f;
 
+    // FIX: PlayerController önbelleği — her shot'ta FindObjectOfType çağrılmaz.
+    static Playercontroller _cachedPC;
+
     Renderer _rend;
     float _nextFire;
     bool _dead;
@@ -60,6 +64,10 @@ public class SoldierUnit : MonoBehaviour
         _dead = false;
         _reservedEnemy = null;
         _nextRetargetTime = 0f;
+
+        // FIX: PlayerController referansını bir kez önbelleğe al.
+        if (_cachedPC == null)
+            _cachedPC = FindFirstObjectByType<Playercontroller>();
 
         float fireRate = GetFinalFireRate();
         _nextFire = Time.time + Random.value / Mathf.Max(fireRate, 0.1f);
@@ -204,6 +212,9 @@ public class SoldierUnit : MonoBehaviour
             Enemy enemy = col.GetComponent<Enemy>() ?? col.GetComponentInParent<Enemy>();
             if (enemy == null) continue;
 
+            // FIX: Deaktif/ölü enemy'yi hedefleme.
+            if (!enemy.gameObject.activeInHierarchy) continue;
+
             Vector3 delta = enemy.transform.position - transform.position;
             if (delta.z < -1f) continue;
 
@@ -262,10 +273,23 @@ public class SoldierUnit : MonoBehaviour
         Vector3 dir = (aimPoint - pos).normalized;
 
         GameObject b = null;
+
         if (ObjectPooler.Instance != null)
             b = ObjectPooler.Instance.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
 
-        if (b == null) return;
+        // FIX: ObjectPooler null veya pool boşsa, PlayerController'ın bulletPrefab'ından instantiate et.
+        // Önceden: pool yoksa b == null → return → askerler hiç ateş etmiyordu.
+        if (b == null && _cachedPC != null && _cachedPC.bulletPrefab != null)
+        {
+            b = Instantiate(_cachedPC.bulletPrefab, pos, Quaternion.LookRotation(dir));
+            Destroy(b, 2f);
+        }
+
+        if (b == null)
+        {
+            Debug.LogWarning("[SoldierUnit] Bullet spawn edilemedi. ObjectPooler veya bulletPrefab eksik.");
+            return;
+        }
 
         Bullet bullet = b.GetComponent<Bullet>();
         if (bullet != null)

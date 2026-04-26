@@ -96,7 +96,7 @@ namespace TopEndWar.UI.Components
         {
             Build();
             _identityText.text = $"{data.commanderName}  LV.{data.playerLevel}";
-            _resourceA.text = $"{UILocalization.Get("topbar.energy", "ENERGY")}  {data.energy}";
+            _resourceA.text = $"{UILocalization.Get("topbar.energy", "ENERGY")}  {data.energy}/{data.maxEnergy}";
             _resourceB.text = $"{UILocalization.Get("topbar.gold", "GOLD")}  {data.gold:N0}";
             _resourceC.text = data.showPremiumCurrency
                 ? $"{UILocalization.Get("topbar.gems", "GEMS")}  {data.premiumCurrency:N0}"

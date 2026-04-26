@@ -1,16 +1,13 @@
 using UnityEngine;
 
 /// <summary>
-/// Top End War — Dusman v7 (Runtime Stabilite Patch)
+/// Top End War — Dusman v7.2 (Gameplay Fix Patch)
 ///
-/// v7 → v7.1 Runtime Patch Delta:
-///   • OnDisable(): _isDead = false ve _nextPlayerDamageTime = 0f eklendi.
-///     OnEnable() zaten bunlari reset ediyordu; ancak pool bazli sistemlerde
-///     OnDisable → OnEnable siklic cagrildiginda olasi race condition'a karsi
-///     OnDisable'da da temizlenmesi daha guvenli ve savunmaci bir yaklasim.
-///     Esas sorun: pool'dan gelen enemy'de Initialize oncesinde OnTriggerEnter/Stay
-///     tetiklenebiliyordu; _isDead = true kalirsa contact damage hic verilmez,
-///     _nextPlayerDamageTime gelecekteki bir deger kalirsa ilk 0.20s atlaniyor.
+/// v7.1 → v7.2 Fix Delta:
+///   • playerTouchInterval: 0.20f → 0.50f
+///     0.20f = 5 vuruş/saniye, çok agresif ve tutarsız hissettiriyordu.
+///     0.50f = 2 vuruş/saniye, kontrollü tick damage hissi verir.
+///     OnTriggerStay mekanizması değişmedi; sadece interval güncellendi.
 /// </summary>
 public class Enemy : MonoBehaviour
 {
@@ -30,17 +27,19 @@ public class Enemy : MonoBehaviour
     bool _isDead = false;
 
     float _nextPlayerDamageTime = 0f;
-    [SerializeField] float playerTouchInterval = 0.20f;
-    // DEĞİŞİKLİK: 2-faz steering ayarları
-[SerializeField] float engageDistance = 14f;
-[SerializeField] float hardEngageDistance = 8f;
-[SerializeField] float preEngageLateralSpeed = 0.45f;
-[SerializeField] float engageLateralSpeed = 1.8f;
-[SerializeField] float hardEngageLateralBoost = 1.35f;
-[SerializeField] float outerLaneInwardFactor = 0.72f;
 
-float _spawnLaneX = 0f;
-bool _spawnLaneCaptured = false;
+    // FIX: 0.20f → 0.50f  (5 hit/s → 2 hit/s — kontrollü tick damage)
+    [SerializeField] float playerTouchInterval = 0.50f;
+
+    [SerializeField] float engageDistance = 14f;
+    [SerializeField] float hardEngageDistance = 8f;
+    [SerializeField] float preEngageLateralSpeed = 0.45f;
+    [SerializeField] float engageLateralSpeed = 1.8f;
+    [SerializeField] float hardEngageLateralBoost = 1.35f;
+    [SerializeField] float outerLaneInwardFactor = 0.72f;
+
+    float _spawnLaneX = 0f;
+    bool _spawnLaneCaptured = false;
 
     Renderer _bodyRenderer;
     EnemyHealthBar _hpBar;
@@ -69,8 +68,7 @@ bool _spawnLaneCaptured = false;
         _nextPlayerDamageTime = 0f;
         _separationVec = Vector3.zero;
         _reservationCount = 0;
-        // DEĞİŞİKLİK: pooled / fresh spawn lane capture
-CaptureSpawnLane();
+        CaptureSpawnLane();
 
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = _baseColor;
@@ -81,15 +79,13 @@ CaptureSpawnLane();
         _hpBar?.Init(_maxHealth);
     }
 
-    // PATCH: Pool'a donen enemy'nin kritik flag'leri OnDisable'da da temizlenir.
-    // OnEnable zaten temizliyor; bu savunmaci ikinci hat — olasi race condition'a karsi.
     void OnDisable()
     {
         CancelInvoke();
         _initialized          = false;
         _reservationCount     = 0;
-        _isDead               = false;   // PATCH
-        _nextPlayerDamageTime = 0f;      // PATCH
+        _isDead               = false;
+        _nextPlayerDamageTime = 0f;
     }
 
     public void Initialize(DifficultyManager.EnemyStats stats)
@@ -103,8 +99,7 @@ CaptureSpawnLane();
         _isDead        = false;
         _nextPlayerDamageTime = 0f;
         _reservationCount = 0;
-        // DEĞİŞİKLİK: initialize sonrası lane capture güvenliği
-CaptureSpawnLane();
+        CaptureSpawnLane();
 
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = _baseColor;
@@ -124,12 +119,11 @@ CaptureSpawnLane();
         _initialized = true;
     }
 
-// DEĞİŞİKLİK: enemy'nin doğduğu lane'i hatırla
-void CaptureSpawnLane()
-{
-    _spawnLaneX = transform.position.x;
-    _spawnLaneCaptured = true;
-}
+    void CaptureSpawnLane()
+    {
+        _spawnLaneX = transform.position.x;
+        _spawnLaneCaptured = true;
+    }
 
     void UseDefaults()
     {
@@ -145,56 +139,52 @@ void CaptureSpawnLane()
     }
 
     void Update()
-{
-    if (_isDead || PlayerStats.Instance == null) return;
-
-    if (!_spawnLaneCaptured)
-        CaptureSpawnLane();
-
-    float dt = Time.deltaTime;
-
-    Transform playerTf = PlayerStats.Instance.transform;
-    float pZ = playerTf.position.z;
-    float pX = playerTf.position.x;
-
-    Vector3 pos = transform.position;
-
-    // DEĞİŞİKLİK: ileri akış devam etsin
-    if (pos.z > pZ + 0.5f)
-        pos.z -= _moveSpeed * dt;
-
-    float distanceAhead = pos.z - pZ;
-
-    // DEĞİŞİKLİK: dış lane'de doğanları hafif içe toparla ama lane hissini öldürme
-    float approachTargetX = _spawnLaneX;
-    if (Mathf.Abs(_spawnLaneX) > xLimit * 0.45f)
-        approachTargetX = _spawnLaneX * outerLaneInwardFactor;
-
-    // DEĞİŞİKLİK: uzakta lane koru, yakında player'a geç
-    float engageT = Mathf.InverseLerp(engageDistance, hardEngageDistance, distanceAhead);
-    float targetX = Mathf.Lerp(approachTargetX, pX, engageT);
-
-    float lateralSpeed = Mathf.Lerp(preEngageLateralSpeed, engageLateralSpeed, engageT);
-
-    // DEĞİŞİKLİK: çok yakında ama hâlâ yandan uzaktaysa hafif catch-up ver
-    if (distanceAhead <= hardEngageDistance && Mathf.Abs(pos.x - pX) > 2.5f)
-        lateralSpeed *= hardEngageLateralBoost;
-
-    pos.x = Mathf.MoveTowards(pos.x, targetX, lateralSpeed * dt);
-
-    if (Time.time - _lastSepTime > SEP_INTERVAL)
     {
-        _separationVec = CalcSeparation(pos);
-        _lastSepTime   = Time.time;
+        if (_isDead || PlayerStats.Instance == null) return;
+
+        if (!_spawnLaneCaptured)
+            CaptureSpawnLane();
+
+        float dt = Time.deltaTime;
+
+        Transform playerTf = PlayerStats.Instance.transform;
+        float pZ = playerTf.position.z;
+        float pX = playerTf.position.x;
+
+        Vector3 pos = transform.position;
+
+        if (pos.z > pZ + 0.5f)
+            pos.z -= _moveSpeed * dt;
+
+        float distanceAhead = pos.z - pZ;
+
+        float approachTargetX = _spawnLaneX;
+        if (Mathf.Abs(_spawnLaneX) > xLimit * 0.45f)
+            approachTargetX = _spawnLaneX * outerLaneInwardFactor;
+
+        float engageT = Mathf.InverseLerp(engageDistance, hardEngageDistance, distanceAhead);
+        float targetX = Mathf.Lerp(approachTargetX, pX, engageT);
+
+        float lateralSpeed = Mathf.Lerp(preEngageLateralSpeed, engageLateralSpeed, engageT);
+
+        if (distanceAhead <= hardEngageDistance && Mathf.Abs(pos.x - pX) > 2.5f)
+            lateralSpeed *= hardEngageLateralBoost;
+
+        pos.x = Mathf.MoveTowards(pos.x, targetX, lateralSpeed * dt);
+
+        if (Time.time - _lastSepTime > SEP_INTERVAL)
+        {
+            _separationVec = CalcSeparation(pos);
+            _lastSepTime   = Time.time;
+        }
+
+        pos += _separationVec * dt;
+        pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
+        transform.position = pos;
+
+        if (pos.z < pZ - 15f)
+            gameObject.SetActive(false);
     }
-
-    pos += _separationVec * dt;
-    pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
-    transform.position = pos;
-
-    if (pos.z < pZ - 15f)
-        gameObject.SetActive(false);
-}
 
     Vector3 CalcSeparation(Vector3 pos)
     {
@@ -224,6 +214,8 @@ void CaptureSpawnLane()
 
         int effectiveArmor = Mathf.Max(0, _armor - Mathf.Max(0, armorPenValue));
         float armorMult    = 100f / (100f + effectiveArmor);
+
+        // FIX: Mathf.Max(1,...) zırh sıfır hasar yapmasını engeller.
         int finalDamage    = Mathf.Max(1, Mathf.RoundToInt(rawDamage * armorMult));
 
         if (_isElite)
@@ -332,6 +324,7 @@ void CaptureSpawnLane()
 
         bool applied = ps.TryTakeContactDamage(_contactDamage);
 
+        // FIX: interval 0.5s — kontrollü tick damage, 5 vuruş/s değil 2 vuruş/s
         _nextPlayerDamageTime = Time.time + playerTouchInterval;
 
         if (applied)

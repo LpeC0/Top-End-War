@@ -2,18 +2,28 @@ using UnityEngine;
 using System.Collections.Generic;
 using UnityEngine.Rendering;
 
+/// <summary>
+/// Top End War — Mermi v1.1 (Gameplay Fix Patch)
+///
+/// v1 → v1.1 Fix Delta:
+///   • HIT_RADIUS: 0.4f → 0.5f
+///     Mermi hızı 30 birim/s, 60fps'de frame başına ~0.5 birim hareket.
+///     0.4f radius dar kaldığında hızlı mermiler enemy'yi atlayabiliyordu.
+///     0.5f daha güvenilir isabet algılar.
+/// </summary>
 public class Bullet : MonoBehaviour
 {
     public int    damage      = 60;
     public Color  bulletColor = new Color(0.6f, 0.1f, 1.0f);
 
-    [HideInInspector] public string hitterPath = "Commander"; 
+    [HideInInspector] public string hitterPath = "Commander";
     [HideInInspector] public int   armorPen = 0;
     [HideInInspector] public int   pierceCount = 0;
     [HideInInspector] public float eliteDamageMult = 1f;
     [HideInInspector] public float bossDamageMult = 1f;
 
-    const float HIT_RADIUS = 0.4f;
+    // FIX: 0.4f → 0.5f  (hızlı mermilerde isabet kaçırmasını önler)
+    const float HIT_RADIUS = 0.5f;
     const float LIFETIME   = 1.8f;
 
     Renderer _rend;
@@ -24,7 +34,6 @@ public class Bullet : MonoBehaviour
     int _remainingPierce = 0;
     readonly HashSet<int> _hitTargets = new HashSet<int>();
 
-    // DEĞİŞİKLİK
     Vector3 _lastPos;
 
     void Awake()
@@ -41,7 +50,6 @@ public class Bullet : MonoBehaviour
         EnsureTrail();
         ApplyColor();
 
-        // DEĞİŞİKLİK
         _lastPos = transform.position;
 
         Invoke(nameof(ReturnToPool), LIFETIME);
@@ -78,7 +86,7 @@ public class Bullet : MonoBehaviour
     {
         if (_hit) return;
 
-        // DEĞİŞİKLİK
+        // Kapsül testi: son frame pozisyonundan şimdiki pozisyona — hızlı mermi atlamaması için
         Collider[] cols = Physics.OverlapCapsule(_lastPos, transform.position, HIT_RADIUS);
 
         foreach (Collider col in cols)
@@ -88,6 +96,9 @@ public class Bullet : MonoBehaviour
 
             if (bossRecv == null && enemy == null)
                 continue;
+
+            // FIX: Deaktif objeler physics'ten çıkar, ama savunmacı kontrol.
+            if (!col.gameObject.activeInHierarchy) continue;
 
             int targetId = bossRecv != null ? bossRecv.gameObject.GetInstanceID()
                                             : enemy.gameObject.GetInstanceID();
@@ -131,7 +142,6 @@ public class Bullet : MonoBehaviour
             return;
         }
 
-        // DEĞİŞİKLİK
         _lastPos = transform.position;
     }
 
@@ -150,30 +160,27 @@ public class Bullet : MonoBehaviour
         gameObject.SetActive(false);
     }
 
-   void ApplyColor()
-{
-    if (_rend != null)
+    void ApplyColor()
     {
-        // DEĞİŞİKLİK: mermi gövdesini yeniden görünür yap
-        _rend.enabled = true;
+        if (_rend != null)
+        {
+            _rend.enabled = true;
 
-        if (_rend.material.HasProperty("_BaseColor"))
-            _rend.material.SetColor("_BaseColor", bulletColor);
-        else
-            _rend.material.color = bulletColor;
+            if (_rend.material.HasProperty("_BaseColor"))
+                _rend.material.SetColor("_BaseColor", bulletColor);
+            else
+                _rend.material.color = bulletColor;
+        }
+
+        if (_trail != null)
+        {
+            _trail.startColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0.95f);
+            _trail.endColor   = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0f);
+            _trail.time       = 0.12f;
+            _trail.startWidth = 0.14f;
+            _trail.endWidth   = 0.02f;
+        }
     }
-
-    if (_trail != null)
-    {
-        _trail.startColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0.95f);
-        _trail.endColor   = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0f);
-
-        // DEĞİŞİKLİK: biraz daha okunur tracer
-        _trail.time       = 0.12f;
-        _trail.startWidth = 0.14f;
-        _trail.endWidth   = 0.02f;
-    }
-}
 
     void EnsureTrail()
     {
