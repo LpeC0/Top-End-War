@@ -19,7 +19,12 @@ namespace TopEndWar.UI.Screens
         TMP_Text _summaryText;
         TMP_Text _tabContentText;
         TMP_Text _statusText;
+        TMP_Text _commanderPlaceholderText;
+        Image _commanderFullImage;
         Transform _slotContainer;
+        Transform _leftSlotContainer;
+        Transform _rightSlotContainer;
+        Transform _reserveSlotContainer;
         readonly List<GameObject> _slotObjects = new List<GameObject>();
         int _upgradeBonus;
 
@@ -49,83 +54,114 @@ namespace TopEndWar.UI.Screens
 
             RectTransform root = (RectTransform)transform;
             UIFactory.Stretch(root, Vector2.zero, Vector2.zero);
-            VerticalLayoutGroup rootLayout = UIFactory.AddVerticalLayout(gameObject, 16f, TextAnchor.UpperCenter, true, false);
+            VerticalLayoutGroup rootLayout = UIFactory.AddVerticalLayout(gameObject, 10f, TextAnchor.UpperCenter, true, false);
             rootLayout.childForceExpandHeight = false;
 
             PanelBaseView header = UIFactory.CreateUIObject("TopArea", transform).AddComponent<PanelBaseView>();
-            header.Build(18f);
-            UIFactory.AddLayoutElement(header.gameObject, preferredHeight: 140f, minHeight: 140f);
-            _titleText = UIFactory.CreateText("Title", header.ContentRoot, string.Empty, 30, UITheme.SoftCream, FontStyles.Bold);
-            UIFactory.ConfigureTextBlock(_titleText, 44f, true, 18f, 30f);
+            header.Build(16f, PanelVisualStyle.Cream);
+            UIFactory.AddLayoutElement(header.gameObject, preferredHeight: 110f, minHeight: 104f);
+            _titleText = UIFactory.CreateText("Title", header.ContentRoot, string.Empty, 34, UITheme.DeepNavy, FontStyles.Bold, TextAlignmentOptions.Center);
+            UIFactory.Stretch(_titleText.rectTransform, Vector2.zero, Vector2.zero);
+            _titleText.enableAutoSizing = true;
+            _titleText.fontSizeMin = 24f;
+            _titleText.fontSizeMax = 38f;
 
             GameObject contentArea = UIFactory.CreateUIObject("ContentArea", transform);
-            UIFactory.AddLayoutElement(contentArea, flexibleHeight: 1f, minHeight: 560f);
+            UIFactory.AddLayoutElement(contentArea, flexibleHeight: 1f, minHeight: 780f);
 
-            GameObject scrollGo = UIFactory.CreateUIObject("ScrollView", contentArea.transform);
-            UIFactory.Stretch(scrollGo.GetComponent<RectTransform>(), Vector2.zero, Vector2.zero);
-            ScrollRect scrollRect = scrollGo.AddComponent<ScrollRect>();
-            scrollRect.horizontal = false;
+            PanelBaseView commanderBoard = UIFactory.CreateUIObject("CommanderMainBoard", contentArea.transform).AddComponent<PanelBaseView>();
+            commanderBoard.Build(24f, PanelVisualStyle.Hero);
+            UIFactory.Stretch(commanderBoard.GetComponent<RectTransform>(), Vector2.zero, Vector2.zero);
 
-            GameObject viewport = UIFactory.CreateUIObject("Viewport", scrollGo.transform);
-            viewport.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.01f);
-            viewport.AddComponent<Mask>().showMaskGraphic = false;
-            UIFactory.Stretch(viewport.GetComponent<RectTransform>(), Vector2.zero, Vector2.zero);
-            scrollRect.viewport = viewport.GetComponent<RectTransform>();
+            PanelBaseView summaryPanel = CreateAnchoredPanel(commanderBoard.ContentRoot, "PowerSummary", new Vector2(0.18f, 1f), new Vector2(0.82f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 118f), new Vector2(0f, -2f), PanelVisualStyle.Cream, 16f);
+            _summaryText = UIFactory.CreateText("Summary", summaryPanel.ContentRoot, string.Empty, 24, UITheme.DeepNavy, FontStyles.Bold, TextAlignmentOptions.Center);
+            UIFactory.Stretch(_summaryText.rectTransform, Vector2.zero, Vector2.zero);
+            _summaryText.enableAutoSizing = true;
+            _summaryText.fontSizeMin = 18f;
+            _summaryText.fontSizeMax = 26f;
 
-            GameObject content = UIFactory.CreateUIObject("Content", viewport.transform);
-            RectTransform contentRect = content.GetComponent<RectTransform>();
-            contentRect.anchorMin = new Vector2(0f, 1f);
-            contentRect.anchorMax = new Vector2(1f, 1f);
-            contentRect.pivot = new Vector2(0.5f, 1f);
-            scrollRect.content = contentRect;
+            PanelBaseView visual = CreateAnchoredPanel(commanderBoard.ContentRoot, "CommanderHeroArea", new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, 650f), new Vector2(0f, -130f), PanelVisualStyle.Cream, 18f);
+            Image visualGlow = UIFactory.CreateImage("HeroGlow", visual.ContentRoot, new Color(0.96f, 0.78f, 0.42f, 0.12f));
+            UIFactory.Stretch(visualGlow.rectTransform, new Vector2(210f, 28f), new Vector2(-210f, -28f));
+            visualGlow.raycastTarget = false;
 
-            VerticalLayoutGroup layout = UIFactory.AddVerticalLayout(content, 16f, TextAnchor.UpperCenter, true, false);
-            layout.childForceExpandHeight = false;
-            content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            GameObject leftSlots = UIFactory.CreateUIObject("LeftEquipmentSlots", visual.ContentRoot);
+            UIFactory.SetAnchors(leftSlots.GetComponent<RectTransform>(), new Vector2(0f, 0.12f), new Vector2(0.26f, 0.92f), new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero);
+            VerticalLayoutGroup leftLayout = UIFactory.AddVerticalLayout(leftSlots, 14f, TextAnchor.MiddleCenter, true, false);
+            leftLayout.childForceExpandHeight = false;
+            _leftSlotContainer = leftSlots.transform;
 
-            PanelBaseView summaryPanel = CreateSection(content.transform, "PowerSummary", 160f, 150f);
-            _summaryText = UIFactory.CreateText("Summary", summaryPanel.ContentRoot, string.Empty, 20, UITheme.TextSecondary, FontStyles.Bold);
-            UIFactory.ConfigureTextBlock(_summaryText, 110f, true, 15f, 20f);
+            GameObject rightSlots = UIFactory.CreateUIObject("RightEquipmentSlots", visual.ContentRoot);
+            UIFactory.SetAnchors(rightSlots.GetComponent<RectTransform>(), new Vector2(0.74f, 0.12f), new Vector2(1f, 0.92f), new Vector2(1f, 0.5f), Vector2.zero, Vector2.zero);
+            VerticalLayoutGroup rightLayout = UIFactory.AddVerticalLayout(rightSlots, 14f, TextAnchor.MiddleCenter, true, false);
+            rightLayout.childForceExpandHeight = false;
+            _rightSlotContainer = rightSlots.transform;
 
-            PanelBaseView visual = CreateSection(content.transform, "CommanderVisual", 260f, 240f);
-            TMP_Text visualText = UIFactory.CreateText("VisualText", visual.ContentRoot, "TACTICAL COMMAND DIORAMA\nCommander silhouette placeholder\nUpgrade focus: armor, rifle uptime, squad sustain", 22, UITheme.SoftCream, FontStyles.Bold, TextAlignmentOptions.Center);
-            UIFactory.Stretch(visualText.rectTransform, Vector2.zero, Vector2.zero);
-            visualText.enableAutoSizing = true;
-            visualText.fontSizeMin = 18f;
-            visualText.fontSizeMax = 22f;
+            _commanderFullImage = UIFactory.CreateUIObject("CommanderFullArt", visual.ContentRoot).AddComponent<Image>();
+            _commanderFullImage.preserveAspect = true;
+            _commanderFullImage.raycastTarget = false;
+            RectTransform commanderRect = _commanderFullImage.rectTransform;
+            commanderRect.anchorMin = new Vector2(0.5f, 0.5f);
+            commanderRect.anchorMax = new Vector2(0.5f, 0.5f);
+            commanderRect.pivot = new Vector2(0.5f, 0.5f);
+            commanderRect.sizeDelta = new Vector2(430f, 550f);
+            commanderRect.anchoredPosition = new Vector2(0f, -28f);
+            UIArtLibrary art = UIArtLibrary.Instance;
+            bool hasCommanderArt = UIConstants.UseCommanderSprites && UIArtLibrary.TryApply(_commanderFullImage, art != null ? art.CommanderFull : null, Color.clear, "Commander_Full_01");
+            _commanderFullImage.enabled = hasCommanderArt;
+            _commanderPlaceholderText = UIFactory.CreateText("VisualText", visual.ContentRoot, "COMMANDER DIORAMA\nUpgrade armor, rifle uptime, and squad sustain", 24, UITheme.DeepNavy, FontStyles.Bold, TextAlignmentOptions.Center);
+            UIFactory.SetAnchors(_commanderPlaceholderText.rectTransform, new Vector2(0.28f, 0.12f), new Vector2(0.72f, 0.9f), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            _commanderPlaceholderText.enableAutoSizing = true;
+            _commanderPlaceholderText.fontSizeMin = 18f;
+            _commanderPlaceholderText.fontSizeMax = 26f;
+            _commanderPlaceholderText.gameObject.SetActive(!hasCommanderArt);
 
-            PanelBaseView squad = CreateSection(content.transform, "SquadPanel", 150f, 140f);
-            TMP_Text squadText = UIFactory.CreateText("SquadText", squad.ContentRoot, "SQUAD STRIP\nAlpha Squad\nBulwark Team\nMedic Pair\nDrone Crew", 22, UITheme.SoftCream, FontStyles.Bold);
-            UIFactory.ConfigureTextBlock(squadText, 110f, true, 15f, 22f);
-
-            PanelBaseView tabs = CreateSection(content.transform, "TabsPanel", 180f, 170f);
+            PanelBaseView tabs = CreateAnchoredPanel(commanderBoard.ContentRoot, "TabsPanel", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 152f), new Vector2(0f, 306f), PanelVisualStyle.Dark, 14f);
+            VerticalLayoutGroup tabsPanelLayout = UIFactory.AddVerticalLayout(tabs.ContentRoot.gameObject, 8f, TextAnchor.UpperCenter, true, false);
+            tabsPanelLayout.childForceExpandHeight = false;
             GameObject tabsRow = UIFactory.CreateUIObject("TabsRow", tabs.ContentRoot);
             HorizontalLayoutGroup tabsLayout = UIFactory.AddHorizontalLayout(tabsRow, 12f, TextAnchor.MiddleCenter, true, false);
             tabsLayout.childForceExpandHeight = false;
-            UIFactory.AddLayoutElement(tabsRow, preferredHeight: 64f, minHeight: 64f);
+            UIFactory.AddLayoutElement(tabsRow, preferredHeight: 62f, minHeight: 58f);
             CreateTabButton(tabsRow.transform, "commander.loadout_tab", "Loadout focus: frontline pressure, armor sustain, and weapon uptime.");
             CreateTabButton(tabsRow.transform, "commander.skills_tab", "Skill focus: suppression burst, emergency shield, and drone command.");
             CreateTabButton(tabsRow.transform, "commander.stats_tab", "Stat focus: HP, DPS, DEF, fire rate, and squad reinforcement tempo.");
-            _tabContentText = UIFactory.CreateText("TabContent", tabs.ContentRoot, string.Empty, 20, UITheme.SoftCream, FontStyles.Bold);
-            UIFactory.ConfigureTextBlock(_tabContentText, 72f, true, 15f, 20f);
+            _tabContentText = UIFactory.CreateText("TabContent", tabs.ContentRoot, string.Empty, 19, UITheme.SoftCream, FontStyles.Bold, TextAlignmentOptions.Center);
+            UIFactory.ConfigureTextBlock(_tabContentText, 56f, true, 15f, 20f);
 
-            PanelBaseView slots = CreateSection(content.transform, "SlotsPanel", 760f, 520f);
-            TMP_Text slotsTitle = UIFactory.CreateText("SlotsTitle", slots.ContentRoot, "EQUIPMENT SLOTS", 18, UITheme.TextSecondary, FontStyles.Bold);
-            UIFactory.ConfigureTextBlock(slotsTitle, 24f);
-            _slotContainer = UIFactory.CreateUIObject("SlotContainer", slots.ContentRoot).transform;
-            VerticalLayoutGroup slotLayout = UIFactory.AddVerticalLayout(_slotContainer.gameObject, 10f, TextAnchor.UpperCenter, true, false);
-            slotLayout.childForceExpandHeight = false;
+            PanelBaseView squad = CreateAnchoredPanel(commanderBoard.ContentRoot, "SquadPanel", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 156f), new Vector2(0f, 140f), PanelVisualStyle.Cream, 14f);
+            VerticalLayoutGroup squadLayout = UIFactory.AddVerticalLayout(squad.ContentRoot.gameObject, 8f, TextAnchor.UpperCenter, true, false);
+            squadLayout.childForceExpandHeight = false;
+            TMP_Text squadTitle = UIFactory.CreateText("SquadTitle", squad.ContentRoot, "SQUAD", 22, UITheme.DeepNavy, FontStyles.Bold, TextAlignmentOptions.Center);
+            UIFactory.ConfigureTextBlock(squadTitle, 28f);
+            GameObject squadRow = UIFactory.CreateUIObject("SquadRow", squad.ContentRoot);
+            UIFactory.AddLayoutElement(squadRow, preferredHeight: 94f, minHeight: 88f);
+            HorizontalLayoutGroup squadRowLayout = UIFactory.AddHorizontalLayout(squadRow, 10f, TextAnchor.MiddleCenter, true, false);
+            squadRowLayout.childForceExpandHeight = false;
+            CreateSquadCard(squadRow.transform, "Alpha", "20");
+            CreateSquadCard(squadRow.transform, "Bulwark", "18");
+            CreateSquadCard(squadRow.transform, "Medic", "18");
+            CreateSquadCard(squadRow.transform, "Drone", "18");
+
+            PanelBaseView reserveSlots = CreateAnchoredPanel(commanderBoard.ContentRoot, "ReserveSlots", new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 120f), new Vector2(0f, 12f), PanelVisualStyle.PlainDark, 12f);
+            HorizontalLayoutGroup reserveLayout = UIFactory.AddHorizontalLayout(reserveSlots.ContentRoot.gameObject, 10f, TextAnchor.MiddleCenter, true, false);
+            reserveLayout.childForceExpandHeight = false;
+            _reserveSlotContainer = reserveSlots.ContentRoot;
+            _slotContainer = _reserveSlotContainer;
 
             PanelBaseView footer = UIFactory.CreateUIObject("BottomArea", transform).AddComponent<PanelBaseView>();
-            footer.Build(18f);
-            UIFactory.AddLayoutElement(footer.gameObject, preferredHeight: 150f, minHeight: 150f);
-            VerticalLayoutGroup footerLayout = UIFactory.AddVerticalLayout(footer.ContentRoot.gameObject, 10f, TextAnchor.MiddleCenter, true, false);
+            footer.Build(14f, PanelVisualStyle.PlainDark);
+            UIFactory.AddLayoutElement(footer.gameObject, preferredHeight: 142f, minHeight: 132f);
+            VerticalLayoutGroup footerLayout = UIFactory.AddVerticalLayout(footer.ContentRoot.gameObject, 8f, TextAnchor.MiddleCenter, true, false);
             footerLayout.childForceExpandHeight = false;
             _statusText = UIFactory.CreateText("StatusText", footer.ContentRoot, "Upgrade console ready.", 18, UITheme.TextSecondary, FontStyles.Italic, TextAlignmentOptions.Center);
             UIFactory.ConfigureTextBlock(_statusText, 26f, true, 15f, 18f);
             GameObject actions = UIFactory.CreateUIObject("ActionsRow", footer.ContentRoot);
-            VerticalLayoutGroup actionsLayout = UIFactory.AddVerticalLayout(actions, 10f, TextAnchor.MiddleCenter, true, false);
+            UIFactory.AddLayoutElement(actions, preferredHeight: 82f, minHeight: 76f);
+            HorizontalLayoutGroup actionsLayout = UIFactory.AddHorizontalLayout(actions, 12f, TextAnchor.MiddleCenter, true, false);
             actionsLayout.childForceExpandHeight = false;
+            TMP_Text costBox = UIFactory.CreateText("UpgradeCost", actions.transform, "COST\n12,000", 22, UITheme.ButtonGoldTop, FontStyles.Bold, TextAlignmentOptions.Center);
+            UIFactory.AddLayoutElement(costBox.gameObject, preferredWidth: 160f, preferredHeight: 76f, minHeight: 70f);
             CreateActionButton(actions.transform, LocalizationKeys.CommanderUpgrade, ApplyUpgrade, ButtonVisualStyle.Primary);
             CreateActionButton(actions.transform, "commander.auto_equip", ApplyAutoEquip, ButtonVisualStyle.Secondary);
         }
@@ -145,13 +181,21 @@ namespace TopEndWar.UI.Screens
             _screenManager.ActionRouter.ApplyAutoEquip();
         }
 
-        PanelBaseView CreateSection(Transform parent, string name, float preferredHeight, float minHeight)
+        PanelBaseView CreateSection(Transform parent, string name, float preferredHeight, float minHeight, PanelVisualStyle style = PanelVisualStyle.Auto)
         {
             PanelBaseView panel = UIFactory.CreateUIObject(name, parent).AddComponent<PanelBaseView>();
-            panel.Build(18f);
+            panel.Build(18f, style);
             UIFactory.AddLayoutElement(panel.gameObject, preferredHeight: preferredHeight, minHeight: minHeight);
             VerticalLayoutGroup layout = UIFactory.AddVerticalLayout(panel.ContentRoot.gameObject, 10f, TextAnchor.UpperLeft, true, false);
             layout.childForceExpandHeight = false;
+            return panel;
+        }
+
+        PanelBaseView CreateAnchoredPanel(Transform parent, string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta, Vector2 anchoredPosition, PanelVisualStyle style, float padding)
+        {
+            PanelBaseView panel = UIFactory.CreateUIObject(name, parent).AddComponent<PanelBaseView>();
+            panel.Build(padding, style);
+            UIFactory.SetAnchors(panel.GetComponent<RectTransform>(), anchorMin, anchorMax, pivot, sizeDelta, anchoredPosition);
             return panel;
         }
 
@@ -159,7 +203,7 @@ namespace TopEndWar.UI.Screens
         {
             while (_slotObjects.Count < slots.Count)
             {
-                GameObject slotGo = UIFactory.CreateUIObject("Slot", _slotContainer);
+                GameObject slotGo = UIFactory.CreateUIObject("Slot", GetSlotParent(_slotObjects.Count));
                 slotGo.AddComponent<EquipmentSlotView>();
                 _slotObjects.Add(slotGo);
             }
@@ -173,8 +217,48 @@ namespace TopEndWar.UI.Screens
                     continue;
                 }
 
+                Transform targetParent = GetSlotParent(i);
+                if (_slotObjects[i].transform.parent != targetParent)
+                {
+                    _slotObjects[i].transform.SetParent(targetParent, false);
+                }
+
                 _slotObjects[i].GetComponent<EquipmentSlotView>().Bind(slots[i]);
+
+                LayoutElement layoutElement = UIFactory.AddLayoutElement(_slotObjects[i], flexibleWidth: i < 6 ? -1f : 1f, preferredHeight: i < 6 ? 132f : 96f, minHeight: i < 6 ? 120f : 88f);
+                if (i < 6)
+                {
+                    layoutElement.preferredWidth = -1f;
+                    layoutElement.flexibleWidth = 1f;
+                }
             }
+        }
+
+        Transform GetSlotParent(int index)
+        {
+            if (index < 3 && _leftSlotContainer != null)
+            {
+                return _leftSlotContainer;
+            }
+
+            if (index < 6 && _rightSlotContainer != null)
+            {
+                return _rightSlotContainer;
+            }
+
+            return _reserveSlotContainer != null ? _reserveSlotContainer : _slotContainer;
+        }
+
+        void CreateSquadCard(Transform parent, string label, string level)
+        {
+            PanelBaseView card = UIFactory.CreateUIObject($"{label}SquadCard", parent).AddComponent<PanelBaseView>();
+            card.Build(10f, PanelVisualStyle.PlainDark);
+            UIFactory.AddLayoutElement(card.gameObject, flexibleWidth: 1f, preferredHeight: 90f, minHeight: 84f);
+            TMP_Text text = UIFactory.CreateText("SquadText", card.ContentRoot, $"{label}\nLv.{level}", 18, UITheme.SoftCream, FontStyles.Bold, TextAlignmentOptions.Center);
+            UIFactory.Stretch(text.rectTransform, Vector2.zero, Vector2.zero);
+            text.enableAutoSizing = true;
+            text.fontSizeMin = 14f;
+            text.fontSizeMax = 20f;
         }
 
         void CreateTabButton(Transform parent, string key, string content)

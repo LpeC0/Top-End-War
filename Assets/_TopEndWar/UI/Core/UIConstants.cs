@@ -15,5 +15,15 @@ namespace TopEndWar.UI.Core
         public const float SectionSpacing = 18f;
         public const float CardCornerSpritePixelsPerUnit = 100f;
         public const bool ShowDebugButtons = false;
+
+        public static readonly bool UseWorldMapSprite = true;
+        public static readonly bool UseIconSprites = true;
+        public static readonly bool UseNodeSprites = true;
+        public static readonly bool UseCommanderSprites = true;
+
+        public static readonly bool UsePanelSprites = true;
+        public static readonly bool UseButtonSprites = true;
+        public static readonly bool UseBottomNavSprites = true;
+        public static readonly bool UseRewardFrameSprites = false;
     }
 }

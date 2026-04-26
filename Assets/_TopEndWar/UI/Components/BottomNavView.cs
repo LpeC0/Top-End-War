@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using TopEndWar.UI.Core;
 using TopEndWar.UI.Localization;
+using TopEndWar.UI.Theme;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -52,8 +53,33 @@ namespace TopEndWar.UI.Components
             PrimaryButtonView button = go.AddComponent<PrimaryButtonView>();
             button.Build(ButtonVisualStyle.Tab);
             button.SetLabelKey(key, UILocalization.Get(key, key));
+            UIArtLibrary art = UIArtLibrary.Instance;
+            if (UIConstants.UseIconSprites && art != null)
+            {
+                button.SetIcon(art.GetNavIcon(screenId), ResolveIconAssetName(screenId));
+            }
+
             button.SetOnClick(() => onNavigate?.Invoke(screenId));
             _buttons.Add(screenId, button);
+        }
+
+        string ResolveIconAssetName(string screenId)
+        {
+            switch (screenId)
+            {
+                case UIConstants.HomeScreenId:
+                    return "Icon_Home";
+                case UIConstants.WorldMapScreenId:
+                    return "Icon_Map";
+                case UIConstants.CommanderScreenId:
+                    return "Icon_Commander";
+                case "events_placeholder":
+                    return "Icon_Events";
+                case "shop_placeholder":
+                    return "Icon_Shop";
+                default:
+                    return "BottomNavIcon";
+            }
         }
     }
 }

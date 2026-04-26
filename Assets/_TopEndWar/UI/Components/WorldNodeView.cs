@@ -49,29 +49,44 @@ namespace TopEndWar.UI.Components
 
             if (data.isBoss)
             {
-                _background.color = UITheme.Danger;
+                ApplyNodeArt(art => art.NodeBoss, UITheme.Danger, "UI_Node_Boss");
                 _label.color = UITheme.SoftCream;
             }
             else if (data.isCurrent)
             {
-                _background.color = UITheme.Teal;
+                ApplyNodeArt(art => art.NodeCurrent, UITheme.Teal, "UI_Node_Current");
                 _label.color = UITheme.DeepNavy;
             }
             else if (data.isCompleted)
             {
-                _background.color = UITheme.ButtonGoldTop;
+                ApplyNodeArt(art => art.NodeCompleted, UITheme.ButtonGoldTop, "UI_Node_Completed");
                 _label.color = UITheme.DeepNavy;
             }
             else if (data.isLocked)
             {
-                _background.color = UITheme.Gunmetal;
+                ApplyNodeArt(art => art.NodeLocked, UITheme.Gunmetal, "UI_Node_Locked");
                 _label.color = UITheme.TextSecondary;
             }
             else
             {
-                _background.color = UITheme.WarmCream;
+                ApplyNodeArt(art => art.NodeNormal, UITheme.WarmCream, "UI_Node_Normal");
                 _label.color = UITheme.DeepNavy;
             }
+        }
+
+        void ApplyNodeArt(System.Func<UIArtLibrary, Sprite> selector, Color fallback, string assetName)
+        {
+            if (!UIConstants.UseNodeSprites)
+            {
+                _background.sprite = null;
+                _background.type = Image.Type.Simple;
+                _background.color = fallback;
+                return;
+            }
+
+            UIArtLibrary art = UIArtLibrary.Instance;
+            Sprite sprite = art != null ? selector(art) : null;
+            UIArtLibrary.TryApply(_background, sprite, fallback, assetName);
         }
     }
 }

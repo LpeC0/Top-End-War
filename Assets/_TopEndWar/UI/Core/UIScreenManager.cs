@@ -193,13 +193,20 @@ namespace TopEndWar.UI.Core
 
         void SetVisibleScreen(string screenId, bool showTopBar, bool showBottomNav)
         {
-            _homeScreen.gameObject.SetActive(screenId == UIConstants.HomeScreenId);
-            _worldMapScreen.gameObject.SetActive(screenId == UIConstants.WorldMapScreenId);
-            _stageDetailScreen.gameObject.SetActive(screenId == UIConstants.StageDetailScreenId);
-            _commanderScreen.gameObject.SetActive(screenId == UIConstants.CommanderScreenId);
-            _resultScreen.gameObject.SetActive(screenId == UIConstants.ResultScreenId);
-            _topBarView.gameObject.SetActive(showTopBar);
-            _bottomNavView.gameObject.SetActive(showBottomNav);
+            Component activeScreen = null;
+            SetPrimaryScreenState(_homeScreen, screenId == UIConstants.HomeScreenId, ref activeScreen);
+            SetPrimaryScreenState(_worldMapScreen, screenId == UIConstants.WorldMapScreenId, ref activeScreen);
+            SetPrimaryScreenState(_stageDetailScreen, screenId == UIConstants.StageDetailScreenId, ref activeScreen);
+            SetPrimaryScreenState(_commanderScreen, screenId == UIConstants.CommanderScreenId, ref activeScreen);
+            SetPrimaryScreenState(_resultScreen, screenId == UIConstants.ResultScreenId, ref activeScreen);
+
+            if (activeScreen != null)
+            {
+                activeScreen.transform.SetAsLastSibling();
+            }
+
+            SetChromeState(_topBarView, showTopBar);
+            SetChromeState(_bottomNavView, showBottomNav);
             _bottomNavView.SetActiveScreen(screenId);
         }
 
@@ -208,7 +215,44 @@ namespace TopEndWar.UI.Core
             GameObject go = UIFactory.CreateUIObject(name, parent);
             RectTransform rect = go.GetComponent<RectTransform>();
             UIFactory.Stretch(rect, Vector2.zero, Vector2.zero);
+            CanvasGroup canvasGroup = UIFactory.GetOrAdd<CanvasGroup>(go);
+            canvasGroup.alpha = 0f;
+            canvasGroup.interactable = false;
+            canvasGroup.blocksRaycasts = false;
             return go.AddComponent<T>();
+        }
+
+        void SetPrimaryScreenState(Component screen, bool active, ref Component activeScreen)
+        {
+            if (screen == null)
+            {
+                return;
+            }
+
+            CanvasGroup canvasGroup = UIFactory.GetOrAdd<CanvasGroup>(screen.gameObject);
+            canvasGroup.alpha = active ? 1f : 0f;
+            canvasGroup.interactable = active;
+            canvasGroup.blocksRaycasts = active;
+            screen.gameObject.SetActive(active);
+
+            if (active)
+            {
+                activeScreen = screen;
+            }
+        }
+
+        void SetChromeState(Component chrome, bool active)
+        {
+            if (chrome == null)
+            {
+                return;
+            }
+
+            CanvasGroup canvasGroup = UIFactory.GetOrAdd<CanvasGroup>(chrome.gameObject);
+            canvasGroup.alpha = active ? 1f : 0f;
+            canvasGroup.interactable = active;
+            canvasGroup.blocksRaycasts = active;
+            chrome.gameObject.SetActive(active);
         }
 
         void BuildToastOverlay()

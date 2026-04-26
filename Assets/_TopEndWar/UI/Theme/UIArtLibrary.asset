@@ -1,0 +1,52 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ca75bf6731f204f45aec1f3fad396766, type: 3}
+  m_Name: UIArtLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::TopEndWar.UI.Theme.UIArtLibrary
+  World01MapViewport: {fileID: 21300000, guid: fe055ea31c0f92f4c888e84877bf1cb7, type: 3}
+  World01MapMaster: {fileID: 21300000, guid: 79721887c50cb1a40921966f8adfd380, type: 3}
+  PrimaryButton: {fileID: 21300000, guid: 822169778c387fe4f8f52219bfcab092, type: 3}
+  SecondaryButton: {fileID: 21300000, guid: a0468d397a4440545aacc3632cb63119, type: 3}
+  TabButton: {fileID: 21300000, guid: c6d167202ad9f3c4091cf467613daee5, type: 3}
+  BottomNavItem: {fileID: 21300000, guid: deaaf6d542c6bab488f3e46f7f35b6a6, type: 3}
+  BottomNavItemActive: {fileID: 21300000, guid: 68390af5a3e213741becc43fcb533a63, type: 3}
+  PanelDark: {fileID: 21300000, guid: 1cccba566d1299440bc0ee4b6dbddcc3, type: 3}
+  PanelCream: {fileID: 21300000, guid: c7dda10fcbc4f694d9a3f2aba30e1330, type: 3}
+  PanelHero: {fileID: 21300000, guid: c2cdaf860ad80e64eb42b21669e1b0c8, type: 3}
+  IconEnergy: {fileID: 21300000, guid: d2677bf072a83534b802b447f2c5df73, type: 3}
+  IconGold: {fileID: 21300000, guid: 440197253b65bb14896be2ca23e620b7, type: 3}
+  IconGems: {fileID: 21300000, guid: 5cb1c020594a31e42914a3066bdc169e, type: 3}
+  IconMail: {fileID: 21300000, guid: ca59bb30d5fc78842b9bb9aa003bd467, type: 3}
+  IconSettings: {fileID: 21300000, guid: 9c37c031b37b2bc478d706c0e806d70c, type: 3}
+  IconHome: {fileID: 21300000, guid: affb52ebb6f2a7c4b9deff0ed1f6913e, type: 3}
+  IconMap: {fileID: 21300000, guid: 2a1b66bc8c329dc40bfe17e9160ed5cc, type: 3}
+  IconCommander: {fileID: 21300000, guid: 0ce3b1b06eb71a84b9e1aa071aca98dd, type: 3}
+  IconEvents: {fileID: 21300000, guid: 379688d7648ad6448b076ae212359270, type: 3}
+  IconShop: {fileID: 21300000, guid: 3f74edef523bb5e42a3c8631051b6776, type: 3}
+  IconMissions: {fileID: 21300000, guid: 495bcdf14b637ca4a9c8c47e34f7048f, type: 3}
+  IconUpgrade: {fileID: 21300000, guid: a76d2c3bf0959fd4381fa8eca8f0ea04, type: 3}
+  IconFreeReward: {fileID: 21300000, guid: d393c13d51319534a845ff5f878ca524, type: 3}
+  IconLocked: {fileID: 21300000, guid: ff978aefea6ae2f488d8231ab57ca4fe, type: 3}
+  IconBoss: {fileID: 21300000, guid: 621f9dd2451dc314eac4795610c34fe7, type: 3}
+  IconBack: {fileID: 21300000, guid: 36dbe9f1674b2e3498ff45026116e9f1, type: 3}
+  NodeNormal: {fileID: 21300000, guid: 8ecdd9ca8d0954f41982b85d44eff72b, type: 3}
+  NodeCurrent: {fileID: 21300000, guid: e6b65c36044d57c46a651915b1b5cf95, type: 3}
+  NodeCompleted: {fileID: 21300000, guid: e0bd369c95f42ba40ac0dd8cfccb04b7, type: 3}
+  NodeLocked: {fileID: 21300000, guid: 39f8084a37c680742b87194a1063541b, type: 3}
+  NodeBoss: {fileID: 21300000, guid: 3aa98112d2088ff4aa3f1eee08b0044b, type: 3}
+  RewardGold: {fileID: 21300000, guid: a99c3f229f32d2e4b85d732b69e9b49c, type: 3}
+  RewardTechCore: {fileID: 21300000, guid: 49a6ec6c401a78448a07dd7690c0716a, type: 3}
+  RewardGearBox: {fileID: 21300000, guid: 5f631b20f6ca6fa4582448d9e1531bbc, type: 3}
+  RewardGems: {fileID: 21300000, guid: ee9f447fe5b0ed3448cafc0c0668f91d, type: 3}
+  RewardParts: {fileID: 21300000, guid: 22e6fcd0cf672e149865ef4f1cc978f1, type: 3}
+  CommanderPortrait: {fileID: 21300000, guid: cb843340d88e88640b0578e3648fd735, type: 3}
+  CommanderFull: {fileID: 21300000, guid: 0a42fd7d7ebcf7242b466fab36d8f89a, type: 3}

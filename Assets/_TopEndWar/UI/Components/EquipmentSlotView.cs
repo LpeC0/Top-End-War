@@ -21,7 +21,7 @@ namespace TopEndWar.UI.Components
             }
 
             PanelBaseView panel = UIFactory.GetOrAdd<PanelBaseView>(gameObject);
-            panel.Build(14f);
+            panel.Build(14f, PanelVisualStyle.PlainDark);
             UIFactory.AddLayoutElement(gameObject, preferredHeight: 100f, minHeight: 92f);
             UIFactory.AddVerticalLayout(panel.ContentRoot.gameObject, 4f, TextAnchor.MiddleLeft, true, false);
 
