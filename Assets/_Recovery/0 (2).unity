@@ -3592,7 +3592,7 @@ TrailRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Time: 0.06
+  m_Time: 0.12
   m_PreviewTimeScale: 1
   m_Parameters:
     serializedVersion: 3
@@ -3601,8 +3601,17 @@ TrailRenderer:
       serializedVersion: 2
       m_Curve:
       - serializedVersion: 3
-        time: 0.12415528
-        value: 0.11594391
+        time: 0.1173782
+        value: 0.13043538
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0.33333334
+        outWeight: 0.33333334
+      - serializedVersion: 3
+        time: 1
+        value: 0.052173615
         inSlope: 0
         outSlope: 0
         tangentMode: 0
@@ -6499,6 +6508,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 556656290}
     m_Modifications:
+    - target: {fileID: 5272436261972872147, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
+      propertyPath: m_Center.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5272436261972872147, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
+      propertyPath: m_Center.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5272436261972872147, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
+      propertyPath: m_Center.z
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5272436261972872147, guid: 3ca4977da32473548aeb1f49c889c1b4, type: 3}
       propertyPath: m_IsTrigger
       value: 1

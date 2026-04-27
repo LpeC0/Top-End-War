@@ -1,6 +1,6 @@
-# Scripts İçeriği
+# Top End War — Tüm C# Scripts İçeriği (Güncellenmiş v8+)
 
-Bu dosya, Assets/Scripts/ klasöründeki tüm C# dosyalarının içeriklerini başlık başlık içerir.
+Bu doküman, **Assets/Scripts/** klasöründeki tüm C# dosyalarının en güncel içeriklerini sistematik olarak listelemektedir. Her bölüm bir dosyaya karşılık gelir.
 
 ## ArmyManager.cs
 

@@ -152,26 +152,45 @@ public class Playercontroller : MonoBehaviour
         Transform target = FindTarget();
         if (target == null) return;
 
+        if (target.position.z <= transform.position.z + 1f)
+            return;
+
         Vector3 aimPos  = target.position;
-        Vector3 baseDir = (aimPos - firePoint.position).normalized;
+        Vector3 baseDir = aimPos - firePoint.position;
+        if (baseDir.sqrMagnitude <= 0.0001f || baseDir.z <= 0.05f)
+            return;
+
+        baseDir.Normalize();
 
         int   armorPen        = GetCurrentArmorPen();
         int   pierceCount     = GetCurrentPierceCount();
         float eliteDamageMult = GetCurrentEliteDamageMultiplier();
+        float weaponRange     = GetCurrentWeaponRange();
+        float projectileSpeed = GetCurrentProjectileSpeed();
+        WeaponFamily family   = GetCurrentWeaponFamily();
 
         int spreadIdx = Mathf.Clamp(bCount - 1, 0, SPREAD.Length - 1);
+        bool firedAny = false;
         foreach (float angle in SPREAD[spreadIdx])
         {
-            Vector3 dir = Quaternion.Euler(0f, angle, 0f) * baseDir;
-            FireOne(firePoint.position, dir.normalized, bulletDamage, armorPen, pierceCount, eliteDamageMult, tracerColor);
+            float finalAngle = GetWeaponSpreadAngle(angle);
+            Vector3 dir = Quaternion.Euler(0f, finalAngle, 0f) * baseDir;
+            firedAny |= FireOne(firePoint.position, dir.normalized, bulletDamage, armorPen, pierceCount, eliteDamageMult, tracerColor, weaponRange, projectileSpeed, family);
         }
 
-        SpawnMuzzleFlash(firePoint.position, baseDir, tracerColor);
-        _nextFire = Time.time + 1f / Mathf.Max(0.01f, finalFireRate);
+        if (firedAny)
+        {
+            SpawnMuzzleFlash(firePoint.position, baseDir, tracerColor);
+            _nextFire = Time.time + 1f / Mathf.Max(0.01f, finalFireRate);
+        }
     }
 
-    void FireOne(Vector3 pos, Vector3 dir, int dmg, int armorPen, int pierceCount, float eliteDamageMult, Color tracerColor)
+    bool FireOne(Vector3 pos, Vector3 dir, int dmg, int armorPen, int pierceCount, float eliteDamageMult, Color tracerColor, float weaponRange, float projectileSpeed, WeaponFamily family)
     {
+        if (dir.sqrMagnitude <= 0.0001f || dir.z <= 0.05f)
+            return false;
+
+        dir.Normalize();
         GameObject b = ObjectPooler.Instance?.SpawnFromPool("Bullet", pos, Quaternion.LookRotation(dir));
 
         // FIX: Pool yoksa prefab'dan instantiate et — asla null kalmasın.
@@ -181,18 +200,21 @@ public class Playercontroller : MonoBehaviour
             Destroy(b, 3f);
         }
 
-        if (b == null) return;
+        if (b == null) return false;
 
         Bullet bullet = b.GetComponent<Bullet>();
         if (bullet != null)
         {
             bullet.hitterPath = "Commander";
             bullet.SetCombatStats(dmg, armorPen, pierceCount, eliteDamageMult);
+            bullet.SetMaxRange(weaponRange);
+            bullet.SetTrailProfile(family);
             bullet.SetTracerColor(tracerColor);
         }
 
         Rigidbody rb = b.GetComponent<Rigidbody>();
-        if (rb) rb.linearVelocity = dir * 30f;
+        if (rb) rb.linearVelocity = dir * projectileSpeed;
+        return true;
     }
 
     Color GetWeaponTracerColor()
@@ -206,6 +228,48 @@ public class Playercontroller : MonoBehaviour
             default:
                 return new Color(1.00f, 0.88f, 0.25f, 1f);
         }
+    }
+
+    float GetWeaponSpreadAngle(float angle)
+    {
+        EquipmentData w = PlayerStats.Instance?.equippedWeapon;
+        float bonus = w != null ? w.spreadBonus : 0f;
+        float sign = angle < 0f ? -1f : (angle > 0f ? 1f : 0f);
+        float signedAngle = angle + sign * bonus;
+
+        if (GetCurrentWeaponFamily() == WeaponFamily.SMG)
+            return Mathf.Clamp(signedAngle, -3f, 3f);
+
+        return signedAngle;
+    }
+
+    float GetCurrentWeaponRange()
+    {
+        EquipmentData w = PlayerStats.Instance?.equippedWeapon;
+        WeaponFamily family = GetCurrentWeaponFamily();
+        float fallback = family switch
+        {
+            WeaponFamily.SMG => 18f,
+            WeaponFamily.Sniper => 36f,
+            _ => 24f
+        };
+
+        float range = w != null && w.weaponArchetype != null
+            ? w.weaponArchetype.attackRange
+            : fallback;
+
+        return family == WeaponFamily.SMG
+            ? Mathf.Clamp(range, 16f, 20f)
+            : Mathf.Max(4f, range);
+    }
+
+    float GetCurrentProjectileSpeed()
+    {
+        EquipmentData w = PlayerStats.Instance?.equippedWeapon;
+        if (w != null && w.weaponArchetype != null)
+            return Mathf.Max(1f, w.weaponArchetype.projectileSpeed);
+
+        return 30f;
     }
 
     void SpawnMuzzleFlash(Vector3 pos, Vector3 dir, Color color)

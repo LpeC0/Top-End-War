@@ -270,7 +270,11 @@ public class SoldierUnit : MonoBehaviour
 
         Vector3 pos = transform.position + Vector3.up * 0.5f;
         Vector3 aimPoint = target.bounds.center;
-        Vector3 dir = (aimPoint - pos).normalized;
+        Vector3 dir = aimPoint - pos;
+        if (dir.sqrMagnitude <= 0.0001f || dir.z <= 0.05f)
+            return;
+
+        dir.Normalize();
 
         GameObject b = null;
 
@@ -299,6 +303,7 @@ public class SoldierUnit : MonoBehaviour
 
             int armorPen = weaponConfig != null ? weaponConfig.armorPen : 0;
             int pierceCount = weaponConfig != null ? weaponConfig.pierceCount : 0;
+            WeaponFamily family = weaponConfig != null ? weaponConfig.family : WeaponFamily.Assault;
 
             bullet.SetCombatStats(
                 dmg,
@@ -307,6 +312,8 @@ public class SoldierUnit : MonoBehaviour
                 1f,
                 1f
             );
+            bullet.SetMaxRange(GetAttackRange());
+            bullet.SetTrailProfile(family);
         }
 
         Rigidbody rb = b.GetComponent<Rigidbody>();

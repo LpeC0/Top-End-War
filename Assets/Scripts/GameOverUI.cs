@@ -1,7 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.EventSystems;
 using TMPro;
+using TopEndWar.UI.Core;
 
 /// <summary>
 /// Top End War — Game Over Arayuzu v4 (Claude)
@@ -90,6 +92,13 @@ public class GameOverUI : MonoBehaviour
         }
         _gameOverShown = true;
 
+        if (TryShowModernDefeatUI())
+        {
+            Time.timeScale = 0f;
+            Debug.Log("[GameOverUI] Yeni Result UI defeat ekrani gosterildi.");
+            return;
+        }
+
         if (gameOverPanel == null && !_fallbackBuilt)
             BuildFallbackPanel();
 
@@ -102,6 +111,59 @@ public class GameOverUI : MonoBehaviour
         UpdateRetreatButton();
 
         Debug.Log("[GameOverUI] Game Over ekrani gosterildi.");
+    }
+
+    bool TryShowModernDefeatUI()
+    {
+        UIScreenManager screenManager = FindFirstObjectByType<UIScreenManager>();
+        if (screenManager == null)
+            screenManager = CreateRuntimeScreenManager();
+
+        if (screenManager == null)
+            return false;
+
+        if (gameOverPanel != null)
+            gameOverPanel.SetActive(false);
+
+        screenManager.Bootstrap();
+        screenManager.ShowResultDefeat();
+        return true;
+    }
+
+    UIScreenManager CreateRuntimeScreenManager()
+    {
+        EnsureEventSystem();
+
+        GameObject canvasObject = new GameObject("RuntimeResultCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        Canvas canvas = canvasObject.GetComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 120;
+
+        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1080f, 1920f);
+        scaler.matchWidthOrHeight = 0.5f;
+
+        GameObject root = new GameObject("UIRoot", typeof(RectTransform));
+        root.transform.SetParent(canvasObject.transform, false);
+
+        RectTransform rect = root.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        return root.AddComponent<UIScreenManager>();
+    }
+
+    void EnsureEventSystem()
+    {
+        if (FindFirstObjectByType<EventSystem>() != null)
+            return;
+
+        GameObject eventSystem = new GameObject("EventSystem");
+        eventSystem.AddComponent<EventSystem>();
+        eventSystem.AddComponent<StandaloneInputModule>();
     }
 
     // ── Skor Guncelleme ───────────────────────────────────────────────────

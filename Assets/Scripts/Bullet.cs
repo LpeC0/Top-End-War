@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Top End War — Mermi v1.1 (Gameplay Fix Patch)
+/// Top End War — Mermi v1.2 (Gameplay Fix Patch)
 ///
-/// v1 → v1.1 Fix Delta:
-///   • HIT_RADIUS: 0.4f → 0.5f
-///     Mermi hızı 30 birim/s, 60fps'de frame başına ~0.5 birim hareket.
-///     0.4f radius dar kaldığında hızlı mermiler enemy'yi atlayabiliyordu.
-///     0.5f daha güvenilir isabet algılar.
+/// v1.1 → v1.2 Fix Delta:
+///   • Physics.OverlapCapsule(): QueryTriggerInteraction.Collide eklendi.
+///     Proje Physics Settings'de "Queries Hit Triggers" kapalıysa,
+///     enemy'nin isTrigger collider'ı hiç algılanmıyordu → 0 hasar.
+///     Bu parametre explicit olarak trigger'ları da yakalar.
+///   • HIT_RADIUS: 0.5f (v1.1'den korundu)
 /// </summary>
 public class Bullet : MonoBehaviour
 {
@@ -22,19 +23,24 @@ public class Bullet : MonoBehaviour
     [HideInInspector] public float eliteDamageMult = 1f;
     [HideInInspector] public float bossDamageMult = 1f;
 
-    // FIX: 0.4f → 0.5f  (hızlı mermilerde isabet kaçırmasını önler)
     const float HIT_RADIUS = 0.5f;
     const float LIFETIME   = 1.8f;
+    const float DEFAULT_MAX_RANGE = 24f;
 
     Renderer _rend;
     TrailRenderer _trail;
     static Material _trailMaterial;
     bool _hit = false;
+    float _maxRange = DEFAULT_MAX_RANGE;
 
     int _remainingPierce = 0;
     readonly HashSet<int> _hitTargets = new HashSet<int>();
 
+    Vector3 _spawnPos;
     Vector3 _lastPos;
+    float _trailTime = 0.10f;
+    float _trailStartWidth = 0.08f;
+    float _trailEndWidth = 0.008f;
 
     void Awake()
     {
@@ -47,9 +53,14 @@ public class Bullet : MonoBehaviour
         _hit = false;
         _remainingPierce = Mathf.Max(0, pierceCount);
         _hitTargets.Clear();
+        _maxRange = DEFAULT_MAX_RANGE;
+        ConfigureTrail(0.08f, 0.060f, 0.006f);
         EnsureTrail();
         ApplyColor();
 
+        // ObjectPooler artık pozisyonu SetActive'den önce atıyor,
+        // bu yüzden _lastPos burada doğru pozisyonu yakalar.
+        _spawnPos = transform.position;
         _lastPos = transform.position;
 
         Invoke(nameof(ReturnToPool), LIFETIME);
@@ -61,10 +72,32 @@ public class Bullet : MonoBehaviour
         _hit = false;
         _remainingPierce = 0;
         _hitTargets.Clear();
+        _maxRange = DEFAULT_MAX_RANGE;
         if (_trail != null) _trail.Clear();
     }
 
     public void SetDamage(int d) => damage = d;
+
+    public void SetMaxRange(float range)
+    {
+        _maxRange = Mathf.Max(4f, range);
+    }
+
+    public void SetTrailProfile(WeaponFamily family)
+    {
+        switch (family)
+        {
+            case WeaponFamily.SMG:
+                ConfigureTrail(0.06f, 0.045f, 0.004f);
+                break;
+            case WeaponFamily.Sniper:
+                ConfigureTrail(0.10f, 0.075f, 0.008f);
+                break;
+            default:
+                ConfigureTrail(0.08f, 0.060f, 0.006f);
+                break;
+        }
+    }
 
     public void SetTracerColor(Color color)
     {
@@ -86,19 +119,31 @@ public class Bullet : MonoBehaviour
     {
         if (_hit) return;
 
-        // Kapsül testi: son frame pozisyonundan şimdiki pozisyona — hızlı mermi atlamaması için
-        Collider[] cols = Physics.OverlapCapsule(_lastPos, transform.position, HIT_RADIUS);
+        if (Vector3.Distance(_spawnPos, transform.position) >= _maxRange)
+        {
+            ReturnToPool();
+            return;
+        }
+
+        // FIX: QueryTriggerInteraction.Collide — isTrigger collider'ları da algıla.
+        // "Queries Hit Triggers" project ayarından bağımsız olarak çalışır.
+        Collider[] cols = Physics.OverlapCapsule(
+            _lastPos,
+            transform.position,
+            HIT_RADIUS,
+            Physics.AllLayers,
+            QueryTriggerInteraction.Collide);
 
         foreach (Collider col in cols)
         {
+            // FIX: Deaktif objeleri atla.
+            if (!col.gameObject.activeInHierarchy) continue;
+
             BossHitReceiver bossRecv = col.GetComponent<BossHitReceiver>() ?? col.GetComponentInParent<BossHitReceiver>();
             Enemy enemy = col.GetComponent<Enemy>() ?? col.GetComponentInParent<Enemy>();
 
             if (bossRecv == null && enemy == null)
                 continue;
-
-            // FIX: Deaktif objeler physics'ten çıkar, ama savunmacı kontrol.
-            if (!col.gameObject.activeInHierarchy) continue;
 
             int targetId = bossRecv != null ? bossRecv.gameObject.GetInstanceID()
                                             : enemy.gameObject.GetInstanceID();
@@ -176,9 +221,9 @@ public class Bullet : MonoBehaviour
         {
             _trail.startColor = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0.95f);
             _trail.endColor   = new Color(bulletColor.r, bulletColor.g, bulletColor.b, 0f);
-            _trail.time       = 0.12f;
-            _trail.startWidth = 0.14f;
-            _trail.endWidth   = 0.02f;
+            _trail.time       = _trailTime;
+            _trail.startWidth = _trailStartWidth;
+            _trail.endWidth   = _trailEndWidth;
         }
     }
 
@@ -187,15 +232,21 @@ public class Bullet : MonoBehaviour
         if (_trail == null)
             _trail = GetComponent<TrailRenderer>() ?? gameObject.AddComponent<TrailRenderer>();
 
-        _trail.time = 0.08f;
         _trail.minVertexDistance = 0.05f;
-        _trail.startWidth = 0.10f;
-        _trail.endWidth = 0.01f;
         _trail.alignment = LineAlignment.View;
         _trail.shadowCastingMode = ShadowCastingMode.Off;
         _trail.receiveShadows = false;
+        _trail.generateLightingData = false;
         _trail.material = GetTrailMaterial();
         _trail.emitting = true;
+        ApplyColor();
+    }
+
+    void ConfigureTrail(float time, float startWidth, float endWidth)
+    {
+        _trailTime = time;
+        _trailStartWidth = startWidth;
+        _trailEndWidth = endWidth;
         ApplyColor();
     }
 
@@ -221,10 +272,7 @@ public class Bullet : MonoBehaviour
 
         var emission = ps.emission;
         emission.enabled = true;
-        emission.SetBursts(new[]
-        {
-            new ParticleSystem.Burst(0f, 6)
-        });
+        emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 6) });
 
         var shape = ps.shape;
         shape.enabled = true;

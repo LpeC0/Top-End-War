@@ -178,7 +178,7 @@ public class Enemy : MonoBehaviour
             _lastSepTime   = Time.time;
         }
 
-        pos += _separationVec * dt;
+        pos.x += _separationVec.x * dt;
         pos.x = Mathf.Clamp(pos.x, -xLimit, xLimit);
         transform.position = pos;
 
@@ -197,6 +197,7 @@ public class Enemy : MonoBehaviour
 
             Vector3 away = pos - col.transform.position;
             away.y = 0f;
+            away.z = 0f;
 
             if (away.magnitude < 0.001f)
                 away = new Vector3(Random.Range(-1f, 1f), 0f, 0f).normalized * 0.1f;
@@ -205,7 +206,7 @@ public class Enemy : MonoBehaviour
             count++;
         }
 
-        return count > 0 ? (sep / count) * 3.5f : Vector3.zero;
+        return count > 0 ? Vector3.ClampMagnitude(sep / count, 1f) * 1.4f : Vector3.zero;
     }
 
     public void TakeDamage(int rawDamage, int armorPenValue = 0, float eliteMultiplier = 1f, Color? hitColor = null)

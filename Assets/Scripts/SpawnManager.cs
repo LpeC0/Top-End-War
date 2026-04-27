@@ -430,6 +430,7 @@ public class SpawnManager : MonoBehaviour
             obj.tag = "Enemy"; obj.AddComponent<Enemy>();
         }
 
+        ConfigureEnemyPhysics(obj);
         obj.GetComponent<Enemy>()?.Initialize(GetEnemyStatsForSpawn());
     }
 
@@ -527,6 +528,7 @@ public class SpawnManager : MonoBehaviour
             obj.AddComponent<Enemy>();
         }
 
+        ConfigureEnemyPhysics(obj);
         Enemy enemy = obj.GetComponent<Enemy>();
         if (enemy != null)
         {
@@ -536,6 +538,30 @@ public class SpawnManager : MonoBehaviour
     }
 
     // ── Lane Yardimcisi ───────────────────────────────────────────────────
+
+    void ConfigureEnemyPhysics(GameObject obj)
+    {
+        if (obj == null) return;
+
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+        if (enemyLayer >= 0)
+            SetLayerRecursive(obj, enemyLayer);
+
+        foreach (Rigidbody rb in obj.GetComponentsInChildren<Rigidbody>())
+        {
+            rb.isKinematic = true;
+            rb.useGravity = false;
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+    }
+
+    void SetLayerRecursive(GameObject obj, int layer)
+    {
+        obj.layer = layer;
+        foreach (Transform child in obj.transform)
+            SetLayerRecursive(child.gameObject, layer);
+    }
 
     Vector3 GetLaneBiasedSpawnPos(LaneBias bias, int index, int total, float z)
     {
