@@ -30,6 +30,9 @@ public class StageManager : MonoBehaviour
     WorldConfig _activeWorld;
     bool _stageClearLocked = false;
 
+    /// <summary>Runtime sırasında aktif stage configuration'ı döner (null olabilir).</summary>
+    public StageConfig GetActiveStageConfig() => _activeStage;
+
     // ── Yasamdongüsü ──────────────────────────────────────────────────────
     void Awake()
     {

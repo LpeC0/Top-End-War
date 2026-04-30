@@ -14,6 +14,21 @@ public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance { get; private set; }
 
+    public struct RuntimeCombatSnapshot
+    {
+        public float TotalDPS;
+        public float FireRate;
+        public int ProjectileCount;
+        public int BulletDamage;
+        public int ArmorPen;
+        public int PierceCount;
+        public float WeaponRange;
+        public float DisplayedDPS;
+        public int CurrentHP;
+        public int MaxHP;
+        public int CombatPower;
+    }
+
     // ── Komutan ───────────────────────────────────────────────────────────
     [Header("Aktif Komutan (CommanderData SO)")]
     public CommanderData activeCommander;
@@ -111,6 +126,81 @@ public class PlayerStats : MonoBehaviour
         return baseRate * equipMult;
     }
 
+    public RuntimeCombatSnapshot GetRuntimeCombatSnapshot()
+    {
+        float fireRate = Mathf.Max(0.01f, GetBaseFireRate() * (1f + _runFireRatePercent / 100f));
+        float totalDps = Mathf.Max(0f, GetTotalDPS() * (1f + _runWeaponPowerPercent / 100f));
+        int projectileCount = Mathf.Max(1, BulletCount);
+        int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDps / (fireRate * projectileCount)));
+
+        int armorPen = _runArmorPenFlat;
+        int pierceCount = _runPierceCount;
+        if (equippedWeapon != null)
+        {
+            armorPen += equippedWeapon.weaponArchetype != null ? equippedWeapon.weaponArchetype.armorPen : 0;
+            armorPen += equippedWeapon.armorPen;
+            pierceCount += equippedWeapon.weaponArchetype != null ? equippedWeapon.weaponArchetype.pierceCount : 0;
+            pierceCount += equippedWeapon.pierceCount;
+        }
+        float displayedDps = bulletDamage * fireRate * projectileCount;
+        float weaponRange = GetRuntimeWeaponRange();
+        
+        int combatPower = CalculateCombatPower(displayedDps, CommanderMaxHP, armorPen, pierceCount, weaponRange);
+
+        return new RuntimeCombatSnapshot
+        {
+            TotalDPS = totalDps,
+            FireRate = fireRate,
+            ProjectileCount = projectileCount,
+            BulletDamage = bulletDamage,
+            ArmorPen = armorPen,
+            PierceCount = pierceCount,
+            WeaponRange = weaponRange,
+            DisplayedDPS = displayedDps,
+            CurrentHP = CommanderHP,
+            MaxHP = CommanderMaxHP,
+            CombatPower = combatPower,
+        };
+    }
+
+    public float GetRuntimeWeaponRange()
+    {
+        WeaponFamily family = GetRuntimeWeaponFamily();
+        float fallback = family switch
+        {
+            WeaponFamily.SMG => 18f,
+            WeaponFamily.Sniper => 36f,
+            _ => 24f
+        };
+
+        float range = equippedWeapon != null && equippedWeapon.weaponArchetype != null
+            ? equippedWeapon.weaponArchetype.attackRange
+            : fallback;
+
+        return family == WeaponFamily.SMG
+            ? Mathf.Clamp(range, 16f, 20f)
+            : Mathf.Max(4f, range);
+    }
+
+    public WeaponFamily GetRuntimeWeaponFamily()
+    {
+        if (equippedWeapon == null)
+            return WeaponFamily.Assault;
+
+        if (equippedWeapon.weaponArchetype != null)
+            return equippedWeapon.weaponArchetype.family;
+
+        return equippedWeapon.weaponType switch
+        {
+            WeaponType.Automatic => WeaponFamily.SMG,
+            WeaponType.Sniper => WeaponFamily.Sniper,
+            WeaponType.Shotgun => WeaponFamily.Shotgun,
+            WeaponType.Launcher => WeaponFamily.Launcher,
+            WeaponType.Beam => WeaponFamily.Beam,
+            _ => WeaponFamily.Assault,
+        };
+    }
+
     public static float GetSlotLevelMult(int level)
     {
         level = Mathf.Clamp(level, 1, 50);
@@ -124,6 +214,33 @@ public class PlayerStats : MonoBehaviour
 
     public static float GetRarityMult(int rarity)
         => rarity switch { 1 => 1.0f, 2 => 1.3f, 3 => 1.7f, 4 => 2.2f, 5 => 3.0f, _ => 1.0f };
+
+    /// <summary>
+    /// Runtime Combat Power Formülü (DPS, HP, ArmorPen, Pierce, Range bileşimi).
+    /// 
+    /// Temel ilke:
+    ///   - DPS, oyuncunun hasar hızı kapasitesi
+    ///   - MaxHP, hayatta kalma gücü
+    ///   - ArmorPen, düşman zırhına karşı verimlilik
+    ///   - PierceCount, ek hasar etkinliği
+    ///   - WeaponRange, strateji ve çok yönlülük
+    /// 
+    /// Formül:
+    ///   power = round(displayedDps * 1.5 + maxHp * 0.2 + armorPen * 15 + pierceCount * 50 + range * 2)
+    /// 
+    /// Amaç: Stage targetDps (~70) ile karşılaştırılabilir power score oluşturmak.
+    /// </summary>
+    static int CalculateCombatPower(float displayedDps, int maxHp, int armorPen, int pierceCount, float weaponRange)
+    {
+        float power = 0f;
+        power += displayedDps * 1.5f;       // DPS ağırlık
+        power += maxHp * 0.2f;              // HP katkı
+        power += armorPen * 8f;            // ArmorPen verimliliği
+        power += pierceCount * 50f;         // Pierce utility bonus
+        power += weaponRange * 2f;          // Range stratejik değer
+        
+        return Mathf.Max(1, Mathf.RoundToInt(power));
+    }
 
     public float TotalDamageReduction()
     {

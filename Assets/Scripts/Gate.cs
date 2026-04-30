@@ -12,7 +12,10 @@ public class Gate : MonoBehaviour
     public Renderer panelRenderer;
     public TextMeshPro labelText;
 
+    static readonly Dictionary<int, int> ConsumedChoiceGroups = new Dictionary<int, int>();
+
     bool _triggered;
+    int _choiceGroupId;
     GateRuntimeData _runtimeData;
 
     void Start()
@@ -25,6 +28,31 @@ public class Gate : MonoBehaviour
     void OnEnable()
     {
         _triggered = false;
+    }
+
+    public static void ResetChoiceState()
+    {
+        ConsumedChoiceGroups.Clear();
+    }
+
+    public static bool TryConsumeGroup(int choiceGroupId, int gateInstanceId)
+    {
+        if (choiceGroupId <= 0)
+        {
+            Debug.LogWarning("[Gate] choiceGroupId missing - treating gate as single standalone choice.");
+            return true;
+        }
+
+        if (ConsumedChoiceGroups.ContainsKey(choiceGroupId))
+            return false;
+
+        ConsumedChoiceGroups.Add(choiceGroupId, gateInstanceId);
+        return true;
+    }
+
+    public void SetChoiceGroup(int choiceGroupId)
+    {
+        _choiceGroupId = Mathf.Max(0, choiceGroupId);
     }
 
     public void BindGateConfig(GateConfig config)
@@ -99,14 +127,32 @@ public class Gate : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
+        TryApplyGate(other);
+    }
+
+    void OnTriggerStay(Collider other)
+    {
+        TryApplyGate(other);
+    }
+
+    void TryApplyGate(Collider other)
+    {
         if (_triggered || !other.CompareTag("Player")) return;
+
+        if (!TryConsumeGroup(_choiceGroupId, GetInstanceID()))
+        {
+            _triggered = true;
+            DisablePassiveGate();
+            return;
+        }
+
         _triggered = true;
+        DisableOtherGatesInGroup();
 
         GateRuntimeData data = GetRuntimeData();
         if (data == null)
         {
-            Debug.LogWarning($"[Gate] {gameObject.name} gate data missing.", gameObject);
-            Destroy(gameObject);
+            DisablePassiveGate();
             return;
         }
 
@@ -123,6 +169,40 @@ public class Gate : MonoBehaviour
 
         Debug.Log($"[Gate] {data.title}");
         Destroy(gameObject);
+    }
+
+    void DisableOtherGatesInGroup()
+    {
+        if (_choiceGroupId <= 0) return;
+
+        foreach (Gate gate in FindObjectsByType<Gate>(FindObjectsSortMode.None))
+        {
+            if (gate == null || gate == this) continue;
+            if (gate._choiceGroupId != _choiceGroupId) continue;
+            gate.DisarmFromGroup();
+        }
+    }
+
+    void DisarmFromGroup()
+    {
+        if (_triggered) return;
+        _triggered = true;
+        DisablePassiveGate();
+    }
+
+    void DisablePassiveGate()
+    {
+        Collider col = GetComponent<Collider>();
+        if (col != null)
+            col.enabled = false;
+
+        if (panelRenderer != null)
+            panelRenderer.enabled = false;
+
+        if (labelText != null)
+            labelText.gameObject.SetActive(false);
+
+        Destroy(gameObject, 0.25f);
     }
 }
 

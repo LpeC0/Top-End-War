@@ -41,8 +41,12 @@ public class GameHUD : MonoBehaviour
     [Header("Asker Sayisi (opsiyonel)")]
     public TextMeshProUGUI soldierCountText;
 
+    [Header("Runtime Combat Readout (debug)")]
+    public TextMeshProUGUI combatReadoutText;
+
     bool _autoBuilt = false;
     int  _lastCP    = 0;
+    float _nextCombatReadoutRefresh = 0f;
 
     void Start()
     {
@@ -50,6 +54,7 @@ public class GameHUD : MonoBehaviour
         { Debug.LogError("GameHUD: PlayerStats yok!"); return; }
 
         if (cpText == null || tierText == null) AutoBuildHUD();
+        EnsureCombatReadout();
 
         GameEvents.OnCPUpdated          += OnCPUpdated;
         GameEvents.OnTierChanged        += OnTierChanged;
@@ -69,6 +74,7 @@ public class GameHUD : MonoBehaviour
         // Komutan HP bar ilk değer
         OnCommanderHP(PlayerStats.Instance.CommanderHP, PlayerStats.Instance.CommanderMaxHP);
         if (soldierCountText) soldierCountText.text = "Asker: 0/20";
+        RefreshCombatReadout();
     }
 
     void OnDestroy()
@@ -82,6 +88,15 @@ public class GameHUD : MonoBehaviour
         GameEvents.OnCommanderHPChanged -= OnCommanderHP;
         GameEvents.OnSoldierAdded       -= OnSoldierCount;
         GameEvents.OnSoldierRemoved     -= OnSoldierCount;
+    }
+
+    void Update()
+    {
+        if (Time.time < _nextCombatReadoutRefresh) return;
+        _nextCombatReadoutRefresh = Time.time + 0.35f;
+        if (combatReadoutText == null)
+            EnsureCombatReadout();
+        RefreshCombatReadout();
     }
 
     // ── AUTO BUILD ────────────────────────────────────────────────────────
@@ -130,8 +145,67 @@ public class GameHUD : MonoBehaviour
             fr.offsetMin = fr.offsetMax = Vector2.zero;
         }
 
+        EnsureCombatReadout();
+
         _autoBuilt = true;
         Debug.Log("[GameHUD v8] AutoBuild tamamlandi.");
+    }
+
+    void EnsureCombatReadout()
+    {
+        if (combatReadoutText != null) return;
+
+        Canvas canvas = FindFirstObjectByType<Canvas>();
+        if (canvas == null)
+        {
+            var go = new GameObject("AutoCanvas");
+            canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            go.AddComponent<CanvasScaler>();
+            go.AddComponent<GraphicRaycaster>();
+        }
+
+        combatReadoutText = MakeText(canvas.gameObject, "Combat", new Vector2(1f, 1f), new Vector2(-145f, -130f), 20, new Color(0.86f, 0.96f, 1f));
+        RectTransform r = combatReadoutText.GetComponent<RectTransform>();
+        r.pivot = new Vector2(1f, 1f);
+        r.sizeDelta = new Vector2(270f, 190f);
+        combatReadoutText.alignment = TextAlignmentOptions.TopRight;
+        combatReadoutText.raycastTarget = false;
+    }
+
+    void RefreshCombatReadout()
+    {
+        if (combatReadoutText == null || PlayerStats.Instance == null) return;
+
+        PlayerStats.RuntimeCombatSnapshot c = PlayerStats.Instance.GetRuntimeCombatSnapshot();
+        
+        string line1 = $"DPS: {c.DisplayedDPS:0} | FR: {c.FireRate:0.0}";
+        string line2 = $"Bullet: {c.BulletDamage}x{c.ProjectileCount} | Range: {c.WeaponRange:0}";
+        string line3 = $"Pen: {c.ArmorPen} | Pierce: {c.PierceCount}";
+        string line4 = $"HP: {c.CurrentHP}/{c.MaxHP} | Pwr: {c.CombatPower:N0}";
+        
+        // Stage info (optional, tutarlılık check)
+        string stageInfo = "";
+        StageManager sm = StageManager.Instance;
+        if (sm != null && sm.GetActiveStageConfig() != null)
+        {
+            StageConfig stage = sm.GetActiveStageConfig();
+            int targetPower = stage.GetEffectiveTargetPower();
+            float targetDps = stage.targetDps;
+            
+            // Durum: Underpowered / Risky / Ready / Overkill
+            string state = "Ready";
+            if (c.CombatPower < targetPower * 0.7f)
+                state = "Underpowered";
+            else if (c.CombatPower < targetPower)
+                state = "Risky";
+            else if (c.CombatPower >= targetPower * 1.3f)
+                state = "Overkill";
+            
+            stageInfo = $"\nTarget: {targetDps:0} DPS / {targetPower:N0} Pwr\n{state}";
+        }
+        
+        combatReadoutText.text = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4 + stageInfo;
     }
 
     /// <summary>
@@ -183,6 +257,7 @@ public class GameHUD : MonoBehaviour
     {
         var s = PlayerStats.Instance; if (s == null) return;
         if (cpText) cpText.text = cp.ToString("N0");
+        RefreshCombatReadout();
 
         float total = s.PiyadePath + s.MekanizePath + s.TeknolojiPath;
         if (total > 0)
@@ -202,6 +277,7 @@ public class GameHUD : MonoBehaviour
     {
         var s = PlayerStats.Instance;
         if (tierText && s != null) tierText.text = $"TIER {tier} | {s.GetTierName()}";
+        RefreshCombatReadout();
         ShowPopup($"TIER {tier}!", Color.yellow);
     }
 
@@ -221,7 +297,11 @@ public class GameHUD : MonoBehaviour
         StopCoroutine("FlashDamage"); StartCoroutine("FlashDamage");
     }
 
-    void OnBulletCount(int c) => ShowPopup($"+MERMI {c}", new Color(0.5f,0,0.9f));
+    void OnBulletCount(int c)
+    {
+        RefreshCombatReadout();
+        ShowPopup($"+MERMI {c}", new Color(0.5f,0,0.9f));
+    }
 
     // ── KOMUTAN HP ────────────────────────────────────────────────────────
     void OnCommanderHP(int current, int max)
@@ -241,6 +321,7 @@ public class GameHUD : MonoBehaviour
         }
 
         if (commanderHPText) commanderHPText.text = $"{current}/{max}";
+        RefreshCombatReadout();
     }
 
     // ── ASKER SAYISI ─────────────────────────────────────────────────────
@@ -260,14 +341,17 @@ public class GameHUD : MonoBehaviour
 
     IEnumerator FlashDamage()
     {
+        if (!damageFlashImage) yield break;
         damageFlashImage.color = new Color(1,0,0,0.55f);
         float t = 0;
         while (t < 0.4f)
         {
             t += Time.deltaTime;
+            if (!damageFlashImage) yield break;
             damageFlashImage.color = new Color(1,0,0, Mathf.Lerp(0.55f,0,t/0.4f));
             yield return null;
         }
+        if (!damageFlashImage) yield break;
         damageFlashImage.color = new Color(1,0,0,0);
     }
 

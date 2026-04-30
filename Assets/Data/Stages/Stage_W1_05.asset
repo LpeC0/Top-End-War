@@ -22,6 +22,7 @@ MonoBehaviour:
   - loc_threat_w1_exam
   - loc_threat_w1_tutorial
   targetDps: 125
+  targetPower: 0
   gateBudgetMult: 1.4
   bossType: 0
   bossConfig: {fileID: 0}

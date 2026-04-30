@@ -30,6 +30,7 @@ public class Enemy : MonoBehaviour
 
     // FIX: 0.20f → 0.50f  (5 hit/s → 2 hit/s — kontrollü tick damage)
     [SerializeField] float playerTouchInterval = 0.50f;
+    [SerializeField] bool logContactDamage = false;
 
     [SerializeField] float engageDistance = 14f;
     [SerializeField] float hardEngageDistance = 8f;
@@ -53,12 +54,26 @@ public class Enemy : MonoBehaviour
     float _threatWeight = 1f;
     Color _baseColor = Color.white;
 
+    float _speedMult = 1f;
+    float _engageDistanceMult = 1f;
+    float _hardEngageDistanceMult = 1f;
+    float _preLateralMult = 1f;
+    float _engageLateralMult = 1f;
+    float _hardLateralBoostMult = 1f;
+    float _outerLaneMult = 1f;
+    float _separationMult = 1f;
+    Vector3 _baseScale = Vector3.one;
+    bool _baseScaleCaptured = false;
+    float _spawnIntroEndTime = -1f;
+    const float SPAWN_INTRO_DURATION = 0.4f;
+
     void Awake()
     {
         _bodyRenderer = GetComponentInChildren<Renderer>();
         _hpBar = GetComponent<EnemyHealthBar>();
         if (_hpBar == null) _hpBar = gameObject.AddComponent<EnemyHealthBar>();
 
+        CaptureBaseScale();
         UseDefaults();
     }
 
@@ -69,6 +84,8 @@ public class Enemy : MonoBehaviour
         _separationVec = Vector3.zero;
         _reservationCount = 0;
         CaptureSpawnLane();
+        BeginSpawnIntro();
+        ApplyBehaviorProfile(EnemyThreatType.Standard, EnemyClass.Normal);
 
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = _baseColor;
@@ -86,6 +103,8 @@ public class Enemy : MonoBehaviour
         _reservationCount     = 0;
         _isDead               = false;
         _nextPlayerDamageTime = 0f;
+        if (_baseScaleCaptured)
+            transform.localScale = _baseScale;
     }
 
     public void Initialize(DifficultyManager.EnemyStats stats)
@@ -125,6 +144,36 @@ public class Enemy : MonoBehaviour
         _spawnLaneCaptured = true;
     }
 
+    void CaptureBaseScale()
+    {
+        if (_baseScaleCaptured) return;
+        _baseScale = transform.localScale;
+        _baseScaleCaptured = true;
+    }
+
+    void BeginSpawnIntro()
+    {
+        CaptureBaseScale();
+        _spawnIntroEndTime = Time.time + SPAWN_INTRO_DURATION;
+        transform.localScale = _baseScale * 0.75f;
+    }
+
+    float UpdateSpawnIntro()
+    {
+        if (_spawnIntroEndTime <= 0f)
+            return 1f;
+
+        float t = 1f - ((_spawnIntroEndTime - Time.time) / SPAWN_INTRO_DURATION);
+        t = Mathf.Clamp01(t);
+        transform.localScale = Vector3.Lerp(_baseScale * 0.75f, _baseScale, t);
+        return t;
+    }
+
+    bool IsInSpawnIntro()
+    {
+        return Time.time < _spawnIntroEndTime;
+    }
+
     void UseDefaults()
     {
         _maxHealth = _currentHealth = 100;
@@ -136,6 +185,7 @@ public class Enemy : MonoBehaviour
         _reservationCap = 2;
         _threatWeight = 1f;
         _baseColor = Color.white;
+        ApplyBehaviorProfile(EnemyThreatType.Standard, EnemyClass.Normal);
     }
 
     void Update()
@@ -146,6 +196,8 @@ public class Enemy : MonoBehaviour
             CaptureSpawnLane();
 
         float dt = Time.deltaTime;
+        float introT = UpdateSpawnIntro();
+        float introMoveMult = Mathf.Lerp(0.35f, 1f, introT);
 
         Transform playerTf = PlayerStats.Instance.transform;
         float pZ = playerTf.position.z;
@@ -154,23 +206,29 @@ public class Enemy : MonoBehaviour
         Vector3 pos = transform.position;
 
         if (pos.z > pZ + 0.5f)
-            pos.z -= _moveSpeed * dt;
+            pos.z -= _moveSpeed * _speedMult * introMoveMult * dt;
 
         float distanceAhead = pos.z - pZ;
 
         float approachTargetX = _spawnLaneX;
         if (Mathf.Abs(_spawnLaneX) > xLimit * 0.45f)
-            approachTargetX = _spawnLaneX * outerLaneInwardFactor;
+            approachTargetX = _spawnLaneX * Mathf.Clamp01(outerLaneInwardFactor * _outerLaneMult);
 
-        float engageT = Mathf.InverseLerp(engageDistance, hardEngageDistance, distanceAhead);
+        float engageT = Mathf.InverseLerp(
+            engageDistance * _engageDistanceMult,
+            hardEngageDistance * _hardEngageDistanceMult,
+            distanceAhead);
         float targetX = Mathf.Lerp(approachTargetX, pX, engageT);
 
-        float lateralSpeed = Mathf.Lerp(preEngageLateralSpeed, engageLateralSpeed, engageT);
+        float lateralSpeed = Mathf.Lerp(
+            preEngageLateralSpeed * _preLateralMult,
+            engageLateralSpeed * _engageLateralMult,
+            engageT);
 
         if (distanceAhead <= hardEngageDistance && Mathf.Abs(pos.x - pX) > 2.5f)
-            lateralSpeed *= hardEngageLateralBoost;
+            lateralSpeed *= hardEngageLateralBoost * _hardLateralBoostMult;
 
-        pos.x = Mathf.MoveTowards(pos.x, targetX, lateralSpeed * dt);
+        pos.x = Mathf.MoveTowards(pos.x, targetX, lateralSpeed * introMoveMult * dt);
 
         if (Time.time - _lastSepTime > SEP_INTERVAL)
         {
@@ -206,7 +264,7 @@ public class Enemy : MonoBehaviour
             count++;
         }
 
-        return count > 0 ? Vector3.ClampMagnitude(sep / count, 1f) * 1.4f : Vector3.zero;
+        return count > 0 ? Vector3.ClampMagnitude(sep / count, 1f) * 1.4f * _separationMult : Vector3.zero;
     }
 
     public void TakeDamage(int rawDamage, int armorPenValue = 0, float eliteMultiplier = 1f, Color? hitColor = null)
@@ -250,6 +308,77 @@ public class Enemy : MonoBehaviour
 
         if (_bodyRenderer != null)
             _bodyRenderer.material.color = _baseColor;
+    }
+
+    public void ConfigureArchetype(EnemyArchetypeConfig archetype)
+    {
+        if (archetype == null) return;
+        ApplyBehaviorProfile(archetype.threatType, archetype.enemyClass);
+    }
+
+    void ApplyBehaviorProfile(EnemyThreatType threatType, EnemyClass enemyClass)
+    {
+        _speedMult = 1f;
+        _engageDistanceMult = 1f;
+        _hardEngageDistanceMult = 1f;
+        _preLateralMult = 1f;
+        _engageLateralMult = 1f;
+        _hardLateralBoostMult = 1f;
+        _outerLaneMult = 1f;
+        _separationMult = 1f;
+
+        switch (threatType)
+        {
+            case EnemyThreatType.PackPressure:
+                _speedMult = 1.18f;
+                _engageDistanceMult = 1.25f;
+                _hardEngageDistanceMult = 1.15f;
+                _preLateralMult = 1.15f;
+                _engageLateralMult = 1.25f;
+                _outerLaneMult = 0.90f;
+                _separationMult = 0.75f;
+                break;
+
+            case EnemyThreatType.Durable:
+                _speedMult = 0.78f;
+                _engageDistanceMult = 0.85f;
+                _hardEngageDistanceMult = 0.90f;
+                _preLateralMult = 0.55f;
+                _engageLateralMult = 0.60f;
+                _hardLateralBoostMult = 0.70f;
+                _outerLaneMult = 1.15f;
+                _separationMult = 0.60f;
+                break;
+
+            case EnemyThreatType.ElitePressure:
+                _speedMult = 1.35f;
+                _engageDistanceMult = 1.35f;
+                _hardEngageDistanceMult = 1.20f;
+                _preLateralMult = 1.10f;
+                _engageLateralMult = 1.55f;
+                _hardLateralBoostMult = 1.55f;
+                _separationMult = 0.70f;
+                break;
+
+            case EnemyThreatType.Priority:
+            case EnemyThreatType.Backline:
+                _speedMult = 0.92f;
+                _engageDistanceMult = 0.95f;
+                _hardEngageDistanceMult = 0.90f;
+                _preLateralMult = 0.65f;
+                _engageLateralMult = 0.75f;
+                _hardLateralBoostMult = 0.85f;
+                _outerLaneMult = 1.10f;
+                _separationMult = 0.80f;
+                break;
+        }
+
+        if (enemyClass == EnemyClass.BossSupport)
+        {
+            _speedMult *= 0.88f;
+            _engageLateralMult *= 0.80f;
+            _outerLaneMult *= 1.10f;
+        }
     }
 
     public bool TryReserve()
@@ -309,6 +438,7 @@ public class Enemy : MonoBehaviour
 
     void TryDamagePlayer(Collider other)
     {
+        if (IsInSpawnIntro()) return;
         if (Time.time < _nextPlayerDamageTime) return;
 
         PlayerStats ps = PlayerStats.Instance
@@ -328,6 +458,8 @@ public class Enemy : MonoBehaviour
         // FIX: interval 0.5s — kontrollü tick damage, 5 vuruş/s değil 2 vuruş/s
         _nextPlayerDamageTime = Time.time + playerTouchInterval;
 
+        if (!logContactDamage) return;
+
         if (applied)
             Debug.Log($"[Enemy] Contact damage APPLIED: {_contactDamage}");
         else
@@ -336,6 +468,7 @@ public class Enemy : MonoBehaviour
 
     public int   Armor                => _armor;
     public bool  IsElite              => _isElite;
+    public bool  IsAlive              => !_isDead && gameObject.activeInHierarchy && _currentHealth > 0;
     public int   ReservationCount     => _reservationCount;
     public bool  CanAcceptReservation => _reservationCount < _reservationCap;
     public float ThreatWeight         => _threatWeight;

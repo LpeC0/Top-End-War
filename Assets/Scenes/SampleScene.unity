@@ -454,10 +454,11 @@ MonoBehaviour:
   teknolojiBar: {fileID: 1436880592}
   popupText: {fileID: 0}
   synergyText: {fileID: 0}
-  damageFlashImage: {fileID: 0}
+  damageFlashImage: {fileID: 1365792562}
   commanderHPSlider: {fileID: 673553271}
   commanderHPText: {fileID: 358890437}
   soldierCountText: {fileID: 1120843099}
+  combatReadoutText: {fileID: 0}
 --- !u!4 &293847296
 Transform:
   m_ObjectHideFlags: 0
@@ -1235,6 +1236,7 @@ MonoBehaviour:
   commanderHPSlider: {fileID: 673553271}
   commanderHPText: {fileID: 358890437}
   soldierCountText: {fileID: 0}
+  combatReadoutText: {fileID: 0}
 --- !u!114 &422491179
 MonoBehaviour:
   m_ObjectHideFlags: 0

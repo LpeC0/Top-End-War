@@ -51,6 +51,13 @@ public class StageConfig : ScriptableObject
         "  Final boss   = targetDps x 36")]
     public float targetDps = 70f;
 
+    [Tooltip(
+        "Hedeflenen oyuncu Combat Power'i.\n" +
+        "0 = otomatik hesapla (targetDps'ten türet).\n" +
+        "Debug/UI'da player vs stage güç karşılaştırması yapılır.")]
+    [Range(0f, 10000f)]
+    public float targetPower = 0f;  // 0 = auto-calculate from targetDps
+
     [Header("Kapi Butcesi")]
     [Tooltip(
         "Bu stage'deki kapilarin verebilecegi max DPS buyume katsayisi.\n" +
@@ -107,6 +114,35 @@ public class StageConfig : ScriptableObject
     }
 
     public int GetEntryDps() => Mathf.RoundToInt(targetDps / gateBudgetMult);
+
+    /// <summary>
+    /// Etkili Stage Target Power (PlayerStats.CombatPower ile kıyaslanabilir).
+    /// 
+    /// Eğer targetPower > 0 ise manuel değer döner.
+    /// Eğer targetPower == 0 ise targetDps'ten otomatik hesaplar.
+    /// 
+    /// Auto-calc formülü:
+    ///   displayedDps = targetDps
+    ///   maxHp = 500 (ortalama komutan)
+    ///   armorPen = 5 (minimal)
+    ///   pierceCount = 0 (standart)
+    ///   range = 22 (Assault ortalama)
+    /// </summary>
+    public int GetEffectiveTargetPower()
+    {
+        if (targetPower > 0f)
+            return Mathf.RoundToInt(targetPower);
+        
+        // Auto-calculate from targetDps
+        float power = 0f;
+        power += targetDps * 1.5f;              // DPS ağırlık
+        power += 500f * 0.2f;                   // Ortalama maxHp katkısı (100)
+        power += 5f * 8f;                      // Ortalama armorPen (75)
+        power += 0f * 50f;                      // Typical pierce = 0
+        power += 22f * 2f;                      // Típik range = 22 (44)
+        
+        return Mathf.Max(1, Mathf.RoundToInt(power));
+    }
 
     public bool IsBossStage => bossType != BossType.None;
 

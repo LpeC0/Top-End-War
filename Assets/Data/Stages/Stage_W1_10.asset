@@ -22,6 +22,7 @@ MonoBehaviour:
   - loc_threat_w1_boss_approach
   - loc_threat_w1_miniboss
   targetDps: 232
+  targetPower: 0
   gateBudgetMult: 1.55
   bossType: 1
   bossConfig: {fileID: 11400000, guid: b61d8511cd7fba745ad3ef4c34304fa0, type: 2}

@@ -135,17 +135,10 @@ public class Playercontroller : MonoBehaviour
         if (!firePoint || Time.time < _nextFire || PlayerStats.Instance == null)
             return;
 
-        float finalFireRate = PlayerStats.Instance.GetBaseFireRate()
-                            * (1f + PlayerStats.Instance.RunFireRatePercent / 100f);
-
-        float totalDPS = PlayerStats.Instance.GetTotalDPS()
-                       * (1f + PlayerStats.Instance.RunWeaponPowerPercent / 100f);
-
-        int bCount = PlayerStats.Instance.BulletCount;
-
-        // FIX: DPS asker sayisina degil, mermi sayisina ve fire rate'e bolunur.
-        // Her mermi esit pay alir; toplam DPS korunur.
-        int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDPS / (finalFireRate * Mathf.Max(1, bCount))));
+        PlayerStats.RuntimeCombatSnapshot combat = PlayerStats.Instance.GetRuntimeCombatSnapshot();
+        float finalFireRate = combat.FireRate;
+        int bCount = combat.ProjectileCount;
+        int bulletDamage = combat.BulletDamage;
 
         Color tracerColor = GetWeaponTracerColor();
 
@@ -162,10 +155,10 @@ public class Playercontroller : MonoBehaviour
 
         baseDir.Normalize();
 
-        int   armorPen        = GetCurrentArmorPen();
-        int   pierceCount     = GetCurrentPierceCount();
+        int   armorPen        = combat.ArmorPen;
+        int   pierceCount     = combat.PierceCount;
         float eliteDamageMult = GetCurrentEliteDamageMultiplier();
-        float weaponRange     = GetCurrentWeaponRange();
+        float weaponRange     = combat.WeaponRange;
         float projectileSpeed = GetCurrentProjectileSpeed();
         WeaponFamily family   = GetCurrentWeaponFamily();
 
@@ -245,22 +238,7 @@ public class Playercontroller : MonoBehaviour
 
     float GetCurrentWeaponRange()
     {
-        EquipmentData w = PlayerStats.Instance?.equippedWeapon;
-        WeaponFamily family = GetCurrentWeaponFamily();
-        float fallback = family switch
-        {
-            WeaponFamily.SMG => 18f,
-            WeaponFamily.Sniper => 36f,
-            _ => 24f
-        };
-
-        float range = w != null && w.weaponArchetype != null
-            ? w.weaponArchetype.attackRange
-            : fallback;
-
-        return family == WeaponFamily.SMG
-            ? Mathf.Clamp(range, 16f, 20f)
-            : Mathf.Max(4f, range);
+        return PlayerStats.Instance != null ? PlayerStats.Instance.GetRuntimeWeaponRange() : 24f;
     }
 
     float GetCurrentProjectileSpeed()
@@ -330,39 +308,37 @@ public class Playercontroller : MonoBehaviour
 
     WeaponFamily GetCurrentWeaponFamily()
     {
-        EquipmentData w = PlayerStats.Instance?.equippedWeapon;
-        return w != null && w.weaponArchetype != null
-            ? w.weaponArchetype.family
-            : WeaponFamily.Assault;
+        return PlayerStats.Instance != null ? PlayerStats.Instance.GetRuntimeWeaponFamily() : WeaponFamily.Assault;
     }
 
     Transform FindTarget()
     {
+        float weaponRange = GetCurrentWeaponRange();
         switch (GetCurrentWeaponFamily())
         {
             case WeaponFamily.SMG:
-                return FindPackTarget();
+                return FindPackTarget(weaponRange);
             case WeaponFamily.Sniper:
-                return FindPriorityTarget();
+                return FindPriorityTarget(weaponRange);
             default:
-                return FindFrontTarget();
+                return FindFrontTarget(weaponRange);
         }
     }
 
     // FIX: Eskiden Physics.BoxCast kullanılıyordu — sadece ilk physics hit'i döner.
     // Önde terrain/prop/başka collider varsa enemy hiç seçilemiyordu.
     // Physics.BoxCastAll ile tüm hitler taranır; geçerli en yakın enemy/boss seçilir.
-    Transform FindFrontTarget()
+    Transform FindFrontTarget(float weaponRange)
     {
         if (_anchorMode)
-            return FindClosestTargetInSphere(70f);
+            return FindClosestTargetInSphere(weaponRange);
 
         RaycastHit[] hits = Physics.BoxCastAll(
             transform.position + Vector3.up,
             new Vector3(xLimit * 0.6f, 1.2f, 0.5f),
             Vector3.forward,
             Quaternion.identity,
-            detectRange);
+            weaponRange);
 
         Transform best    = null;
         float     bestDist = float.MaxValue;
@@ -370,7 +346,7 @@ public class Playercontroller : MonoBehaviour
         foreach (RaycastHit hit in hits)
         {
             // FIX: Deaktif/ölü objeler physics'ten çıkar ama savunmacı kontrol.
-            if (!hit.collider.gameObject.activeInHierarchy) continue;
+            if (!IsCombatTarget(hit.collider, out Transform target)) continue;
 
             bool isEnemy = hit.collider.GetComponent<Enemy>() != null
                         || hit.collider.GetComponentInParent<Enemy>() != null;
@@ -380,30 +356,30 @@ public class Playercontroller : MonoBehaviour
             if (!isEnemy && !isBoss) continue;
 
             // En yakın geçerli hedefi seç (mesafe bazlı)
-            float d = (hit.transform.position - transform.position).sqrMagnitude;
+            float d = (target.position - transform.position).sqrMagnitude;
             if (d < bestDist)
             {
                 bestDist = d;
-                best     = hit.transform;
+                best     = target;
             }
         }
 
         return best;
     }
 
-    Transform FindPackTarget()
+    Transform FindPackTarget(float weaponRange)
     {
-        return FindBestEnemyByScore(DetectEnemyCandidates(), scoreMode: TargetScoreMode.Cluster);
+        return FindBestEnemyByScore(DetectEnemyCandidates(weaponRange), scoreMode: TargetScoreMode.Cluster);
     }
 
-    Transform FindPriorityTarget()
+    Transform FindPriorityTarget(float weaponRange)
     {
-        return FindBestEnemyByScore(DetectEnemyCandidates(), scoreMode: TargetScoreMode.Priority);
+        return FindBestEnemyByScore(DetectEnemyCandidates(weaponRange), scoreMode: TargetScoreMode.Priority);
     }
 
     Transform FindClosestTargetInSphere(float radius)
     {
-        Collider[] cols = Physics.OverlapSphere(transform.position, radius);
+        Collider[] cols = Physics.OverlapSphere(GetTargetRangeOrigin(), radius);
         Transform best = null;
         float bestDist = float.MaxValue;
 
@@ -421,9 +397,9 @@ public class Playercontroller : MonoBehaviour
         return best;
     }
 
-    Collider[] DetectEnemyCandidates()
+    Collider[] DetectEnemyCandidates(float weaponRange)
     {
-        return Physics.OverlapSphere(transform.position, detectRange);
+        return Physics.OverlapSphere(GetTargetRangeOrigin(), weaponRange);
     }
 
     enum TargetScoreMode
@@ -469,7 +445,7 @@ public class Playercontroller : MonoBehaviour
         }
 
         // Fallback: en yakın geçerli hedef
-        return best ?? FindClosestTargetInSphere(detectRange);
+        return best ?? FindClosestTargetInSphere(GetCurrentWeaponRange());
     }
 
     int CountNearbyEnemies(Vector3 center, float radius)
@@ -505,16 +481,34 @@ public class Playercontroller : MonoBehaviour
         if (boss != null)
         {
             target = boss.transform;
-            return true;
+            return IsTargetInWeaponWindow(target);
         }
 
         if (enemy != null)
         {
+            if (!enemy.IsAlive) return false;
             target = enemy.transform;
-            return true;
+            return IsTargetInWeaponWindow(target);
         }
 
         return false;
+    }
+
+    bool IsTargetInWeaponWindow(Transform target)
+    {
+        if (target == null) return false;
+
+        Vector3 origin = GetTargetRangeOrigin();
+        Vector3 delta = target.position - origin;
+        if (delta.z <= 0.5f) return false;
+
+        float range = GetCurrentWeaponRange();
+        return delta.sqrMagnitude <= range * range;
+    }
+
+    Vector3 GetTargetRangeOrigin()
+    {
+        return firePoint != null ? firePoint.position : transform.position;
     }
 
     public void ResumeRun()

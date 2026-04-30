@@ -54,17 +54,46 @@ public class SpawnManager : MonoBehaviour
     float _nextWaveZ  = 55f;
     bool  _bossSpawned = false;
     int   _waveCursor  = 0;
+    int   _spawnedGateGroups = 0;
+    int   _spawnedCombatPackets = 0;
+    int   _nextGateChoiceGroupId = 1;
+    float _lastCombatSpawnTime = -999f;
+    float _lastCombatSpawnPlayerZ = -999f;
+    bool  _lastCombatSpawnWasFollowup = false;
+    float _lastGateSpawnZ = -999f;
+    bool  _followupUsedForLastGate = true;
+    float _lastSkipLogTime = -999f;
+
+    const float FIRST_WAVE_Z = 36f;
+    const float FIRST_GATE_Z = 52f;
+    const float GATE_FOLLOWUP_MIN = 18f;
+    const float GATE_FOLLOWUP_MAX = 30f;
+    const float MAX_EMPTY_GAP = 65f;
+    const float COMBAT_SPAWN_COOLDOWN = 1.2f;
+    const float MIN_COMBAT_PLAYER_ADVANCE = 20f;
+    const float MIN_COMBAT_SPAWN_AHEAD = 42f;
+    const float SKIP_LOG_INTERVAL = 0.75f;
 
     // RHYTHM: son secilen packet — tekrar azaltmak icin izlenir
     SpawnPacketConfig _lastPacket = null;
 
     public void ResetForStage()
     {
-        _nextGateZ   = 40f;
-        _nextWaveZ   = 55f;
+        _nextGateZ   = FIRST_GATE_Z;
+        _nextWaveZ   = FIRST_WAVE_Z;
         _bossSpawned = false;
         _waveCursor  = 0;
+        _spawnedGateGroups = 0;
+        _spawnedCombatPackets = 0;
+        _nextGateChoiceGroupId = 1;
+        _lastCombatSpawnTime = -999f;
+        _lastCombatSpawnPlayerZ = -999f;
+        _lastCombatSpawnWasFollowup = false;
+        _lastGateSpawnZ = -999f;
+        _followupUsedForLastGate = true;
+        _lastSkipLogTime = -999f;
         _lastPacket  = null;   // RHYTHM: yeni stage'de cesitlilik yeniden baslar
+        Gate.ResetChoiceState();
     }
 
     DifficultyManager.EnemyStats _stats;
@@ -141,17 +170,141 @@ public class SpawnManager : MonoBehaviour
             return;
         }
 
-        while (pz + spawnAhead >= _nextGateZ)
+        GuardSpawnCursors(pz);
+
+        if (pz + spawnAhead >= _nextGateZ)
         {
-            SpawnNextGateGroup(_nextGateZ);
-            _nextGateZ += gateSpacing;
+            if (!(_spawnedCombatPackets == 0 && _nextGateZ > _nextWaveZ))
+            {
+                float gateZ = _nextGateZ;
+                SpawnNextGateGroup(gateZ);
+                ScheduleGateFollowupOnce(gateZ);
+                _nextGateZ = gateZ + gateSpacing;
+            }
         }
 
-        while (pz + spawnAhead >= _nextWaveZ)
+        if (pz + spawnAhead >= _nextWaveZ)
         {
-            SpawnEnemyWave(_nextWaveZ);
-            _nextWaveZ += waveSpacing;
+            TrySpawnCombatAtCursor(pz);
         }
+    }
+
+    void GuardSpawnCursors(float playerZ)
+    {
+        float nearestUpcoming = Mathf.Min(_nextGateZ, _nextWaveZ);
+        bool canFillGap = nearestUpcoming - playerZ > MAX_EMPTY_GAP
+                       && !_lastCombatSpawnWasFollowup
+                       && CanSpawnCombatNow(playerZ, out _)
+                       && CountActiveEnemies() <= Mathf.Max(4, GetActiveEnemyCap() / 2);
+
+        if (canFillGap)
+        {
+            _nextWaveZ = playerZ + 48f;
+            Debug.Log($"[Spawn] gap fallback nextWaveZ={_nextWaveZ:F1} activeEnemies={CountActiveEnemies()}");
+        }
+
+        if (_spawnedGateGroups > _spawnedCombatPackets + 1)
+            _nextWaveZ = Mathf.Min(_nextWaveZ, _nextGateZ - GATE_FOLLOWUP_MIN);
+    }
+
+    void ScheduleGateFollowupOnce(float gateZ)
+    {
+        if (_followupUsedForLastGate && Mathf.Approximately(_lastGateSpawnZ, gateZ))
+            return;
+
+        float latestFollowup = gateZ + GATE_FOLLOWUP_MAX;
+        float earliestFollowup = gateZ + GATE_FOLLOWUP_MIN;
+        if (_nextWaveZ > latestFollowup)
+            _nextWaveZ = Random.Range(earliestFollowup, latestFollowup);
+        else if (_nextWaveZ > gateZ && _nextWaveZ < earliestFollowup)
+            _nextWaveZ = earliestFollowup;
+
+        _followupUsedForLastGate = true;
+        Debug.Log($"[Spawn] gate followup used gateZ={gateZ:F1} nextWaveZ={_nextWaveZ:F1}");
+    }
+
+    void TrySpawnCombatAtCursor(float playerZ)
+    {
+        if (!CanSpawnCombatNow(playerZ, out string reason))
+        {
+            LogSpawnSkip(reason);
+            return;
+        }
+
+        float spawnZ = Mathf.Max(_nextWaveZ, playerZ + MIN_COMBAT_SPAWN_AHEAD);
+        bool spawned = SpawnEnemyWave(spawnZ);
+        float spacing = GetCombatTempoSpacing();
+        _nextWaveZ = spawnZ + spacing;
+
+        if (!spawned)
+            return;
+
+        int activeEnemies = CountActiveEnemies();
+        _spawnedCombatPackets++;
+        _lastCombatSpawnTime = Time.time;
+        _lastCombatSpawnPlayerZ = playerZ;
+        _lastCombatSpawnWasFollowup = _lastGateSpawnZ > 0f
+                                   && spawnZ >= _lastGateSpawnZ + GATE_FOLLOWUP_MIN - 0.1f
+                                   && spawnZ <= _lastGateSpawnZ + GATE_FOLLOWUP_MAX + 0.1f;
+
+        Debug.Log($"[Spawn] packet={_lastPacket?.packetType.ToString() ?? "Fallback"} z={spawnZ:F1} activeEnemies={activeEnemies} nextWaveZ={_nextWaveZ:F1}");
+    }
+
+    bool CanSpawnCombatNow(float playerZ, out string reason)
+    {
+        int activeEnemies = CountActiveEnemies();
+        if (activeEnemies >= GetActiveEnemyCap())
+        {
+            reason = "active cap";
+            return false;
+        }
+
+        if (Time.time - _lastCombatSpawnTime < COMBAT_SPAWN_COOLDOWN)
+        {
+            reason = "cooldown";
+            return false;
+        }
+
+        if (playerZ - _lastCombatSpawnPlayerZ < MIN_COMBAT_PLAYER_ADVANCE)
+        {
+            reason = "distance";
+            return false;
+        }
+
+        reason = null;
+        return true;
+    }
+
+    void LogSpawnSkip(string reason)
+    {
+        if (Time.time - _lastSkipLogTime < SKIP_LOG_INTERVAL)
+            return;
+
+        _lastSkipLogTime = Time.time;
+        Debug.Log($"[Spawn] skipped {reason}");
+    }
+
+    float GetCombatTempoSpacing()
+    {
+        return Mathf.Max(24f, waveSpacing + Random.Range(-4f, 6f));
+    }
+
+    int GetActiveEnemyCap()
+    {
+        int stage = StageManager.Instance != null ? StageManager.Instance.CurrentStageID : 1;
+        if (stage <= 5) return 14;
+        if (stage <= 10) return 18;
+        if (stage <= 20) return 24;
+        return 30;
+    }
+
+    int CountActiveEnemies()
+    {
+        int count = 0;
+        foreach (Enemy enemy in FindObjectsByType<Enemy>(FindObjectsSortMode.None))
+            if (enemy != null && enemy.gameObject.activeInHierarchy)
+                count++;
+        return count;
     }
 
     void TryFindPlayer()
@@ -161,13 +314,13 @@ public class SpawnManager : MonoBehaviour
 
     // ── Wave Dispatch ─────────────────────────────────────────────────────
 
-    void SpawnEnemyWave(float zPos)
+    bool SpawnEnemyWave(float zPos)
     {
         // 1) Manuel waveSequence (StageConfig'e elle baglanmis dalgalar)
-        if (TrySpawnConfiguredWave(zPos)) return;
+        if (TrySpawnConfiguredWave(zPos)) return true;
 
         // 2) RHYTHM: rhythmTable atanmissa otomatik packet secimi  ← YENİ
-        if (TrySpawnPacket(zPos)) return;
+        if (TrySpawnPacket(zPos)) return true;
 
         // 3) Prosedural fallback (eski davranis)
         float prog = Mathf.Clamp01(playerTransform.position.z / bossDistance);
@@ -179,6 +332,8 @@ public class SpawnManager : MonoBehaviour
             case 1: HeavyWave(zPos, cnt);  break;
             case 2: FlankWave(zPos, cnt);  break;
         }
+
+        return true;
     }
 
     // ── RHYTHM: Packet Secim ve Spawn ─────────────────────────────────────
@@ -306,9 +461,13 @@ public class SpawnManager : MonoBehaviour
 
         GateConfig leftGate  = PickGateFromPool();
         GateConfig rightGate = PickGateFromPoolDistinct(leftGate);
+        int choiceGroupId = _nextGateChoiceGroupId++;
 
-        SpawnGate(leftGate,  new Vector3(-offset, 1.5f, zPos), scale: 1f);
-        SpawnGate(rightGate, new Vector3( offset, 1.5f, zPos), scale: 1f);
+        SpawnGate(leftGate,  new Vector3(-offset, 1.5f, zPos), scale: 1f, choiceGroupId: choiceGroupId);
+        SpawnGate(rightGate, new Vector3( offset, 1.5f, zPos), scale: 1f, choiceGroupId: choiceGroupId);
+        _spawnedGateGroups++;
+        _lastGateSpawnZ = zPos;
+        _followupUsedForLastGate = false;
     }
 
     GatePoolConfig GetActiveGatePool()
@@ -335,7 +494,7 @@ public class SpawnManager : MonoBehaviour
         return pool != null ? pool.PickRandom(stage) : null;
     }
 
-    void SpawnGate(GateConfig data, Vector3 pos, float scale = 1f)
+    void SpawnGate(GateConfig data, Vector3 pos, float scale = 1f, int choiceGroupId = 0)
     {
         if (data == null) return;
 
@@ -358,6 +517,7 @@ public class SpawnManager : MonoBehaviour
         Gate gate = obj.GetComponent<Gate>();
         if (gate != null)
         {
+            gate.SetChoiceGroup(choiceGroupId);
             gate.BindGateConfig(data);
         }
 
@@ -534,6 +694,7 @@ public class SpawnManager : MonoBehaviour
         {
             enemy.Initialize(stats);
             enemy.ConfigureCombat(archetype.armor, archetype.IsEliteLike);
+            enemy.ConfigureArchetype(archetype);
         }
     }
 
@@ -551,8 +712,6 @@ public class SpawnManager : MonoBehaviour
         {
             rb.isKinematic = true;
             rb.useGravity = false;
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
         }
     }
 

@@ -106,8 +106,6 @@ public class ObjectPooler : MonoBehaviour
         {
             rb.isKinematic = true;
             rb.useGravity = false;
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
         }
     }
 
