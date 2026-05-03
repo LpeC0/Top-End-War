@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Top End War — Mermi v1.2 (Gameplay Fix Patch)
+/// Top End War — Mermi v1.3 (Coverage Patch)
 ///
-/// v1.1 → v1.2 Fix Delta:
-///   • Physics.OverlapCapsule(): QueryTriggerInteraction.Collide eklendi.
-///     Proje Physics Settings'de "Queries Hit Triggers" kapalıysa,
-///     enemy'nin isTrigger collider'ı hiç algılanmıyordu → 0 hasar.
-///     Bu parametre explicit olarak trigger'ları da yakalar.
-///   • HIT_RADIUS: 0.5f (v1.1'den korundu)
+/// v1.2 → v1.3 Delta:
+///   • Anchor modda enemy'ye hasar uygulanırken coverage multiplier hesaplanır.
+///   • Enemy AnchorEnemyMover taşıyorsa → lane okunur.
+///   • PlayerController'dan stance alınır.
+///   • finalDamage = damage × AnchorCoverage.GetMultiplier(stance, lane)
+///   • Runner modunda (AnchorEnemyMover yoksa) davranış değişmez.
 /// </summary>
 public class Bullet : MonoBehaviour
 {
@@ -57,12 +57,8 @@ public class Bullet : MonoBehaviour
         ConfigureTrail(0.08f, 0.060f, 0.006f);
         EnsureTrail();
         ApplyColor();
-
-        // ObjectPooler artık pozisyonu SetActive'den önce atıyor,
-        // bu yüzden _lastPos burada doğru pozisyonu yakalar.
         _spawnPos = transform.position;
-        _lastPos = transform.position;
-
+        _lastPos  = transform.position;
         Invoke(nameof(ReturnToPool), LIFETIME);
     }
 
@@ -77,41 +73,28 @@ public class Bullet : MonoBehaviour
     }
 
     public void SetDamage(int d) => damage = d;
-
-    public void SetMaxRange(float range)
-    {
-        _maxRange = Mathf.Max(4f, range);
-    }
+    public void SetMaxRange(float range) => _maxRange = Mathf.Max(4f, range);
 
     public void SetTrailProfile(WeaponFamily family)
     {
         switch (family)
         {
-            case WeaponFamily.SMG:
-                ConfigureTrail(0.06f, 0.045f, 0.004f);
-                break;
-            case WeaponFamily.Sniper:
-                ConfigureTrail(0.10f, 0.075f, 0.008f);
-                break;
-            default:
-                ConfigureTrail(0.08f, 0.060f, 0.006f);
-                break;
+            case WeaponFamily.SMG:    ConfigureTrail(0.06f, 0.045f, 0.004f); break;
+            case WeaponFamily.Sniper: ConfigureTrail(0.10f, 0.075f, 0.008f); break;
+            default:                  ConfigureTrail(0.08f, 0.060f, 0.006f); break;
         }
     }
 
-    public void SetTracerColor(Color color)
-    {
-        bulletColor = color;
-        ApplyColor();
-    }
+    public void SetTracerColor(Color color) { bulletColor = color; ApplyColor(); }
 
-    public void SetCombatStats(int newDamage, int newArmorPen = 0, int newPierceCount = 0, float newEliteDamageMult = 1f, float newBossDamageMult = 1f)
+    public void SetCombatStats(int newDamage, int newArmorPen = 0, int newPierceCount = 0,
+                               float newEliteDamageMult = 1f, float newBossDamageMult = 1f)
     {
-        damage = newDamage;
-        armorPen = Mathf.Max(0, newArmorPen);
-        pierceCount = Mathf.Max(0, newPierceCount);
+        damage          = newDamage;
+        armorPen        = Mathf.Max(0, newArmorPen);
+        pierceCount     = Mathf.Max(0, newPierceCount);
         eliteDamageMult = Mathf.Max(1f, newEliteDamageMult);
-        bossDamageMult = Mathf.Max(1f, newBossDamageMult);
+        bossDamageMult  = Mathf.Max(1f, newBossDamageMult);
         _remainingPierce = pierceCount;
     }
 
@@ -125,31 +108,26 @@ public class Bullet : MonoBehaviour
             return;
         }
 
-        // FIX: QueryTriggerInteraction.Collide — isTrigger collider'ları da algıla.
-        // "Queries Hit Triggers" project ayarından bağımsız olarak çalışır.
         Collider[] cols = Physics.OverlapCapsule(
-            _lastPos,
-            transform.position,
-            HIT_RADIUS,
-            Physics.AllLayers,
-            QueryTriggerInteraction.Collide);
+            _lastPos, transform.position, HIT_RADIUS,
+            Physics.AllLayers, QueryTriggerInteraction.Collide);
 
         foreach (Collider col in cols)
         {
-            // FIX: Deaktif objeleri atla.
             if (!col.gameObject.activeInHierarchy) continue;
 
-            BossHitReceiver bossRecv = col.GetComponent<BossHitReceiver>() ?? col.GetComponentInParent<BossHitReceiver>();
-            Enemy enemy = col.GetComponent<Enemy>() ?? col.GetComponentInParent<Enemy>();
+            BossHitReceiver bossRecv = col.GetComponent<BossHitReceiver>()
+                                    ?? col.GetComponentInParent<BossHitReceiver>();
+            Enemy enemy = col.GetComponent<Enemy>()
+                       ?? col.GetComponentInParent<Enemy>();
 
-            if (bossRecv == null && enemy == null)
-                continue;
+            if (bossRecv == null && enemy == null) continue;
 
-            int targetId = bossRecv != null ? bossRecv.gameObject.GetInstanceID()
-                                            : enemy.gameObject.GetInstanceID();
+            int targetId = bossRecv != null
+                ? bossRecv.gameObject.GetInstanceID()
+                : enemy.gameObject.GetInstanceID();
 
-            if (_hitTargets.Contains(targetId))
-                continue;
+            if (_hitTargets.Contains(targetId)) continue;
 
             if (PlayerStats.Instance != null)
             {
@@ -167,22 +145,40 @@ public class Bullet : MonoBehaviour
             }
             else if (enemy != null)
             {
+                // ── Coverage Multiplier ───────────────────────────────────
+                // Anchor modda enemy AnchorEnemyMover taşıyorsa lane bilgisi
+                // okunur ve player stance ile karşılaştırılır.
+                // Runner modunda AnchorEnemyMover yoktur → multiplier = 1.
+                int finalDamage = damage;
+                float coverageMult = 1f;
+                Color hitColor = DamagePopup.GetColor(hitterPath);
+
+                AnchorEnemyMover mover = enemy.GetComponent<AnchorEnemyMover>();
+                if (mover != null)
+                {
+                    AnchorStance stance = GetPlayerStance();
+                    coverageMult = AnchorCoverage.GetMultiplier(stance, mover.Lane);
+                    finalDamage  = Mathf.Max(1, Mathf.RoundToInt(damage * coverageMult));
+                    AnchorCoverage.ReportHit(stance, mover.Lane, coverageMult);
+
+                    // x1.0 → yeşil  |  x0.5 → sarı  |  x0.2 → kırmızı
+                    hitColor = coverageMult >= 0.90f ? new Color(0.2f, 1.0f, 0.3f)
+                             : coverageMult >= 0.45f ? new Color(1.0f, 0.85f, 0.1f)
+                             :                         new Color(1.0f, 0.25f, 0.1f);
+                }
+
                 enemy.TakeDamage(
-                    rawDamage: damage,
-                    armorPenValue: armorPen,
+                    rawDamage:       finalDamage,
+                    armorPenValue:   armorPen,
                     eliteMultiplier: eliteDamageMult,
-                    hitColor: DamagePopup.GetColor(hitterPath));
-                SpawnImpactVfx(col.transform.position, DamagePopup.GetColor(hitterPath));
+                    hitColor:        hitColor);
+
+                SpawnImpactVfx(col.transform.position, hitColor);
             }
 
             _hitTargets.Add(targetId);
 
-            if (_remainingPierce > 0)
-            {
-                _remainingPierce--;
-                continue;
-            }
-
+            if (_remainingPierce > 0) { _remainingPierce--; continue; }
             Hit();
             return;
         }
@@ -190,12 +186,17 @@ public class Bullet : MonoBehaviour
         _lastPos = transform.position;
     }
 
-    void Hit()
+    // ── Coverage Yardımcısı ───────────────────────────────────────────────
+
+    static AnchorStance GetPlayerStance()
     {
-        if (_hit) return;
-        _hit = true;
-        ReturnToPool();
+        if (PlayerStats.Instance == null) return AnchorStance.Center;
+        return AnchorCoverage.StanceFromX(PlayerStats.Instance.transform.position.x);
     }
+
+    // ── Temel ────────────────────────────────────────────────────────────
+
+    void Hit() { if (_hit) return; _hit = true; ReturnToPool(); }
 
     void ReturnToPool()
     {
@@ -210,7 +211,6 @@ public class Bullet : MonoBehaviour
         if (_rend != null)
         {
             _rend.enabled = true;
-
             if (_rend.material.HasProperty("_BaseColor"))
                 _rend.material.SetColor("_BaseColor", bulletColor);
             else
@@ -232,52 +232,52 @@ public class Bullet : MonoBehaviour
         if (_trail == null)
             _trail = GetComponent<TrailRenderer>() ?? gameObject.AddComponent<TrailRenderer>();
 
-        _trail.minVertexDistance = 0.05f;
-        _trail.alignment = LineAlignment.View;
-        _trail.shadowCastingMode = ShadowCastingMode.Off;
-        _trail.receiveShadows = false;
-        _trail.generateLightingData = false;
-        _trail.material = GetTrailMaterial();
-        _trail.emitting = true;
+        _trail.minVertexDistance     = 0.05f;
+        _trail.alignment             = LineAlignment.View;
+        _trail.shadowCastingMode     = ShadowCastingMode.Off;
+        _trail.receiveShadows        = false;
+        _trail.generateLightingData  = false;
+        _trail.material              = GetTrailMaterial();
+        _trail.emitting              = true;
         ApplyColor();
     }
 
     void ConfigureTrail(float time, float startWidth, float endWidth)
     {
-        _trailTime = time;
+        _trailTime       = time;
         _trailStartWidth = startWidth;
-        _trailEndWidth = endWidth;
+        _trailEndWidth   = endWidth;
         ApplyColor();
     }
 
     void SpawnImpactVfx(Vector3 pos, Color color)
     {
-        var go = new GameObject("BulletImpactVfx");
+        var go    = new GameObject("BulletImpactVfx");
         go.transform.position = pos;
 
         var light = go.AddComponent<Light>();
-        light.type = LightType.Point;
-        light.range = 1.5f;
+        light.type      = LightType.Point;
+        light.range     = 1.5f;
         light.intensity = 1.2f;
-        light.color = color;
+        light.color     = color;
 
-        var ps = go.AddComponent<ParticleSystem>();
+        var ps   = go.AddComponent<ParticleSystem>();
         var main = ps.main;
-        main.startLifetime = 0.12f;
-        main.startSpeed = 1.8f;
-        main.startSize = 0.12f;
-        main.startColor = color;
+        main.startLifetime   = 0.12f;
+        main.startSpeed      = 1.8f;
+        main.startSize       = 0.12f;
+        main.startColor      = color;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.loop = false;
+        main.loop            = false;
 
         var emission = ps.emission;
         emission.enabled = true;
         emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 6) });
 
         var shape = ps.shape;
-        shape.enabled = true;
+        shape.enabled   = true;
         shape.shapeType = ParticleSystemShapeType.Sphere;
-        shape.radius = 0.05f;
+        shape.radius    = 0.05f;
 
         ps.Play();
         Destroy(go, 0.35f);

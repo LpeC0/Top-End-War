@@ -1,0 +1,62 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80fb2c658e5a82d47b6810d6358f99be, type: 3}
+  m_Name: Blueprint_anchor_w1_s01
+  m_EditorClassIdentifier: Assembly-CSharp::StageBlueprint
+  blueprintId: anchor_w1_s01
+  displayName: loc_stage_w1_01_name
+  worldID: 1
+  stageID: 1
+  anchorBaseHP: 1500
+  winCondition: 0
+  survivalDuration: 90
+  waves:
+  - waveLabel: Center Trooper Test
+    waveType: 0
+    groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 6
+      laneBias: 1
+    groupDelay: 0.5
+    intraDelay: 0.3
+    warningText: TROOPER WAVE
+    warningLeadTime: 0.8
+  - waveLabel: Split Attack
+    waveType: 0
+    groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 4
+      laneBias: 2
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 4
+      laneBias: 3
+    groupDelay: 0.5
+    intraDelay: 0.25
+    warningText: SPLIT ATTACK
+    warningLeadTime: 0.8
+  - waveLabel: Swarm Pressure
+    waveType: 1
+    groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 5
+      laneBias: 1
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 4
+      laneBias: 0
+    groupDelay: 0.5
+    intraDelay: 0.2
+    warningText: SWARM PRESSURE
+    warningLeadTime: 0.8
+  waveCooldown: 1.5
+  goldReward: 0
+  bonusGoldOnPerfect: 0
+  difficultyMultiplier: 0.9

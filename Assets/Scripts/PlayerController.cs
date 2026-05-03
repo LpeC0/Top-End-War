@@ -20,7 +20,8 @@ public class Playercontroller : MonoBehaviour
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
     public float xLimit          = 8f;
-
+public AnchorStance GetAnchorStance()
+    => AnchorCoverage.StanceFromX(transform.position.x);
     [Header("Ates")]
     public Transform  firePoint;
     public GameObject bulletPrefab;
@@ -500,7 +501,8 @@ public class Playercontroller : MonoBehaviour
 
         Vector3 origin = GetTargetRangeOrigin();
         Vector3 delta = target.position - origin;
-        if (delta.z <= 0.5f) return false;
+        // Anchor modda düşman player'a DOĞRU geliyor (Z azalıyor) — yön filtresi olmamalı.
+if (!_anchorMode && delta.z <= 0.5f) return false;
 
         float range = GetCurrentWeaponRange();
         return delta.sqrMagnitude <= range * range;

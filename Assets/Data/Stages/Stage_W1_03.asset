@@ -24,6 +24,8 @@ MonoBehaviour:
   targetDps: 96
   targetPower: 0
   gateBudgetMult: 1.4
+  playMode: 1
+  anchorBlueprint: {fileID: 11400000, guid: 0e412f98ca1c9364f931dd0a3463c033, type: 2}
   bossType: 0
   bossConfig: {fileID: 0}
   waveSequence: []

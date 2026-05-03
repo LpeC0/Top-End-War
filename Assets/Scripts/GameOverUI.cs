@@ -62,8 +62,17 @@ public class GameOverUI : MonoBehaviour
         mainMenuButton?.onClick.AddListener(OnMainMenuClicked);
     }
 
-    void OnEnable()  => GameEvents.OnGameOver += ShowGameOver;
-    void OnDisable() => GameEvents.OnGameOver -= ShowGameOver;
+    void OnEnable()
+{
+    GameEvents.OnGameOver += ShowGameOver;
+    GameEvents.OnStageCleared += ShowStageCleared;
+}
+
+void OnDisable()
+{
+    GameEvents.OnGameOver -= ShowGameOver;
+    GameEvents.OnStageCleared -= ShowStageCleared;
+}
 
     // ── Run Takibi ────────────────────────────────────────────────────────
 
@@ -85,6 +94,8 @@ public class GameOverUI : MonoBehaviour
         // PATCH: Cift tetiklenme korumasi.
         // PlayerStats._isDead ve PlayerController._gameOver zaten engellemeye calisiyor;
         // bu ucuncu hat olarak burada da erken cikis saglar.
+        
+
         if (_gameOverShown)
         {
             Debug.Log("[GameOverUI] ShowGameOver BLOCKED — zaten gosterildi.");
@@ -110,8 +121,19 @@ public class GameOverUI : MonoBehaviour
         UpdateReviveButton();
         UpdateRetreatButton();
 
+ 
+
         Debug.Log("[GameOverUI] Game Over ekrani gosterildi.");
     }
+
+    void ShowStageCleared(GameEvents.StageClearInfo info)
+{
+    if (TryShowModernVictoryUI())
+    {
+        Time.timeScale = 0f;
+        Debug.Log("[GameOverUI] Yeni Result UI victory ekrani gosterildi.");
+    }
+}
 
     bool TryShowModernDefeatUI()
     {
@@ -129,6 +151,23 @@ public class GameOverUI : MonoBehaviour
         screenManager.ShowResultDefeat();
         return true;
     }
+
+    bool TryShowModernVictoryUI()
+{
+    UIScreenManager screenManager = FindFirstObjectByType<UIScreenManager>();
+    if (screenManager == null)
+        screenManager = CreateRuntimeScreenManager();
+
+    if (screenManager == null)
+        return false;
+
+    if (gameOverPanel != null)
+        gameOverPanel.SetActive(false);
+
+    screenManager.Bootstrap();
+    screenManager.ShowResultVictory();
+    return true;
+}
 
     UIScreenManager CreateRuntimeScreenManager()
     {

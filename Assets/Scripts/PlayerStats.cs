@@ -412,6 +412,13 @@ public void ResetRunGateBonuses()
         foreach (var mod in list) ApplyModifier(mod);
     }
 
+    public void ApplyAnchorBuff(GateModifier2 mod)
+    {
+        ApplyModifier(mod);
+        RefreshWeaponDerivedStats();
+        Debug.Log($"[PlayerStats] Anchor buff applied: {mod.statType} {mod.value}");
+    }
+
     void ApplyModifier(GateModifier2 mod)
     {
         if (mod == null) return;

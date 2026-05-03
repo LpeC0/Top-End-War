@@ -53,11 +53,23 @@ public static class GameEvents
     public static Action<int>        OnBossPhaseChanged;
     public static Action<float>      OnBossEnraged;
     public static Action             OnBossDefeated;
-
+    public static Action<int, int> OnAnchorHPChanged;   // (current, max)
+    public static Action<int, int> OnAnchorDamaged;     // (amount, currentHP)
+    public static Action           OnAnchorDestroyed;
+    public static Action<bool>     OnAnchorCompleted;   // (perfect)
+    public static Action<string>   OnWaveWarning;           // (uyarı metni)
+    public static Action<int, int> OnAnchorWaveStarted;     // (currentWave, totalWaves)
+    public static Action<int>      OnAnchorWaveCleared;     // (tamamlanan wave index)
+    public static Action<AnchorPickupType> OnAnchorPickupCollected;
+    public static Action<AnchorBuffType, float> OnAnchorBuffStarted; // (type, duration)
+    public static Action<AnchorBuffType> OnAnchorBuffEnded;
     // ── Oyun Akisi ────────────────────────────────────────────────────────
     public static Action             OnGameOver;
     public static Action             OnVictory;
     public static Action<StageClearInfo> OnStageCleared;
+
+    public static System.Action<ThreatZone> OnThreatZoneChanged;
+    public static System.Action OnRunStart;
 
     // ── Biyom / Dunya ────────────────────────────────────────────────────
     public static Action<string>     OnBiomeChanged;

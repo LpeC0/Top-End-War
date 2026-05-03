@@ -144,5 +144,6 @@ public class SaveManager : MonoBehaviour
     CurrentRunKills = 0;
     CurrentRunStagesCleared = 0;
     CurrentRunStartTime = Time.time;
+    ThreatManager.Instance?.SetRunActive(true);
 }
 }

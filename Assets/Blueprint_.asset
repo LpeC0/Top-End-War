@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80fb2c658e5a82d47b6810d6358f99be, type: 3}
+  m_Name: Blueprint_anchor_w1_s01
+  m_EditorClassIdentifier: Assembly-CSharp::StageBlueprint
+  blueprintId: anchor_w1_s01
+  displayName: "Sahil Savunmas\u0131"
+  worldID: 1
+  stageID: 1
+  anchorBaseHP: 500
+  winCondition: 0
+  survivalDuration: 90
+  waves:
+  - waveLabel: Standart
+    waveType: 0
+    groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 4
+      laneBias: 0
+    groupDelay: 0.25
+    intraDelay: 0.5
+    warningText: Standart
+    warningLeadTime: 2
+  - waveLabel: Elite
+    waveType: 3
+    groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 3
+      laneBias: 2
+    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
+      count: 2
+      laneBias: 3
+    groupDelay: 0.25
+    intraDelay: 0.5
+    warningText: Elite
+    warningLeadTime: 3
+  - waveLabel: Relief
+    waveType: 5
+    groups:
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 5
+      laneBias: 0
+    - archetype: {fileID: 11400000, guid: ae559ec988f6721479a83bde983febe1, type: 2}
+      count: 1
+      laneBias: 1
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 2
+      laneBias: 4
+    groupDelay: 0.5
+    intraDelay: 1
+    warningText: Elite
+    warningLeadTime: 1
+  waveCooldown: 4
+  goldReward: 0
+  bonusGoldOnPerfect: 0
+  difficultyMultiplier: 1

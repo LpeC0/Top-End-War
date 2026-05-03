@@ -18,6 +18,7 @@ public class Enemy : MonoBehaviour
     [SerializeField] int _armor = 0;
     [SerializeField] bool _isElite = false;
 
+    EnemyThreatType _threatType = EnemyThreatType.Standard;
     int _maxHealth;
     int _currentHealth;
     int _contactDamage;
@@ -25,6 +26,7 @@ public class Enemy : MonoBehaviour
     int _cpReward;
     bool _initialized = false;
     bool _isDead = false;
+    bool _anchorMoveActive = false;
 
     float _nextPlayerDamageTime = 0f;
 
@@ -190,7 +192,10 @@ public class Enemy : MonoBehaviour
 
     void Update()
     {
+        
         if (_isDead || PlayerStats.Instance == null) return;
+
+        if (_anchorMoveActive) return;
 
         if (!_spawnLaneCaptured)
             CaptureSpawnLane();
@@ -241,7 +246,10 @@ public class Enemy : MonoBehaviour
         transform.position = pos;
 
         if (pos.z < pZ - 15f)
-            gameObject.SetActive(false);
+{
+    PlayerStats.Instance?.TryTakeContactDamage(_contactDamage);
+    gameObject.SetActive(false);
+}
     }
 
     Vector3 CalcSeparation(Vector3 pos)
@@ -311,10 +319,14 @@ public class Enemy : MonoBehaviour
     }
 
     public void ConfigureArchetype(EnemyArchetypeConfig archetype)
-    {
-        if (archetype == null) return;
-        ApplyBehaviorProfile(archetype.threatType, archetype.enemyClass);
-    }
+{
+    if (archetype == null) return;
+
+    // DEĞİŞİKLİK: Archetype threatType sonradan okunabilsin diye saklanıyor.
+    _threatType = archetype.threatType;
+
+    ApplyBehaviorProfile(_threatType, archetype.enemyClass);
+}
 
     void ApplyBehaviorProfile(EnemyThreatType threatType, EnemyClass enemyClass)
     {
@@ -466,6 +478,7 @@ public class Enemy : MonoBehaviour
             Debug.Log($"[Enemy] Contact damage BLOCKED");
     }
 
+    public EnemyThreatType ThreatType => _threatType;
     public int   Armor                => _armor;
     public bool  IsElite              => _isElite;
     public bool  IsAlive              => !_isDead && gameObject.activeInHierarchy && _currentHealth > 0;
@@ -473,4 +486,6 @@ public class Enemy : MonoBehaviour
     public bool  CanAcceptReservation => _reservationCount < _reservationCap;
     public float ThreatWeight         => _threatWeight;
     public float HealthRatio          => _maxHealth > 0 ? (float)_currentHealth / _maxHealth : 1f;
+    public void EnableAnchorMovement() => _anchorMoveActive = true;
+    public void DisableAnchorMovement() => _anchorMoveActive = false;
 }

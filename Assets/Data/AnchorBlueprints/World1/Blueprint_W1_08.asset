@@ -1,0 +1,91 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 80fb2c658e5a82d47b6810d6358f99be, type: 3}
+  m_Name: Blueprint_anchor_w1_s08
+  m_EditorClassIdentifier: Assembly-CSharp::StageBlueprint
+  blueprintId: anchor_w1_s08
+  displayName: loc_stage_w1_08_name
+  worldID: 1
+  stageID: 8
+  anchorBaseHP: 1860
+  winCondition: 0
+  survivalDuration: 90
+  waves:
+  - waveLabel: Mixed Open
+    waveType: 0
+    groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 4
+      laneBias: 0
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 4
+      laneBias: 4
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: TROOPER WAVE
+    warningLeadTime: 1.2
+  - waveLabel: Armor Mix
+    waveType: 2
+    groups:
+    - archetype: {fileID: 11400000, guid: ae559ec988f6721479a83bde983febe1, type: 2}
+      count: 2
+      laneBias: 1
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 4
+      laneBias: 0
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: ARMOR WAVE
+    warningLeadTime: 1.5
+  - waveLabel: Charge Mix
+    waveType: 3
+    groups:
+    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
+      count: 3
+      laneBias: 0
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 5
+      laneBias: 4
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: CHARGER WARNING
+    warningLeadTime: 1.5
+  - waveLabel: Swarm Relief
+    waveType: 5
+    groups:
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 7
+      laneBias: 0
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: SWARM WAVE
+    warningLeadTime: 1
+  - waveLabel: Mixed Test
+    waveType: 0
+    groups:
+    - archetype: {fileID: 11400000, guid: ae559ec988f6721479a83bde983febe1, type: 2}
+      count: 2
+      laneBias: 2
+    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
+      count: 2
+      laneBias: 3
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 5
+      laneBias: 0
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: ARMOR WAVE
+    warningLeadTime: 1.5
+  waveCooldown: 3.5
+  goldReward: 0
+  bonusGoldOnPerfect: 0
+  difficultyMultiplier: 1.25
