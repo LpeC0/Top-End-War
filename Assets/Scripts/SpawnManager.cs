@@ -34,9 +34,12 @@ public class SpawnManager : MonoBehaviour
     public GatePoolConfig poolStage6To10;
 
     [Header("Spawn")]
-    public float spawnAhead  = 65f;
+    public float spawnAhead  = 85f;
     public float gateSpacing = 40f;
     public float waveSpacing = 30f;
+
+    [Header("Runner Tuning")]
+    [Range(0.5f, 1.2f)] public float runnerEnemyHpMultiplier = 0.82f;
 
     [Header("Boss")]
     public float bossDistance = 1200f;
@@ -64,21 +67,23 @@ public class SpawnManager : MonoBehaviour
     bool  _followupUsedForLastGate = true;
     float _lastSkipLogTime = -999f;
 
-    const float FIRST_WAVE_Z = 36f;
+    const float FIRST_WAVE_Z = 62f;
     const float FIRST_GATE_Z = 52f;
     const float GATE_FOLLOWUP_MIN = 18f;
     const float GATE_FOLLOWUP_MAX = 30f;
     const float MAX_EMPTY_GAP = 65f;
     const float COMBAT_SPAWN_COOLDOWN = 1.2f;
     const float MIN_COMBAT_PLAYER_ADVANCE = 20f;
-    const float MIN_COMBAT_SPAWN_AHEAD = 42f;
+    const float MIN_COMBAT_SPAWN_AHEAD = 60f;
     const float SKIP_LOG_INTERVAL = 0.75f;
 
     // RHYTHM: son secilen packet — tekrar azaltmak icin izlenir
     SpawnPacketConfig _lastPacket = null;
+    SpawnPacketConfig _plannedFollowupPacket = null; // DEĞİŞİKLİK: Gate sonrası gelecek threat önceden seçilir ve preview edilir.
 
     public void ResetForStage()
     {
+        spawnAhead = Mathf.Max(spawnAhead, 85f); // DEĞİŞİKLİK: Runner pop-in hissini azaltmak için combat daha uzaktan görünür.
         _nextGateZ   = FIRST_GATE_Z;
         _nextWaveZ   = FIRST_WAVE_Z;
         _bossSpawned = false;
@@ -93,6 +98,7 @@ public class SpawnManager : MonoBehaviour
         _followupUsedForLastGate = true;
         _lastSkipLogTime = -999f;
         _lastPacket  = null;   // RHYTHM: yeni stage'de cesitlilik yeniden baslar
+        _plannedFollowupPacket = null; // DEĞİŞİKLİK: Yeni stage'de threat preview planı temizlenir.
         Gate.ResetChoiceState();
     }
 
@@ -220,6 +226,7 @@ public class SpawnManager : MonoBehaviour
             _nextWaveZ = earliestFollowup;
 
         _followupUsedForLastGate = true;
+        PlanGateFollowupThreat(); // DEĞİŞİKLİK: Gate seçimini yaklaşan combat packet'ına bağlayan preview planı.
         Debug.Log($"[Spawn] gate followup used gateZ={gateZ:F1} nextWaveZ={_nextWaveZ:F1}");
     }
 
@@ -346,10 +353,10 @@ public class SpawnManager : MonoBehaviour
     {
         if (rhythmTable == null) return false;
 
-        int currentWorld = StageManager.Instance != null ? StageManager.Instance.CurrentWorldID : 1;
-        int currentStage = StageManager.Instance != null ? StageManager.Instance.CurrentStageID : 1;
-        float stageProgress = StageManager.Instance != null ? StageManager.Instance.GetStageProgress01() : -1f;
-        SpawnPacketConfig packet = rhythmTable.Pick(currentWorld, currentStage, _lastPacket, stageProgress);
+        SpawnPacketConfig packet = _plannedFollowupPacket != null
+            ? _plannedFollowupPacket
+            : PickRhythmPacketForCurrentStage(); // DEĞİŞİKLİK: Preview edilen packet varsa spawn onu kullanır.
+        _plannedFollowupPacket = null;
 
         if (packet == null) return false;
 
@@ -358,6 +365,55 @@ public class SpawnManager : MonoBehaviour
 
         Debug.Log($"[SpawnManager] Packet: {packet.packetId} ({packet.packetType}) @ z={zPos:F0}");
         return true;
+    }
+
+    SpawnPacketConfig PickRhythmPacketForCurrentStage()
+    {
+        // DEĞİŞİKLİK: Threat preview ve normal rhythm aynı seçim metodunu kullanır.
+        if (rhythmTable == null) return null;
+        int currentWorld = StageManager.Instance != null ? StageManager.Instance.CurrentWorldID : 1;
+        int currentStage = StageManager.Instance != null ? StageManager.Instance.CurrentStageID : 1;
+        float stageProgress = StageManager.Instance != null ? StageManager.Instance.GetStageProgress01() : -1f;
+        return rhythmTable.Pick(currentWorld, currentStage, _lastPacket, stageProgress);
+    }
+
+    void PlanGateFollowupThreat()
+    {
+        // DEĞİŞİKLİK: Oyuncu gate'e yaklaşırken hemen sonraki tehdidi görür.
+        StageConfig stage = StageManager.Instance != null ? StageManager.Instance.ActiveStage : null;
+        if (stage != null && stage.waveSequence != null && stage.waveSequence.Count > 0) return;
+
+        _plannedFollowupPacket = PickRhythmPacketForCurrentStage();
+        if (_plannedFollowupPacket == null) return;
+
+        string preview = BuildThreatPreviewText(_plannedFollowupPacket);
+        if (!string.IsNullOrEmpty(preview))
+        {
+            RunDebugMetrics.Instance.RecordThreatPreview(preview); // DEĞİŞİKLİK: Prep özeti son runner tehdidini bilir.
+            GameEvents.OnThreatPreview?.Invoke(preview);
+        }
+    }
+
+    string BuildThreatPreviewText(SpawnPacketConfig packet)
+    {
+        // DEĞİŞİKLİK: Packet tipi oyuncuya kısa, aksiyon alınabilir threat diliyle gösterilir.
+        if (packet == null) return "";
+
+        float progress = StageManager.Instance != null ? StageManager.Instance.GetStageProgress01() : 0f;
+        if (StageManager.Instance?.ActiveStage != null
+            && StageManager.Instance.ActiveStage.playMode == StagePlayMode.RunnerToAnchor
+            && progress > 0.72f)
+            return "ANCHOR ASSAULT SOON";
+
+        return packet.packetType switch
+        {
+            PacketType.DenseSwarm => "SWARM INCOMING",
+            PacketType.ArmorCheck => "ARMOR PRESSURE APPROACHING",
+            PacketType.DelayedCharger => "CHARGER PRESSURE AHEAD",
+            PacketType.Relief => "SHORT RELIEF AHEAD",
+            PacketType.EliteSpike => "ELITE UNIT DETECTED",
+            _ => "LANE PRESSURE AHEAD",
+        };
     }
 
     /// <summary>
@@ -665,7 +721,7 @@ public class SpawnManager : MonoBehaviour
         StageConfig stage    = StageManager.Instance != null ? StageManager.Instance.ActiveStage : null;
         float       targetDps = stage != null ? stage.targetDps : 100f;
 
-        int hp       = archetype.GetHP(targetDps);
+        int hp       = Mathf.Max(1, Mathf.RoundToInt(archetype.GetHP(targetDps) * GetRunnerEnemyHpMultiplier()));
         int cpReward = archetype.GetCPReward(targetDps);
 
         var stats = new DifficultyManager.EnemyStats(
@@ -696,6 +752,13 @@ public class SpawnManager : MonoBehaviour
             enemy.ConfigureCombat(archetype.armor, archetype.IsEliteLike);
             enemy.ConfigureArchetype(archetype);
         }
+    }
+
+    float GetRunnerEnemyHpMultiplier()
+    {
+        // DEĞİŞİKLİK: Runner hazırlık alanı biraz daha geçilebilir, Anchor testi ayrı blueprint zorluğuyla kalır.
+        bool anchorActive = AnchorModeManager.Instance != null && AnchorModeManager.Instance.IsActive;
+        return anchorActive ? 1f : runnerEnemyHpMultiplier;
     }
 
     // ── Lane Yardimcisi ───────────────────────────────────────────────────

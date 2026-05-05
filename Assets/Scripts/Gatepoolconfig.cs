@@ -58,7 +58,7 @@ public class GatePoolConfig : ScriptableObject
     /// </summary>
     public GateConfig PickRandom(int stageIndex)
     {
-        var   valid = BuildValidList(stageIndex, GateFamilyFilter.None, GateTierFilter.None);
+        var   valid = BuildValidList(stageIndex, GateFamilyFilter.None, GateTierFilter.None, true);
         return WeightedPick(valid);
     }
 
@@ -66,31 +66,36 @@ public class GatePoolConfig : ScriptableObject
 
     public GateConfig PickFiltered(int stageIndex)
     {
-        var   valid = BuildValidList(stageIndex, familyFilter, tierFilter);
+        var   valid = BuildValidList(stageIndex, familyFilter, tierFilter, true);
         return WeightedPick(valid);
     }
 
     public GateConfig PickByFamily(int stageIndex, GateFamily targetFamily)
     {
         var valid = new List<GatePoolEntry>();
+        var fallback = new List<GatePoolEntry>(); // DEĞİŞİKLİK: Weapon eligibility boş havuz üretirse eski davranışa dönülür.
         foreach (var e in entries)
         {
             if (e.gate == null) continue;
             if (stageIndex < e.gate.minStage || stageIndex > e.gate.maxStage) continue;
             if (e.gate.IsRisk && !allowRisk) continue;
             if (e.gate.family != targetFamily) continue;
-            valid.Add(e);
+            fallback.Add(e);
+            if (IsGateEligibleForCurrentWeapon(e.gate))
+                valid.Add(e);
         }
-        return WeightedPick(valid);
+        return WeightedPick(valid.Count > 0 ? valid : fallback);
     }
 
     // ── İç Yardımcılar ───────────────────────────────────────────────────
 
     List<GatePoolEntry> BuildValidList(int stageIndex,
                                        GateFamilyFilter fFilter,
-                                       GateTierFilter   tFilter)
+                                       GateTierFilter   tFilter,
+                                       bool             useWeaponEligibility)
     {
         var valid = new List<GatePoolEntry>();
+        var fallback = new List<GatePoolEntry>(); // DEĞİŞİKLİK: Uygun gate kalmazsa null yerine eski havuz kullanılır.
         foreach (var e in entries)
         {
             if (e.gate == null) continue;
@@ -103,9 +108,48 @@ public class GatePoolConfig : ScriptableObject
             if (tFilter != GateTierFilter.None &&
                 (GateBalanceTier)(int)tFilter != e.gate.balanceTier) continue;
 
-            valid.Add(e);
+            fallback.Add(e);
+            if (!useWeaponEligibility || IsGateEligibleForCurrentWeapon(e.gate))
+                valid.Add(e);
         }
-        return valid;
+        return valid.Count > 0 ? valid : fallback;
+    }
+
+    bool IsGateEligibleForCurrentWeapon(GateConfig gate)
+    {
+        // DEĞİŞİKLİK: Silah kimliği korunur; özellikle Sniper'a scatter/pellet/splash spam gelmez.
+        if (gate == null || PlayerStats.Instance == null) return true;
+
+        WeaponFamily family = PlayerStats.Instance.GetRuntimeWeaponFamily();
+        if (family == WeaponFamily.Assault) return true;
+
+        bool hasPellet = HasModifier(gate, GateStatType2.PelletCount);
+        bool hasSplash = HasModifier(gate, GateStatType2.SplashRadiusPercent);
+        bool hasBounce = HasModifier(gate, GateStatType2.BounceCount);
+        bool hasArmorPen = HasModifier(gate, GateStatType2.ArmorPenFlat);
+        bool hasElite = HasModifier(gate, GateStatType2.EliteDamagePercent);
+        bool hasBoss = HasModifier(gate, GateStatType2.BossDamagePercent);
+        bool hasFireRate = HasModifier(gate, GateStatType2.FireRatePercent);
+        bool hasPierce = HasModifier(gate, GateStatType2.PierceCount);
+        bool hasArmy = HasModifier(gate, GateStatType2.AddSoldierCount) || HasModifier(gate, GateStatType2.SoldierDamagePercent);
+
+        if (family == WeaponFamily.Sniper)
+            return !hasPellet && !hasSplash && !hasBounce;
+
+        if (family == WeaponFamily.SMG)
+            return !hasBoss && !hasElite && (hasFireRate || hasPierce || hasArmy || !hasArmorPen || gate.family != GateFamily.Solve);
+
+        return true;
+    }
+
+    bool HasModifier(GateConfig gate, GateStatType2 stat)
+    {
+        // DEĞİŞİKLİK: Eligibility modifier içeriğine bakar, asset'i değiştirmez.
+        if (gate == null || gate.modifiers == null) return false;
+        foreach (GateModifier2 mod in gate.modifiers)
+            if (mod != null && mod.statType == stat)
+                return true;
+        return false;
     }
 
     GateConfig WeightedPick(List<GatePoolEntry> valid)

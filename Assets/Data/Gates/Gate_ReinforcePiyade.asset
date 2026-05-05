@@ -17,7 +17,7 @@ MonoBehaviour:
   tag1Key: 
   tag2Key: 
   descriptionKey: 
-  title: +2 Piyade
+  title: +1 Piyade
   tag1: ARMY
   tag2: INFANTRY
   gateColor: {r: 0.6, g: 1, b: 0.55, a: 0.9}
@@ -34,7 +34,7 @@ MonoBehaviour:
   - targetType: 3
     statType: 10
     operation: 0
-    value: 2
+    value: 1
   penaltyModifiers: []
   gateValueBudget: 1
 

@@ -39,7 +39,7 @@ public class Gate : MonoBehaviour
     {
         if (choiceGroupId <= 0)
         {
-            Debug.LogWarning("[Gate] choiceGroupId missing - treating gate as single standalone choice.");
+            // DEĞİŞİKLİK: Standalone tutorial/sahne gate'leri log spam üretmeden tek seçim gibi çalışır.
             return true;
         }
 

@@ -141,6 +141,9 @@ public class AnchorWaveEntry
     [Tooltip("Uyarının kaç saniye önce gösterileceği.")]
     [Range(0f, 5f)]
     public float warningLeadTime = 2f;
+
+    [Tooltip("True = bu wave temizlenmeden sonraki wave başlamaz. False = surge overlap için cooldown sonrası devam eder.")]
+    public bool waitForClearBeforeNext = true; // DEĞİŞİKLİK: W1-01 flood-surge ritmi için seçilebilir clear bekleme.
 }
 
 // ── Enum'lar ──────────────────────────────────────────────────────────────

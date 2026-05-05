@@ -33,6 +33,10 @@ public class ArmyManager : MonoBehaviour
     public float edgeCompression = 0.78f;
     public float sideBiasStrength = 0.65f;
 
+    [Header("Mode Tuning")]
+    [Range(0.5f, 1.5f)] public float runnerSoldierDpsMultiplier = 1.20f;
+    [Range(0.5f, 1.5f)] public float anchorSoldierDpsMultiplier = 0.82f;
+
     // (hp, dmgMult, fireRateMult, formationRank)
     static readonly Dictionary<SoldierPath, (int hp, float dmgMult, float fireRateMult, int formationRank)> SOLDIER_BASE
         = new Dictionary<SoldierPath, (int, float, float, int)>
@@ -286,7 +290,23 @@ public class ArmyManager : MonoBehaviour
         List<Vector3> slots = GenerateFormationSlots(ordered.Count);
 
         for (int i = 0; i < ordered.Count && i < slots.Count; i++)
+        {
             ordered[i].formationOffset = slots[i];
+            ordered[i].runtimeEfficiency = GetEfficiencyForIndex(i); // DEĞİŞİKLİK: 1/2/3/4/5+ asker azalan verim alır.
+        }
+    }
+
+    float GetEfficiencyForIndex(int index)
+    {
+        // DEĞİŞİKLİK: Soldier DPS defaultta toplam hasarı boğmasın diye yumuşak diminishing return.
+        return index switch
+        {
+            0 => 1.00f,
+            1 => 0.85f,
+            2 => 0.75f,
+            3 => 0.65f,
+            _ => 0.55f,
+        };
     }
 
     List<SoldierUnit> BuildFormationOrder()
@@ -352,6 +372,33 @@ public class ArmyManager : MonoBehaviour
     }
 
     public int SoldierCount => _soldiers.Count;
+
+    public float GetEstimatedSoldierDps()
+    {
+        // DEĞİŞİKLİK: Debug panel asker katkısını commander DPS'ten ayrı gösterir.
+        float total = 0f;
+        foreach (SoldierUnit u in _soldiers)
+            if (u != null && u.gameObject.activeInHierarchy)
+                total += u.GetEstimatedDps();
+        return total;
+    }
+
+    public float GetModeSoldierDpsMultiplier()
+    {
+        // DEĞİŞİKLİK: Runner askerleri nefes aldırır, Anchor askerleri testi tek başına çözmez.
+        bool anchorActive = AnchorModeManager.Instance != null && AnchorModeManager.Instance.IsActive;
+        return anchorActive ? anchorSoldierDpsMultiplier : runnerSoldierDpsMultiplier;
+    }
+
+    public string GetActiveSoldierTypesText()
+    {
+        // DEĞİŞİKLİK: Aktif asker rolleri debug panelde kısa okunur.
+        int piyade = GetCountByPath(SoldierPath.Piyade);
+        int mekanik = GetCountByPath(SoldierPath.Mekanik);
+        int teknoloji = GetCountByPath(SoldierPath.Teknoloji);
+        if (piyade + mekanik + teknoloji <= 0) return "-";
+        return $"P:{piyade} M:{mekanik} T:{teknoloji}";
+    }
 
     public bool IsFull => _soldiers.Count >= maxSoldiers;
 

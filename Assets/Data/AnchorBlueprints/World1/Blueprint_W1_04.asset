@@ -30,6 +30,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: TROOPER WAVE
     warningLeadTime: 1.2
+    waitForClearBeforeNext: 1
   - waveLabel: First Chargers
     waveType: 3
     groups:
@@ -43,6 +44,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Split Charge
     waveType: 3
     groups:
@@ -56,6 +58,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Trooper Charge Mix
     waveType: 0
     groups:
@@ -69,6 +72,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   waveCooldown: 4
   goldReward: 0
   bonusGoldOnPerfect: 0

@@ -28,6 +28,11 @@ MonoBehaviour:
     minStage: 1
     maxStage: 3
     worldID: 1
+  - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410114, type: 2}
+    weight: 0.5
+    minStage: 2
+    maxStage: 3
+    worldID: 1
   - packet: {fileID: 11400000, guid: 9011b5d2f6a14aa7b820b2c7ad410111, type: 2}
     weight: 2.2
     minStage: 4

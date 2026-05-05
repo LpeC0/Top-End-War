@@ -33,6 +33,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: TROOPER WAVE
     warningLeadTime: 1.2
+    waitForClearBeforeNext: 1
   - waveLabel: Elite Intro
     waveType: 3
     groups:
@@ -46,6 +47,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ELITE PRESSURE
     warningLeadTime: 1.8
+    waitForClearBeforeNext: 1
   - waveLabel: Armor Support
     waveType: 2
     groups:
@@ -59,6 +61,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ARMOR WAVE
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Charger Pressure
     waveType: 3
     groups:
@@ -72,6 +75,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Elite Flank
     waveType: 3
     groups:
@@ -88,6 +92,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ELITE PRESSURE
     warningLeadTime: 1.8
+    waitForClearBeforeNext: 1
   - waveLabel: Elite Hold
     waveType: 3
     groups:
@@ -104,6 +109,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ELITE PRESSURE
     warningLeadTime: 1.8
+    waitForClearBeforeNext: 1
   waveCooldown: 3.5
   goldReward: 0
   bonusGoldOnPerfect: 0

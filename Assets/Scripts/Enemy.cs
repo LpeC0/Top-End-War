@@ -29,6 +29,7 @@ public class Enemy : MonoBehaviour
     bool _anchorMoveActive = false;
 
     float _nextPlayerDamageTime = 0f;
+    float _lifeStartTime = 0f; // DEĞİŞİKLİK: Ortalama TTK ölçümü için spawn zamanı tutulur.
 
     // FIX: 0.20f → 0.50f  (5 hit/s → 2 hit/s — kontrollü tick damage)
     [SerializeField] float playerTouchInterval = 0.50f;
@@ -82,6 +83,7 @@ public class Enemy : MonoBehaviour
     void OnEnable()
     {
         _isDead = false;
+        _lifeStartTime = Time.time; // DEĞİŞİKLİK: Fallback init düşmanlarında da TTK başlangıcı güvenli kalır.
         _nextPlayerDamageTime = 0f;
         _separationVec = Vector3.zero;
         _reservationCount = 0;
@@ -111,6 +113,9 @@ public class Enemy : MonoBehaviour
 
     public void Initialize(DifficultyManager.EnemyStats stats)
     {
+        // DEĞİŞİKLİK: Enemy spawn sayısı ve TTK başlangıcı debug metriklerine yazılır.
+        _lifeStartTime = Time.time;
+        RunDebugMetrics.Instance.RecordEnemySpawn();
         _maxHealth     = stats.Health;
         _currentHealth = _maxHealth;
         _contactDamage = stats.Damage;
@@ -421,6 +426,7 @@ public class Enemy : MonoBehaviour
         CancelInvoke();
 
         PlayerStats.Instance?.AddCPFromKill(_cpReward);
+        RunDebugMetrics.Instance.RecordEnemyKilled(Time.time - _lifeStartTime); // DEĞİŞİKLİK: Enemy ölümü TTK metriğine eklenir.
         SaveManager.Instance?.RegisterKill();
         gameObject.SetActive(false);
     }

@@ -26,16 +26,16 @@ public enum AnchorStance
 
 public static class AnchorCoverage
 {
-    // Coverage tablosu — GPT + Claude ortak kararı
+    // DEĞİŞİKLİK: Center-only güvenliğini kırmak için yan/t ters lane verimi sertleştirildi.
     //           Enemy: Left   Center   Right
-    // Left              1.00   0.55    0.20
-    // Center            0.50   1.00    0.50
-    // Right             0.20   0.55    1.00
+    // Left              1.00   0.45    0.10
+    // Center            0.35   1.00    0.35
+    // Right             0.10   0.45    1.00
     static readonly float[,] _table = new float[3, 3]
     {
-        { 1.00f, 0.55f, 0.20f },   // Player Left
-        { 0.50f, 1.00f, 0.50f },   // Player Center
-        { 0.20f, 0.55f, 1.00f },   // Player Right
+        { 1.00f, 0.45f, 0.10f },   // Player Left
+        { 0.35f, 1.00f, 0.35f },   // Player Center
+        { 0.10f, 0.45f, 1.00f },   // Player Right
     };
 
     public static float GetMultiplier(AnchorStance stance, AnchorLane enemyLane)

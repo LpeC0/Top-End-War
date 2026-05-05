@@ -160,6 +160,7 @@ public class Bullet : MonoBehaviour
                     coverageMult = AnchorCoverage.GetMultiplier(stance, mover.Lane);
                     finalDamage  = Mathf.Max(1, Mathf.RoundToInt(damage * coverageMult));
                     AnchorCoverage.ReportHit(stance, mover.Lane, coverageMult);
+                    RunDebugMetrics.Instance.RecordCoverageDamage(finalDamage, coverageMult); // DEĞİŞİKLİK: Coverage hasar kalitesi debug metriklerine yazılır.
 
                     // x1.0 → yeşil  |  x0.5 → sarı  |  x0.2 → kırmızı
                     hitColor = coverageMult >= 0.90f ? new Color(0.2f, 1.0f, 0.3f)

@@ -30,6 +30,7 @@ MonoBehaviour:
     intraDelay: 0.5
     warningText: Standart
     warningLeadTime: 2
+    waitForClearBeforeNext: 1
   - waveLabel: Elite
     waveType: 3
     groups:
@@ -43,6 +44,7 @@ MonoBehaviour:
     intraDelay: 0.5
     warningText: Elite
     warningLeadTime: 3
+    waitForClearBeforeNext: 1
   - waveLabel: Relief
     waveType: 5
     groups:
@@ -59,6 +61,7 @@ MonoBehaviour:
     intraDelay: 1
     warningText: Elite
     warningLeadTime: 1
+    waitForClearBeforeNext: 1
   waveCooldown: 4
   goldReward: 0
   bonusGoldOnPerfect: 0

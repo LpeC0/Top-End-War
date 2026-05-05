@@ -86,6 +86,7 @@ public class AnchorPickup : MonoBehaviour
         ApplyEffect();
         SpawnFeedback();
         GameEvents.OnAnchorPickupCollected?.Invoke(pickupType);
+        RunDebugMetrics.Instance.RecordPickupCollected(); // DEĞİŞİKLİK: Pickup alma kararı debug metriklerine yazılır.
         Debug.Log($"[AnchorPickup] Toplandi: {pickupType} | deger={value}");
 
         Despawn();
@@ -264,6 +265,8 @@ public class AnchorPickup : MonoBehaviour
 
     void Despawn()
     {
+        if (!_collected)
+            RunDebugMetrics.Instance.RecordPickupMissed(); // DEĞİŞİKLİK: Süresi dolan pickup risk/fırsat metriğine yazılır.
         if (visualRoot != null) visualRoot.SetActive(false);
         gameObject.SetActive(false);
     }

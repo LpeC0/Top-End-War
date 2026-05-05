@@ -32,6 +32,7 @@ public class SoldierUnit : MonoBehaviour
     [HideInInspector] public float chassisDamageMult = 1f;
     [HideInInspector] public float chassisFireRateMult = 1f;
     [HideInInspector] public int formationRank = 1;
+    [HideInInspector] public float runtimeEfficiency = 1f; // DEĞİŞİKLİK: Soldier snowball için sıra bazlı azalan verim.
 
     [HideInInspector] public WeaponArchetypeConfig weaponConfig;
     [HideInInspector] public int affinityPercent = 100;
@@ -135,12 +136,20 @@ public class SoldierUnit : MonoBehaviour
 
         float raw = baseDamage
             * chassisDamageMult
+            * runtimeEfficiency // DEĞİŞİKLİK: Ek askerler ana silahı gölgelemeyecek şekilde düşen verim alır.
+            * (ArmyManager.Instance != null ? ArmyManager.Instance.GetModeSoldierDpsMultiplier() : 1f) // DEĞİŞİKLİK: Runner/Anchor asker etkisi ayrı dengelenir.
             * biomeMultiplier
             * (1f + cmdAura)
             * mergeMult
             * affinityMult;
 
         return Mathf.Max(1, Mathf.RoundToInt(raw));
+    }
+
+    public float GetEstimatedDps()
+    {
+        // DEĞİŞİKLİK: Debug panel SoldierDPS oranını canlı gösterebilir.
+        return GetFinalDamage() * GetFinalFireRate();
     }
 
     bool IsTargetStillValid(Enemy enemy)

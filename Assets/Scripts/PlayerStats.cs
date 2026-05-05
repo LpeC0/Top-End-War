@@ -59,6 +59,10 @@ public class PlayerStats : MonoBehaviour
     [Header("Baslangic Ayarlari")]
     public float invincibilityDuration = 0.8f;
 
+    [Header("Mode Tuning")]
+    [Range(0.5f, 1.5f)] public float runnerCommanderDpsMultiplier = 1.18f;
+    [Range(0.5f, 1.5f)] public float anchorCommanderDpsMultiplier = 0.92f;
+
     // ── Dahili Durum ──────────────────────────────────────────────────────
     private int   _baseCP        = 0;
     private int   _riskBonusLeft = 0;
@@ -84,6 +88,7 @@ public class PlayerStats : MonoBehaviour
     public int   RunArmorPenFlat       => _runArmorPenFlat;
     public int   RunPierceCount        => _runPierceCount;
     public int   RunPelletCount        => _runPelletCount;
+    public List<string> SelectedGateHistory { get; } = new List<string>(); // DEĞİŞİKLİK: Run içi gate geçmişi debug panelinde okunur.
 
     // ── CP Property ───────────────────────────────────────────────────────
     public int CP
@@ -129,7 +134,7 @@ public class PlayerStats : MonoBehaviour
     public RuntimeCombatSnapshot GetRuntimeCombatSnapshot()
     {
         float fireRate = Mathf.Max(0.01f, GetBaseFireRate() * (1f + _runFireRatePercent / 100f));
-        float totalDps = Mathf.Max(0f, GetTotalDPS() * (1f + _runWeaponPowerPercent / 100f));
+        float totalDps = Mathf.Max(0f, GetTotalDPS() * (1f + _runWeaponPowerPercent / 100f) * GetModeCommanderDpsMultiplier());
         int projectileCount = Mathf.Max(1, BulletCount);
         int bulletDamage = Mathf.Max(1, Mathf.RoundToInt(totalDps / (fireRate * projectileCount)));
 
@@ -377,6 +382,7 @@ public void ResetRunGateBonuses()
     _runArmorPenFlat       = 0;
     _runPierceCount        = 0;
     _runPelletCount        = 0;
+    SelectedGateHistory.Clear(); // DEĞİŞİKLİK: Yeni run/stage gate geçmişini temizler.
 
     // PATCH: yeni run baslarken olum flagini ve hasar zamanlayicisini sifirla.
     _isDead      = false;
@@ -389,6 +395,7 @@ public void ResetRunGateBonuses()
     public void ApplyGateConfig(GateConfig gate)
     {
         if (gate == null) return;
+        RecordSelectedGate(gate.DisplayTitle); // DEĞİŞİKLİK: Gate seçimi debug history'ye atomik olarak yazılır.
         ApplyModifierList(gate.modifiers);
         if (gate.IsRisk && gate.penaltyModifiers != null && gate.penaltyModifiers.Count > 0)
             ApplyModifierList(gate.penaltyModifiers);
@@ -399,11 +406,29 @@ public void ResetRunGateBonuses()
     public void ApplyGateConfig(GateRuntimeData gate)
     {
         if (gate == null) return;
+        RecordSelectedGate(gate.title); // DEĞİŞİKLİK: Runtime snapshot gate başlığı ölçüme eklenir.
         ApplyModifierList(gate.modifiers);
         if (gate.isRisk && gate.penaltyModifiers != null && gate.penaltyModifiers.Count > 0)
             ApplyModifierList(gate.penaltyModifiers);
         RefreshWeaponDerivedStats();
         Debug.Log($"[PlayerStats] Gate applied: {gate.title}");
+    }
+
+    float GetModeCommanderDpsMultiplier()
+    {
+        // DEĞİŞİKLİK: Runner ve Anchor aynı stat sistemini kullanır ama ayrı tuning katsayısı alır.
+        bool anchorActive = AnchorModeManager.Instance != null && AnchorModeManager.Instance.IsActive;
+        return anchorActive ? anchorCommanderDpsMultiplier : runnerCommanderDpsMultiplier;
+    }
+
+    void RecordSelectedGate(string title)
+    {
+        // DEĞİŞİKLİK: PlayerStats ve RunDebugMetrics aynı kısa gate geçmişini paylaşır.
+        if (string.IsNullOrWhiteSpace(title)) return;
+        SelectedGateHistory.Add(title);
+        if (SelectedGateHistory.Count > 6)
+            SelectedGateHistory.RemoveAt(0);
+        RunDebugMetrics.Instance.RecordGate(title);
     }
 
     void ApplyModifierList(List<GateModifier2> list)

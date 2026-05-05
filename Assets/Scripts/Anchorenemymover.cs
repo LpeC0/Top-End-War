@@ -107,6 +107,7 @@ public class AnchorEnemyMover : MonoBehaviour
 
         _state          = AnchorEnemyMoveState.AttackingAnchor;
         _nextAttackTime = Time.time + Random.Range(0.05f, 0.2f);
+        RunDebugMetrics.Instance.RecordEnemyReachedAnchor(); // DEĞİŞİKLİK: Anchor'a ulaşan düşmanlar consequence metriğine yazılır.
 
         Vector3 anchorPos = AnchorCore.Instance != null
             ? AnchorCore.Instance.transform.position

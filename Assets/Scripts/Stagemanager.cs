@@ -158,6 +158,7 @@ public class StageManager : MonoBehaviour
         _currentStageID = stageID;
         _activeWorld    = FindWorld(worldID);
         _activeStage    = FindStage(worldID, stageID);
+        RunDebugMetrics.Instance.ResetForStage(); // DEĞİŞİKLİK: W1-01 fun loop ölçümleri stage yüklenirken sıfırlanır.
 
         if (_activeStage == null)
         {

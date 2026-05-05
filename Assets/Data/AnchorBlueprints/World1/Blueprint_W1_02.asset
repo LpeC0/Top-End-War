@@ -30,6 +30,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: TROOPER WAVE
     warningLeadTime: 1.2
+    waitForClearBeforeNext: 1
   - waveLabel: Swarm Probe
     waveType: 1
     groups:
@@ -40,6 +41,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: SWARM WAVE
     warningLeadTime: 1
+    waitForClearBeforeNext: 1
   - waveLabel: Mixed Push
     waveType: 0
     groups:
@@ -53,6 +55,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: SWARM WAVE
     warningLeadTime: 1.2
+    waitForClearBeforeNext: 1
   waveCooldown: 4.5
   goldReward: 0
   bonusGoldOnPerfect: 0

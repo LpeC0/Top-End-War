@@ -30,6 +30,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: TROOPER WAVE
     warningLeadTime: 1.2
+    waitForClearBeforeNext: 1
   - waveLabel: Armor Check
     waveType: 2
     groups:
@@ -43,6 +44,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ARMOR WAVE
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Armored Lane
     waveType: 2
     groups:
@@ -56,6 +58,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ARMOR WAVE
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Armor Hold
     waveType: 2
     groups:
@@ -69,6 +72,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ARMOR WAVE
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   waveCooldown: 4
   goldReward: 0
   bonusGoldOnPerfect: 0

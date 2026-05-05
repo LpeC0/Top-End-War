@@ -33,6 +33,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Left Charge
     waveType: 3
     groups:
@@ -46,6 +47,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Right Charge
     waveType: 3
     groups:
@@ -59,6 +61,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Charge Screen
     waveType: 3
     groups:
@@ -72,6 +75,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Heavy Charge
     waveType: 3
     groups:
@@ -85,6 +89,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   waveCooldown: 4
   goldReward: 0
   bonusGoldOnPerfect: 0

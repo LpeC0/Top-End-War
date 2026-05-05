@@ -172,12 +172,16 @@ public class AnchorModeManager : MonoBehaviour
             else
                 Debug.LogWarning("[AnchorModeManager] AnchorSpawnController atanmamış.");
 
-            _state = AnchorModeState.WaitingForClear;
-            yield return StartCoroutine(WaitForWaveClear());
-            if (!_isActive) yield break;
+            if (wave.waitForClearBeforeNext)
+            {
+                // DEĞİŞİKLİK: Eski stage davranışı korunur; sadece işaretlenen W1-01 surge dalgaları overlap eder.
+                _state = AnchorModeState.WaitingForClear;
+                yield return StartCoroutine(WaitForWaveClear());
+                if (!_isActive) yield break;
+                GameEvents.OnAnchorWaveCleared?.Invoke(_currentWaveIndex + 1);
+            }
 
             _currentWaveIndex++;
-            GameEvents.OnAnchorWaveCleared?.Invoke(_currentWaveIndex);
 
             if (_currentWaveIndex < _activeBlueprint.TotalWaves)
             {
@@ -187,8 +191,14 @@ public class AnchorModeManager : MonoBehaviour
         }
 
         if (_isActive && !_isComplete)
+        {
+            // DEĞİŞİKLİK: Overlap wave kullanılsa bile stage clear için tüm düşmanlar temizlenir.
+            if (_activeBlueprint.winCondition == AnchorWinCondition.ClearAllWaves)
+                yield return StartCoroutine(WaitForWaveClear());
+            if (!_isActive) yield break;
             if (_activeBlueprint.winCondition == AnchorWinCondition.ClearAllWaves)
                 CompleteAnchor();
+        }
     }
 
     IEnumerator WaitForWaveClear()

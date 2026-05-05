@@ -30,6 +30,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: SWARM WAVE
     warningLeadTime: 1
+    waitForClearBeforeNext: 1
   - waveLabel: Left Pack
     waveType: 1
     groups:
@@ -43,6 +44,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: SWARM WAVE
     warningLeadTime: 1
+    waitForClearBeforeNext: 1
   - waveLabel: Right Pack
     waveType: 1
     groups:
@@ -56,6 +58,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: SWARM WAVE
     warningLeadTime: 1
+    waitForClearBeforeNext: 1
   - waveLabel: Swarm Collapse
     waveType: 1
     groups:
@@ -66,6 +69,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: SWARM WAVE
     warningLeadTime: 1
+    waitForClearBeforeNext: 1
   waveCooldown: 4.5
   goldReward: 0
   bonusGoldOnPerfect: 0

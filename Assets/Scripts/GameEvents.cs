@@ -58,6 +58,7 @@ public static class GameEvents
     public static Action           OnAnchorDestroyed;
     public static Action<bool>     OnAnchorCompleted;   // (perfect)
     public static Action<string>   OnWaveWarning;           // (uyarı metni)
+    public static Action<string>   OnThreatPreview;         // DEĞİŞİKLİK: Gate öncesi yaklaşan tehdidi HUD'a taşır.
     public static Action<int, int> OnAnchorWaveStarted;     // (currentWave, totalWaves)
     public static Action<int>      OnAnchorWaveCleared;     // (tamamlanan wave index)
     public static Action<AnchorPickupType> OnAnchorPickupCollected;

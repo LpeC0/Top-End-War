@@ -33,6 +33,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: TROOPER WAVE
     warningLeadTime: 1.2
+    waitForClearBeforeNext: 1
   - waveLabel: Armor Mix
     waveType: 2
     groups:
@@ -46,6 +47,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ARMOR WAVE
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Charge Mix
     waveType: 3
     groups:
@@ -59,6 +61,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: CHARGER WARNING
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   - waveLabel: Swarm Relief
     waveType: 5
     groups:
@@ -69,6 +72,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: SWARM WAVE
     warningLeadTime: 1
+    waitForClearBeforeNext: 1
   - waveLabel: Mixed Test
     waveType: 0
     groups:
@@ -85,6 +89,7 @@ MonoBehaviour:
     intraDelay: 0.25
     warningText: ARMOR WAVE
     warningLeadTime: 1.5
+    waitForClearBeforeNext: 1
   waveCooldown: 3.5
   goldReward: 0
   bonusGoldOnPerfect: 0

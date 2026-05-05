@@ -94,6 +94,7 @@ public class AnchorCore : MonoBehaviour
         _hpBar?.UpdateBar(_currentHP);
         GameEvents.OnAnchorHPChanged?.Invoke(_currentHP, _maxHP);
         GameEvents.OnAnchorDamaged?.Invoke(amount, _currentHP);
+        RunDebugMetrics.Instance.RecordAnchorDamage(amount); // DEĞİŞİKLİK: Anchor hasarı W1-01 debug metriklerine yazılır.
 
         Debug.Log($"[AnchorCore] Hasar -{amount} | HP: {oldHP} → {_currentHP}");
 

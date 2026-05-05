@@ -43,10 +43,15 @@ public class GameHUD : MonoBehaviour
 
     [Header("Runtime Combat Readout (debug)")]
     public TextMeshProUGUI combatReadoutText;
+    public TextMeshProUGUI threatWarningText; // DEĞİŞİKLİK: Threat Preview / wave warning görünür HUD metni.
+    public TextMeshProUGUI buffSummaryText; // DEĞİŞİKLİK: Gate sonrası aktif hazırlık özetini HUD'da tutar.
+    public TextMeshProUGUI prepSummaryText; // DEĞİŞİKLİK: Anchor girişinde kısa prepared loadout özeti gösterir.
 
     bool _autoBuilt = false;
     int  _lastCP    = 0;
     float _nextCombatReadoutRefresh = 0f;
+    float _warningHideTime = 0f; // DEĞİŞİKLİK: Kısa warning paneli otomatik kapanır.
+    float _prepHideTime = 0f; // DEĞİŞİKLİK: Anchor prep özeti birkaç saniye görünür.
 
     void Start()
     {
@@ -55,6 +60,9 @@ public class GameHUD : MonoBehaviour
 
         if (cpText == null || tierText == null) AutoBuildHUD();
         EnsureCombatReadout();
+        EnsureThreatWarningText(); // DEĞİŞİKLİK: Hazır HUD kullanılan sahnelerde de warning text otomatik oluşur.
+        EnsureBuffSummaryText(); // DEĞİŞİKLİK: Gate/buff etkileri log yerine HUD'da da görünür.
+        EnsurePrepSummaryText(); // DEĞİŞİKLİK: Anchor'a girerken hazırlık özeti için overlay text hazır olur.
 
         GameEvents.OnCPUpdated          += OnCPUpdated;
         GameEvents.OnTierChanged        += OnTierChanged;
@@ -65,6 +73,10 @@ public class GameHUD : MonoBehaviour
         GameEvents.OnCommanderHPChanged += OnCommanderHP;
         GameEvents.OnSoldierAdded       += OnSoldierCount;
         GameEvents.OnSoldierRemoved     += OnSoldierCount;
+        GameEvents.OnWaveWarning        += OnWaveWarning;
+        GameEvents.OnThreatPreview      += OnThreatPreview;
+        GameEvents.OnAnchorDamaged      += OnAnchorDamaged;
+        GameEvents.OnAnchorModeChanged  += OnAnchorModeChanged;
 
         _lastCP = PlayerStats.Instance.CP;
         if (cpText)   cpText.text   = PlayerStats.Instance.CP.ToString("N0");
@@ -88,6 +100,10 @@ public class GameHUD : MonoBehaviour
         GameEvents.OnCommanderHPChanged -= OnCommanderHP;
         GameEvents.OnSoldierAdded       -= OnSoldierCount;
         GameEvents.OnSoldierRemoved     -= OnSoldierCount;
+        GameEvents.OnWaveWarning        -= OnWaveWarning;
+        GameEvents.OnThreatPreview      -= OnThreatPreview;
+        GameEvents.OnAnchorDamaged      -= OnAnchorDamaged;
+        GameEvents.OnAnchorModeChanged  -= OnAnchorModeChanged;
     }
 
     void Update()
@@ -97,6 +113,11 @@ public class GameHUD : MonoBehaviour
         if (combatReadoutText == null)
             EnsureCombatReadout();
         RefreshCombatReadout();
+        RefreshBuffSummary();
+        if (threatWarningText != null && threatWarningText.gameObject.activeSelf && Time.time >= _warningHideTime)
+            threatWarningText.gameObject.SetActive(false); // DEĞİŞİKLİK: Warning metni karar anından sonra ekranı kirletmez.
+        if (prepSummaryText != null && prepSummaryText.gameObject.activeSelf && Time.time >= _prepHideTime)
+            prepSummaryText.gameObject.SetActive(false); // DEĞİŞİKLİK: Prep özeti kalıcı kalıp ekranı kapatmaz.
     }
 
     // ── AUTO BUILD ────────────────────────────────────────────────────────
@@ -114,6 +135,11 @@ public class GameHUD : MonoBehaviour
         if (cpText   == null) cpText   = MakeText(canvas.gameObject, "CP", new Vector2(0.5f,1f), new Vector2(0,-50),  52, Color.white);
         if (tierText == null) tierText = MakeText(canvas.gameObject, "TIER 1", new Vector2(0.5f,1f), new Vector2(0,-105), 32, Color.yellow);
         if (popupText== null) popupText= MakeText(canvas.gameObject, "", new Vector2(0.5f,0.5f), new Vector2(0,80), 52, Color.cyan);
+        if (threatWarningText == null)
+        {
+            threatWarningText = MakeText(GetOverlayCanvas().gameObject, "", new Vector2(0.5f, 0.84f), Vector2.zero, 34, new Color(1f, 0.78f, 0.18f));
+            threatWarningText.gameObject.SetActive(false); // DEĞİŞİKLİK: Warning sadece preview/wave anında görünür.
+        }
 
         // ── Komutan HP Bar ────────────────────────────────────────────────
         // Unity Slider standart yapısı: Slider → Background + Fill Area → Fill
@@ -168,9 +194,67 @@ public class GameHUD : MonoBehaviour
         combatReadoutText = MakeText(canvas.gameObject, "Combat", new Vector2(1f, 1f), new Vector2(-145f, -130f), 20, new Color(0.86f, 0.96f, 1f));
         RectTransform r = combatReadoutText.GetComponent<RectTransform>();
         r.pivot = new Vector2(1f, 1f);
-        r.sizeDelta = new Vector2(270f, 190f);
+        r.sizeDelta = new Vector2(360f, 330f); // DEĞİŞİKLİK: SGS debug metrikleri için panel yüksekliği artırıldı.
         combatReadoutText.alignment = TextAlignmentOptions.TopRight;
         combatReadoutText.raycastTarget = false;
+    }
+
+    void EnsureThreatWarningText()
+    {
+        // DEĞİŞİKLİK: Threat preview için mevcut Canvas'a minimal world-safe UI text eklenir.
+        if (threatWarningText != null) return;
+
+        Canvas canvas = GetOverlayCanvas();
+        threatWarningText = MakeText(canvas.gameObject, "", new Vector2(0.5f, 0.84f), Vector2.zero, 34, new Color(1f, 0.78f, 0.18f));
+        RectTransform r = threatWarningText.GetComponent<RectTransform>();
+        r.sizeDelta = new Vector2(720f, 64f);
+        threatWarningText.gameObject.SetActive(false);
+    }
+
+    void EnsureBuffSummaryText()
+    {
+        // DEĞİŞİKLİK: Aktif gate/buff özeti sahne objesi değil screen-space HUD olarak görünür.
+        if (buffSummaryText != null) return;
+        Canvas canvas = GetOverlayCanvas();
+        buffSummaryText = MakeText(canvas.gameObject, "", new Vector2(0.02f, 0.78f), new Vector2(230f, 0f), 22, new Color(0.72f, 1f, 0.76f));
+        RectTransform r = buffSummaryText.GetComponent<RectTransform>();
+        r.pivot = new Vector2(0f, 0.5f);
+        r.sizeDelta = new Vector2(520f, 96f);
+        buffSummaryText.alignment = TextAlignmentOptions.Left;
+    }
+
+    void EnsurePrepSummaryText()
+    {
+        // DEĞİŞİKLİK: Anchor başında hazırlık/tehdit özeti kısa süre üst panelde gösterilir.
+        if (prepSummaryText != null) return;
+        Canvas canvas = GetOverlayCanvas();
+        prepSummaryText = MakeText(canvas.gameObject, "", new Vector2(0.5f, 0.68f), Vector2.zero, 26, new Color(0.95f, 1f, 0.82f));
+        RectTransform r = prepSummaryText.GetComponent<RectTransform>();
+        r.sizeDelta = new Vector2(760f, 110f);
+        prepSummaryText.gameObject.SetActive(false);
+    }
+
+    Canvas GetOverlayCanvas()
+    {
+        // DEĞİŞİKLİK: Preview/buff UI mevcut world-space canvas'a bağlanmaz, daima ScreenSpaceOverlay kalır.
+        GameObject existing = GameObject.Find("GameplayOverlayCanvas");
+        if (existing != null)
+        {
+            Canvas existingCanvas = existing.GetComponent<Canvas>();
+            if (existingCanvas != null)
+            {
+                existingCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                return existingCanvas;
+            }
+        }
+
+        GameObject go = new GameObject("GameplayOverlayCanvas");
+        Canvas canvas = go.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 200;
+        go.AddComponent<CanvasScaler>();
+        go.AddComponent<GraphicRaycaster>();
+        return canvas;
     }
 
     void RefreshCombatReadout()
@@ -179,10 +263,15 @@ public class GameHUD : MonoBehaviour
 
         PlayerStats.RuntimeCombatSnapshot c = PlayerStats.Instance.GetRuntimeCombatSnapshot();
         
-        string line1 = $"DPS: {c.DisplayedDPS:0} | FR: {c.FireRate:0.0}";
+        float soldierDps = ArmyManager.Instance != null ? ArmyManager.Instance.GetEstimatedSoldierDps() : 0f;
+        float totalPlayerDps = c.DisplayedDPS + soldierDps;
+        float soldierPct = totalPlayerDps > 0f ? soldierDps / totalPlayerDps * 100f : 0f;
+
+        string line1 = $"DPS: {c.DisplayedDPS:0}+S{soldierDps:0} ({soldierPct:0}%) | FR: {c.FireRate:0.0}";
         string line2 = $"Bullet: {c.BulletDamage}x{c.ProjectileCount} | Range: {c.WeaponRange:0}";
         string line3 = $"Pen: {c.ArmorPen} | Pierce: {c.PierceCount}";
         string line4 = $"HP: {c.CurrentHP}/{c.MaxHP} | Pwr: {c.CombatPower:N0}";
+        string line5 = $"Soldiers: {ArmyManager.Instance?.SoldierCount ?? 0} [{ArmyManager.Instance?.GetActiveSoldierTypesText() ?? "-"}]";
         
         // Stage info (optional, tutarlılık check)
         string stageInfo = "";
@@ -205,7 +294,8 @@ public class GameHUD : MonoBehaviour
             stageInfo = $"\nTarget: {targetDps:0} DPS / {targetPower:N0} Pwr\n{state}";
         }
         
-        combatReadoutText.text = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4 + stageInfo;
+        combatReadoutText.text = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4 + "\n" + line5 + stageInfo
+            + "\n" + RunDebugMetrics.Instance.BuildDebugBlock(); // DEĞİŞİKLİK: Eğlence teşhisi için SGS metrikleri HUD'a eklenir.
     }
 
     /// <summary>
@@ -328,6 +418,60 @@ public class GameHUD : MonoBehaviour
     void OnSoldierCount(int count)
     {
         if (soldierCountText) soldierCountText.text = $"Asker: {count}/20";
+    }
+
+    void OnWaveWarning(string warning)
+    {
+        // DEĞİŞİKLİK: Anchor wave warning artık oyuncuya görünür karar sinyali verir.
+        ShowThreatWarning(warning, new Color(1f, 0.72f, 0.18f), 2.0f);
+    }
+
+    void OnThreatPreview(string warning)
+    {
+        // DEĞİŞİKLİK: Gate öncesi yaklaşan tehdit SGS döngüsünün GÖR adımıdır.
+        RunDebugMetrics.Instance.RecordThreatPreview(warning);
+        ShowThreatWarning(warning, new Color(0.35f, 0.9f, 1f), 2.2f);
+    }
+
+    void OnAnchorDamaged(int amount, int currentHp)
+    {
+        // DEĞİŞİKLİK: Anchor hasarı görünür consequence olarak popup/warning verir.
+        ShowPopup($"ANCHOR -{amount}", new Color(1f, 0.25f, 0.15f));
+        ShowThreatWarning("ANCHOR UNDER ATTACK", new Color(1f, 0.22f, 0.16f), 1.5f);
+    }
+
+    void ShowThreatWarning(string msg, Color color, float duration)
+    {
+        if (threatWarningText == null || string.IsNullOrWhiteSpace(msg)) return;
+        threatWarningText.gameObject.SetActive(true);
+        threatWarningText.text = msg;
+        threatWarningText.color = color;
+        _warningHideTime = Time.time + Mathf.Max(0.5f, duration);
+    }
+
+    void OnAnchorModeChanged(bool active)
+    {
+        // DEĞİŞİKLİK: Runner hazırlığının Anchor'da neye dönüşeceği oyuncuya kısa özetlenir.
+        if (!active || prepSummaryText == null || PlayerStats.Instance == null) return;
+        PlayerStats.RuntimeCombatSnapshot c = PlayerStats.Instance.GetRuntimeCombatSnapshot();
+        string gates = PlayerStats.Instance.SelectedGateHistory.Count > 0
+            ? string.Join(" / ", PlayerStats.Instance.SelectedGateHistory)
+            : "-";
+        string soldiers = ArmyManager.Instance != null ? ArmyManager.Instance.GetActiveSoldierTypesText() : "-";
+        prepSummaryText.text = $"PREPARED: {gates}\nSQUAD: {soldiers} | DPS {c.DisplayedDPS:0} | PEN {c.ArmorPen}\nTEST: {RunDebugMetrics.Instance.LastThreatPreview}";
+        prepSummaryText.gameObject.SetActive(true);
+        _prepHideTime = Time.time + 4.0f;
+    }
+
+    void RefreshBuffSummary()
+    {
+        // DEĞİŞİKLİK: Gate etkisi alındıktan sonra oyuncu ne kazandığını ekranda görür.
+        if (buffSummaryText == null || PlayerStats.Instance == null) return;
+        PlayerStats ps = PlayerStats.Instance;
+        string gates = ps.SelectedGateHistory.Count > 0 ? string.Join(" / ", ps.SelectedGateHistory) : "-";
+        buffSummaryText.text =
+            $"BUFFS: {gates}\n" +
+            $"Power +{ps.RunWeaponPowerPercent:0}% | FR +{ps.RunFireRatePercent:0}% | Pen +{ps.RunArmorPenFlat} | Pierce +{ps.RunPierceCount}";
     }
 
     // ── POPUP ─────────────────────────────────────────────────────────────
