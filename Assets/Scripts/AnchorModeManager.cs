@@ -37,6 +37,8 @@ public class AnchorModeManager : MonoBehaviour
 
     float _survivalTimer;
     Transform _tempVisualRoot;
+    const int CONTINUOUS_PRESSURE_ALIVE_THRESHOLD = 2; // DEĞİŞİKLİK: Kısa cooldown anchor blueprint'lerinde son 1-2 düşman kalınca sonraki baskı hazırlanır.
+    const float CONTINUOUS_PRESSURE_COOLDOWN_LIMIT = 1.0f; // DEĞİŞİKLİK: Eski uzun cooldown stage'leri bu overlap davranışından etkilenmez.
 
     void Awake()
     {
@@ -185,9 +187,11 @@ public class AnchorModeManager : MonoBehaviour
 
             if (wave.waitForClearBeforeNext)
             {
-                // DEĞİŞİKLİK: Eski stage davranışı korunur; sadece işaretlenen W1-01 surge dalgaları overlap eder.
                 _state = AnchorModeState.WaitingForClear;
-                yield return StartCoroutine(WaitForWaveClear());
+                if (ShouldContinueBeforeFullClear())
+                    yield return StartCoroutine(WaitForPressureLow(CONTINUOUS_PRESSURE_ALIVE_THRESHOLD)); // DEĞİŞİKLİK: Flood-surge akışı boş ekran beklemeden sıradaki wave'i hazırlar.
+                else
+                    yield return StartCoroutine(WaitForWaveClear());
                 if (!_isActive) yield break;
                 GameEvents.OnAnchorWaveCleared?.Invoke(_currentWaveIndex + 1);
             }
@@ -223,6 +227,35 @@ public class AnchorModeManager : MonoBehaviour
             if (!anyAlive) yield break;
             yield return new WaitForSeconds(0.5f);
         }
+    }
+
+    IEnumerator WaitForPressureLow(int aliveThreshold)
+    {
+        // DEĞİŞİKLİK: Continuous pressure için tamamen clear değil, düşük baskı eşiği beklenir.
+        while (true)
+        {
+            if (!_isActive) yield break;
+            if (CountAliveEnemies() <= Mathf.Max(0, aliveThreshold)) yield break;
+            yield return new WaitForSeconds(0.25f);
+        }
+    }
+
+    bool ShouldContinueBeforeFullClear()
+    {
+        // DEĞİŞİKLİK: Sadece W1-01 gibi kısa cooldown flood-surge blueprint'leri overlap eder.
+        return _activeBlueprint != null
+            && _currentWaveIndex < _activeBlueprint.TotalWaves - 1
+            && _activeBlueprint.waveCooldown <= CONTINUOUS_PRESSURE_COOLDOWN_LIMIT;
+    }
+
+    int CountAliveEnemies()
+    {
+        // DEĞİŞİKLİK: Anchor wave overlap kararı için aktif düşman sayısı tek yerde hesaplanır.
+        int alive = 0;
+        foreach (Enemy e in FindObjectsByType<Enemy>(FindObjectsSortMode.None))
+            if (e != null && e.IsAlive)
+                alive++;
+        return alive;
     }
 
     void CompleteAnchor()

@@ -16,47 +16,50 @@ MonoBehaviour:
   displayName: loc_stage_w1_02_name
   worldID: 1
   stageID: 2
-  anchorBaseHP: 1140
+  anchorBaseHP: 1150
   winCondition: 0
   survivalDuration: 90
   waves:
-  - waveLabel: Trooper Screen
+  - waveLabel: Left Trooper Split
     waveType: 0
     groups:
     - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
       count: 4
-      laneBias: 0
+      laneBias: 2
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: TROOPER WAVE
-    warningLeadTime: 1.2
+    warningText: LEFT LANE PRESSURE
+    warningLeadTime: 0.8
     waitForClearBeforeNext: 1
-  - waveLabel: Swarm Probe
-    waveType: 1
+  - waveLabel: Right Trooper Split
+    waveType: 0
     groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 4
+      laneBias: 3
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: RIGHT LANE PRESSURE
+    warningLeadTime: 0.8
+    waitForClearBeforeNext: 0
+  - waveLabel: Split Lane Test
+    waveType: 0
+    groups:
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 3
+      laneBias: 2
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 3
+      laneBias: 3
     - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 5
+      count: 3
       laneBias: 4
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: SWARM WAVE
-    warningLeadTime: 1
+    warningText: SPLIT LANE PRESSURE
+    warningLeadTime: 0.8
     waitForClearBeforeNext: 1
-  - waveLabel: Mixed Push
-    waveType: 0
-    groups:
-    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
-      count: 4
-      laneBias: 1
-    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 5
-      laneBias: 0
-    groupDelay: 1.2
-    intraDelay: 0.25
-    warningText: SWARM WAVE
-    warningLeadTime: 1.2
-    waitForClearBeforeNext: 1
-  waveCooldown: 4.5
+  waveCooldown: 0.55
   goldReward: 0
   bonusGoldOnPerfect: 0
-  difficultyMultiplier: 0.95000005
+  difficultyMultiplier: 1

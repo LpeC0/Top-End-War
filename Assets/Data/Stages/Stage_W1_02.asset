@@ -19,7 +19,7 @@ MonoBehaviour:
   stageDescriptionKey: 
   recommendedBuildKey: 
   threatTagKeys:
-  - loc_threat_w1_swarm
+  - loc_threat_w1_split_lane
   - loc_threat_w1_pressure
   targetDps: 82
   targetPower: 0
@@ -30,7 +30,7 @@ MonoBehaviour:
   bossConfig: {fileID: 0}
   waveSequence: []
   spawnDensity: 1
-  goldRewardOverride: 0
+  goldRewardOverride: 60
   hasMidStageLoot: 1
   techCoreDropChance: 0.15
   offlineBoostPerHour: 5

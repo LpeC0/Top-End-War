@@ -427,7 +427,13 @@ public AnchorStance GetAnchorStance()
             {
                 int neighborCount = CountNearbyEnemies(target.position, 4f);
                 score = neighborCount * 100f - dist * 2f;
-                if (enemy != null && enemy.Armor > 0) score -= enemy.Armor * 1.2f; // DEĞİŞİKLİK: SMG cluster targeting swarm/low armor hedeflerde kalsın.
+                if (enemy != null)
+                {
+                    if (enemy.Armor <= 0) score += 25f; // DEĞİŞİKLİK: SMG düşük zırhlı hedefleri daha güvenilir süpürür.
+                    if (enemy.ThreatType == EnemyThreatType.PackPressure) score += 45f; // DEĞİŞİKLİK: Swarm packet geldiğinde SMG doğru role döner.
+                    score += (1f - enemy.HealthRatio) * 30f; // DEĞİŞİKLİK: SMG yaralı küçük hedefleri bitirip kill hissi üretir.
+                    if (enemy.Armor > 0) score -= enemy.Armor * 3.0f; // DEĞİŞİKLİK: SMG armored/durable hedefe gereksiz takılmaz.
+                }
             }
             else
             {

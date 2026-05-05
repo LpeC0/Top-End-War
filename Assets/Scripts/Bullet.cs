@@ -32,6 +32,7 @@ public class Bullet : MonoBehaviour
     static Material _trailMaterial;
     bool _hit = false;
     float _maxRange = DEFAULT_MAX_RANGE;
+    WeaponFamily _weaponFamily = WeaponFamily.Assault; // DEĞİŞİKLİK: Mermi, silah ailesine göre düşük riskli rol bonusu uygulayabilir.
 
     int _remainingPierce = 0;
     readonly HashSet<int> _hitTargets = new HashSet<int>();
@@ -77,9 +78,10 @@ public class Bullet : MonoBehaviour
 
     public void SetTrailProfile(WeaponFamily family)
     {
+        _weaponFamily = family; // DEĞİŞİKLİK: SMG low-armor hissi ve tracer profili aynı runtime aileyi kullanır.
         switch (family)
         {
-            case WeaponFamily.SMG:    ConfigureTrail(0.06f, 0.045f, 0.004f); break;
+            case WeaponFamily.SMG:    ConfigureTrail(0.07f, 0.055f, 0.006f); break; // DEĞİŞİKLİK: SMG çok mermi atarken vuruş hissi daha okunur olur.
             case WeaponFamily.Sniper: ConfigureTrail(0.10f, 0.075f, 0.008f); break;
             default:                  ConfigureTrail(0.08f, 0.060f, 0.006f); break;
         }
@@ -167,6 +169,9 @@ public class Bullet : MonoBehaviour
                              : coverageMult >= 0.45f ? new Color(1.0f, 0.85f, 0.1f)
                              :                         new Color(1.0f, 0.25f, 0.1f);
                 }
+
+                if (_weaponFamily == WeaponFamily.SMG && enemy.Armor <= 0 && !enemy.IsElite)
+                    finalDamage = Mathf.Max(1, Mathf.RoundToInt(finalDamage * 1.12f)); // DEĞİŞİKLİK: SMG swarm/low-armor hedefte pamuk hissini azaltır, armor rolünü bozmaz.
 
                 enemy.TakeDamage(
                     rawDamage:       finalDamage,

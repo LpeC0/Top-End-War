@@ -16,61 +16,50 @@ MonoBehaviour:
   displayName: loc_stage_w1_03_name
   worldID: 1
   stageID: 3
-  anchorBaseHP: 1260
+  anchorBaseHP: 1300
   winCondition: 0
   survivalDuration: 90
   waves:
-  - waveLabel: Swarm Open
-    waveType: 1
+  - waveLabel: Trooper Screen
+    waveType: 0
     groups:
-    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 6
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 4
       laneBias: 0
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: SWARM WAVE
-    warningLeadTime: 1
+    warningText: TROOPER SCREEN
+    warningLeadTime: 0.8
     waitForClearBeforeNext: 1
-  - waveLabel: Left Pack
-    waveType: 1
+  - waveLabel: Charger Detected
+    waveType: 3
     groups:
-    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 4
-      laneBias: 2
+    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
+      count: 1
+      laneBias: 1
     - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
       count: 3
-      laneBias: 3
+      laneBias: 0
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: SWARM WAVE
+    warningText: CHARGER DETECTED
     warningLeadTime: 1
-    waitForClearBeforeNext: 1
-  - waveLabel: Right Pack
-    waveType: 1
+    waitForClearBeforeNext: 0
+  - waveLabel: Split Charger Test
+    waveType: 3
     groups:
-    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 4
-      laneBias: 3
+    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
+      count: 2
+      laneBias: 0
     - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
-      count: 3
-      laneBias: 2
+      count: 4
+      laneBias: 0
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: SWARM WAVE
+    warningText: CHARGER DETECTED
     warningLeadTime: 1
     waitForClearBeforeNext: 1
-  - waveLabel: Swarm Collapse
-    waveType: 1
-    groups:
-    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 8
-      laneBias: 4
-    groupDelay: 1.2
-    intraDelay: 0.25
-    warningText: SWARM WAVE
-    warningLeadTime: 1
-    waitForClearBeforeNext: 1
-  waveCooldown: 4.5
+  waveCooldown: 0.6
   goldReward: 0
   bonusGoldOnPerfect: 0
-  difficultyMultiplier: 1
+  difficultyMultiplier: 1.03

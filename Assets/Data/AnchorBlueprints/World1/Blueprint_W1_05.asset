@@ -16,7 +16,7 @@ MonoBehaviour:
   displayName: loc_stage_w1_05_name
   worldID: 1
   stageID: 5
-  anchorBaseHP: 1500
+  anchorBaseHP: 1800
   winCondition: 0
   survivalDuration: 90
   waves:
@@ -24,12 +24,12 @@ MonoBehaviour:
     waveType: 0
     groups:
     - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
-      count: 5
+      count: 4
       laneBias: 0
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: TROOPER WAVE
-    warningLeadTime: 1.2
+    warningText: TROOPER SCREEN
+    warningLeadTime: 0.8
     waitForClearBeforeNext: 1
   - waveLabel: Armor Check
     waveType: 2
@@ -42,23 +42,23 @@ MonoBehaviour:
       laneBias: 0
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: ARMOR WAVE
-    warningLeadTime: 1.5
-    waitForClearBeforeNext: 1
-  - waveLabel: Armored Lane
+    warningText: ARMOR PRESSURE
+    warningLeadTime: 1
+    waitForClearBeforeNext: 0
+  - waveLabel: Armor Swarm Pinch
     waveType: 2
     groups:
     - archetype: {fileID: 11400000, guid: ae559ec988f6721479a83bde983febe1, type: 2}
       count: 2
       laneBias: 0
     - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 4
+      count: 6
       laneBias: 4
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: ARMOR WAVE
-    warningLeadTime: 1.5
-    waitForClearBeforeNext: 1
+    warningText: ARMOR PRESSURE
+    warningLeadTime: 1
+    waitForClearBeforeNext: 0
   - waveLabel: Armor Hold
     waveType: 2
     groups:
@@ -68,12 +68,15 @@ MonoBehaviour:
     - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
       count: 5
       laneBias: 0
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 4
+      laneBias: 4
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: ARMOR WAVE
-    warningLeadTime: 1.5
+    warningText: ARMOR PRESSURE
+    warningLeadTime: 1
     waitForClearBeforeNext: 1
-  waveCooldown: 4
+  waveCooldown: 0.65
   goldReward: 0
   bonusGoldOnPerfect: 0
-  difficultyMultiplier: 1.1
+  difficultyMultiplier: 1.18

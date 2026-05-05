@@ -30,7 +30,7 @@ MonoBehaviour:
   bossConfig: {fileID: 0}
   waveSequence: []
   spawnDensity: 1
-  goldRewardOverride: 0
+  goldRewardOverride: 72
   hasMidStageLoot: 1
   techCoreDropChance: 0.15
   offlineBoostPerHour: 5

@@ -22,7 +22,7 @@ MonoBehaviour:
   baseCPBonus: 0
   cpMultiplier: 1
   fireRateMultiplier: 2.2
-  damageMultiplier: 0.85
+  damageMultiplier: 0.95
   globalDmgMultiplier: 1
   damageReduction: 0
   commanderHPBonus: 0

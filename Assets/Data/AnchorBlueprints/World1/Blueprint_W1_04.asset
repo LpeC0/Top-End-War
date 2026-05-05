@@ -16,64 +16,61 @@ MonoBehaviour:
   displayName: loc_stage_w1_04_name
   worldID: 1
   stageID: 4
-  anchorBaseHP: 1380
+  anchorBaseHP: 1450
   winCondition: 0
   survivalDuration: 90
   waves:
-  - waveLabel: Trooper Screen
-    waveType: 0
+  - waveLabel: Swarm Warmup
+    waveType: 1
     groups:
-    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 6
+      laneBias: 0
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: SWARM INCOMING
+    warningLeadTime: 0.8
+    waitForClearBeforeNext: 1
+  - waveLabel: Left Right Swarm
+    waveType: 1
+    groups:
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
       count: 5
-      laneBias: 0
-    groupDelay: 1.2
-    intraDelay: 0.25
-    warningText: TROOPER WAVE
-    warningLeadTime: 1.2
-    waitForClearBeforeNext: 1
-  - waveLabel: First Chargers
-    waveType: 3
-    groups:
-    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
-      count: 2
-      laneBias: 1
-    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
-      count: 3
-      laneBias: 0
-    groupDelay: 1.2
-    intraDelay: 0.25
-    warningText: CHARGER WARNING
-    warningLeadTime: 1.5
-    waitForClearBeforeNext: 1
-  - waveLabel: Split Charge
-    waveType: 3
-    groups:
-    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
-      count: 2
       laneBias: 2
-    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
-      count: 2
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 5
       laneBias: 3
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: CHARGER WARNING
-    warningLeadTime: 1.5
-    waitForClearBeforeNext: 1
-  - waveLabel: Trooper Charge Mix
+    warningText: SPLIT SWARM
+    warningLeadTime: 0.8
+    waitForClearBeforeNext: 0
+  - waveLabel: Short Relief
     waveType: 0
     groups:
     - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
-      count: 5
-      laneBias: 0
-    - archetype: {fileID: 11400000, guid: 20e3c501f81e5e94d9d1a99a8516a6d9, type: 2}
-      count: 2
+      count: 3
+      laneBias: 4
+    groupDelay: 1.2
+    intraDelay: 0.25
+    warningText: SHORT RELIEF
+    warningLeadTime: 0.5
+    waitForClearBeforeNext: 1
+  - waveLabel: Swarm Surge
+    waveType: 1
+    groups:
+    - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
+      count: 10
+      laneBias: 4
+    - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
+      count: 3
       laneBias: 1
     groupDelay: 1.2
     intraDelay: 0.25
-    warningText: CHARGER WARNING
-    warningLeadTime: 1.5
+    warningText: SWARM SURGE
+    warningLeadTime: 0.8
     waitForClearBeforeNext: 1
-  waveCooldown: 4
+  waveCooldown: 0.45
   goldReward: 0
   bonusGoldOnPerfect: 0
-  difficultyMultiplier: 1.0500001
+  difficultyMultiplier: 1.06

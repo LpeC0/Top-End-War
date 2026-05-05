@@ -84,7 +84,7 @@ MonoBehaviour:
     warningText: FINAL LANE TEST
     warningLeadTime: 0.8
     waitForClearBeforeNext: 1
-  waveCooldown: 0.65
+  waveCooldown: 0.35
   goldReward: 0
   bonusGoldOnPerfect: 0
   difficultyMultiplier: 1.12
