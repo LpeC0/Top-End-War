@@ -231,7 +231,7 @@ public class PlayerStats : MonoBehaviour
     ///   - WeaponRange, strateji ve çok yönlülük
     /// 
     /// Formül:
-    ///   power = round(displayedDps * 1.5 + maxHp * 0.2 + armorPen * 15 + pierceCount * 50 + range * 2)
+    ///   power = round(displayedDps * 1.5 + maxHp * 0.2 + armorPen * 8 + pierceCount * 50 + range * 2)
     /// 
     /// Amaç: Stage targetDps (~70) ile karşılaştırılabilir power score oluşturmak.
     /// </summary>
@@ -240,7 +240,7 @@ public class PlayerStats : MonoBehaviour
         float power = 0f;
         power += displayedDps * 1.5f;       // DPS ağırlık
         power += maxHp * 0.2f;              // HP katkı
-        power += armorPen * 8f;            // ArmorPen verimliliği
+        power += armorPen * 8f;            // DEĞİŞİKLİK: ArmorPen combat power'ı şişirmesin diye düşük katsayıda tutulur.
         power += pierceCount * 50f;         // Pierce utility bonus
         power += weaponRange * 2f;          // Range stratejik değer
         

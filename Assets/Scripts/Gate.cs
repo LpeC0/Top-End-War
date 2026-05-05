@@ -90,6 +90,8 @@ public class Gate : MonoBehaviour
         GateRuntimeData data = GetRuntimeData();
         if (data == null) return;
 
+        EnsureRuntimeVisualRefs(); // DEĞİŞİKLİK: Fallback/prefab gate mutlaka gate gibi okunacak panel ve label bulur/oluşturur.
+
         if (labelText != null)
         {
             string sub = string.IsNullOrWhiteSpace(data.tag2)
@@ -113,6 +115,27 @@ public class Gate : MonoBehaviour
             mat.color = c;
             panelRenderer.material = mat;
         }
+    }
+
+    void EnsureRuntimeVisualRefs()
+    {
+        // DEĞİŞİKLİK: Label eksik prefab/fallback quad durumunda gate world-space yazısı garanti edilir.
+        if (panelRenderer == null)
+            panelRenderer = GetComponentInChildren<Renderer>();
+
+        if (labelText != null) return;
+
+        labelText = GetComponentInChildren<TextMeshPro>();
+        if (labelText != null) return;
+
+        GameObject labelObj = new GameObject("GateLabel");
+        labelObj.transform.SetParent(transform, false);
+        labelObj.transform.localPosition = new Vector3(0f, 0f, -0.08f);
+        labelObj.transform.localRotation = Quaternion.identity;
+        labelText = labelObj.AddComponent<TextMeshPro>();
+        labelText.outlineWidth = 0.18f;
+        labelText.outlineColor = Color.black;
+        labelText.sortingOrder = 90;
     }
 
     void FitBoxCollider()

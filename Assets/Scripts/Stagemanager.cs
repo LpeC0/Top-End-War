@@ -110,6 +110,8 @@ public class StageManager : MonoBehaviour
 
         _phase = StageRuntimePhase.Anchor;
 
+        Debug.Log($"[StageTransition] z={PlayerStats.Instance.transform.position.z:F1} state=Runner->Anchor {SpawnManager.Instance?.GetTransitionDebugState() ?? "spawnManager=null"} anchorStarted=true"); // DEĞİŞİKLİK: Runner-anchor transition debug.
+
         // Runner spawn sistemi anchor sırasında çalışmasın
         if (SpawnManager.Instance != null)
             SpawnManager.Instance.enabled = false;
@@ -201,6 +203,9 @@ public class StageManager : MonoBehaviour
 
         foreach (var g in FindObjectsByType<Gate>(FindObjectsSortMode.None))
             if (g != null) Destroy(g.gameObject);
+
+        foreach (var p in FindObjectsByType<AnchorPickup>(FindObjectsSortMode.None))
+            if (p != null) Destroy(p.gameObject); // DEĞİŞİKLİK: Stage/transition temizliğinde pickup mock objeleri kalmaz.
 
         foreach (var b in FindObjectsByType<Bullet>(FindObjectsSortMode.None))
             if (b != null && b.gameObject.activeSelf) b.gameObject.SetActive(false);

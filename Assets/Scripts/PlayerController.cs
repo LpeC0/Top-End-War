@@ -19,6 +19,7 @@ public class Playercontroller : MonoBehaviour
     public float playerY         = 1.2f;
     public float dragSensitivity = 0.05f;
     public float smoothing       = 14f;
+    public float anchorSmoothing = 9f; // DEĞİŞİKLİK: Anchor lane değişimi hafif travel time alır, runner hissi değişmez.
     public float xLimit          = 8f;
 public AnchorStance GetAnchorStance()
     => AnchorCoverage.StanceFromX(transform.position.x);
@@ -125,7 +126,8 @@ public AnchorStance GetAnchorStance()
     {
         Vector3 p = transform.position;
         p.z += forwardSpeed * Time.deltaTime;
-        p.x  = Mathf.Lerp(p.x, _targetX, Time.deltaTime * smoothing);
+        float activeSmoothing = _anchorMode ? anchorSmoothing : smoothing; // DEĞİŞİKLİK: Pickup/lane kararının küçük hareket maliyeti sadece anchor modda uygulanır.
+        p.x  = Mathf.Lerp(p.x, _targetX, Time.deltaTime * activeSmoothing);
         p.x  = Mathf.Clamp(p.x, -xLimit, xLimit);
         p.y  = playerY;
         transform.position = p;
@@ -386,8 +388,8 @@ public AnchorStance GetAnchorStance()
 
         foreach (Collider c in cols)
         {
-            if (!IsCombatTarget(c, out Transform target)) continue;
-            float d = (target.position - transform.position).sqrMagnitude;
+            if (!IsCombatTarget(c, out Transform target, out Enemy enemy, out bool isBoss)) continue;
+            float d = GetAnchorLaneTargetScore(target, enemy, isBoss); // DEĞİŞİKLİK: Anchor modda aktif lane hedefleme öncelik alır.
             if (d < bestDist)
             {
                 bestDist = d;
@@ -425,7 +427,7 @@ public AnchorStance GetAnchorStance()
             {
                 int neighborCount = CountNearbyEnemies(target.position, 4f);
                 score = neighborCount * 100f - dist * 2f;
-                if (enemy != null && enemy.Armor > 0) score += enemy.Armor * 1.5f;
+                if (enemy != null && enemy.Armor > 0) score -= enemy.Armor * 1.2f; // DEĞİŞİKLİK: SMG cluster targeting swarm/low armor hedeflerde kalsın.
             }
             else
             {
@@ -438,6 +440,9 @@ public AnchorStance GetAnchorStance()
                 }
             }
 
+            if (_anchorMode && enemy != null)
+                score += GetAnchorLanePriorityBonus(enemy); // DEĞİŞİKLİK: Oyuncu hangi lane'deyse o lane'i kurtardığını hisseder.
+
             if (score > bestScore)
             {
                 bestScore = score;
@@ -447,6 +452,50 @@ public AnchorStance GetAnchorStance()
 
         // Fallback: en yakın geçerli hedef
         return best ?? FindClosestTargetInSphere(GetCurrentWeaponRange());
+    }
+
+    float GetAnchorLaneTargetScore(Transform target, Enemy enemy, bool isBoss)
+    {
+        // DEĞİŞİKLİK: Anchor modda aktif stance ile aynı lane düşmanları hedef seçmede öne alınır.
+        float score = (target.position - transform.position).sqrMagnitude;
+        if (!_anchorMode || enemy == null || isBoss) return score;
+
+        AnchorEnemyMover mover = enemy.GetComponent<AnchorEnemyMover>();
+        if (mover == null) return score;
+
+        AnchorStance stance = GetAnchorStance();
+        AnchorLane activeLane = stance switch
+        {
+            AnchorStance.Left => AnchorLane.Left,
+            AnchorStance.Right => AnchorLane.Right,
+            _ => AnchorLane.Center,
+        };
+
+        if (mover.Lane == activeLane)
+            score *= 0.22f;
+        else if (activeLane == AnchorLane.Center)
+            score *= 0.75f;
+        else
+            score *= 1.35f;
+
+        return score;
+    }
+
+    float GetAnchorLanePriorityBonus(Enemy enemy)
+    {
+        // DEĞİŞİKLİK: SMG/Sniper özel skorları da anchor lane önceliğine saygı duyar.
+        AnchorEnemyMover mover = enemy.GetComponent<AnchorEnemyMover>();
+        if (mover == null) return 0f;
+
+        AnchorStance stance = GetAnchorStance();
+        AnchorLane activeLane = stance switch
+        {
+            AnchorStance.Left => AnchorLane.Left,
+            AnchorStance.Right => AnchorLane.Right,
+            _ => AnchorLane.Center,
+        };
+
+        return mover.Lane == activeLane ? 900f : -180f;
     }
 
     int CountNearbyEnemies(Vector3 center, float radius)

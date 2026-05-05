@@ -39,7 +39,7 @@ public class SpawnManager : MonoBehaviour
     public float waveSpacing = 30f;
 
     [Header("Runner Tuning")]
-    [Range(0.5f, 1.2f)] public float runnerEnemyHpMultiplier = 0.82f;
+    [Range(0.5f, 1.2f)] public float runnerEnemyHpMultiplier = 0.88f; // DEĞİŞİKLİK: Runner fazla kolaylaşmasın, ama önceki geçilebilirlik korunur.
 
     [Header("Boss")]
     public float bossDistance = 1200f;
@@ -71,6 +71,9 @@ public class SpawnManager : MonoBehaviour
     const float FIRST_GATE_Z = 52f;
     const float GATE_FOLLOWUP_MIN = 18f;
     const float GATE_FOLLOWUP_MAX = 30f;
+    const float MIN_GATE_SPAWN_AHEAD = 38f; // DEĞİŞİKLİK: Gate cursor geride kalırsa kapı oyuncunun dibinde doğmaz.
+    const float RUNNER_END_GATE_BUFFER = 18f; // DEĞİŞİKLİK: Runner->Anchor geçiş sınırının ötesine gate planlanmaz.
+    const float RUNNER_END_COMBAT_BUFFER = 28f; // DEĞİŞİKLİK: Anchor girişine yakın runner enemy packet pop-in'i engellenir.
     const float MAX_EMPTY_GAP = 65f;
     const float COMBAT_SPAWN_COOLDOWN = 1.2f;
     const float MIN_COMBAT_PLAYER_ADVANCE = 20f;
@@ -157,6 +160,7 @@ public class SpawnManager : MonoBehaviour
     {
         if (playerTransform == null) { TryFindPlayer(); return; }
         if (!_statsReady) RefreshStats();
+        if (AnchorModeManager.Instance != null && AnchorModeManager.Instance.IsActive) return; // DEĞİŞİKLİK: Anchor aktifken runner spawn akışı kesin durur.
 
         float pz = playerTransform.position.z;
 
@@ -182,9 +186,13 @@ public class SpawnManager : MonoBehaviour
         {
             if (!(_spawnedCombatPackets == 0 && _nextGateZ > _nextWaveZ))
             {
-                float gateZ = _nextGateZ;
-                SpawnNextGateGroup(gateZ);
-                ScheduleGateFollowupOnce(gateZ);
+                float gateZ = Mathf.Max(_nextGateZ, pz + MIN_GATE_SPAWN_AHEAD); // DEĞİŞİKLİK: Runner gate minimum karar mesafesinde spawn edilir.
+                if (!ShouldSuppressRunnerSpawn(gateZ, RUNNER_END_GATE_BUFFER))
+                {
+                    ScheduleGateFollowupOnce(gateZ); // DEĞİŞİKLİK: Gate seçenekleri spawn olmadan önce yaklaşan threat planlanır.
+                    SpawnNextGateGroup(gateZ);
+                    _followupUsedForLastGate = true; // DEĞİŞİKLİK: Follow-up bu gate için zaten planlandı.
+                }
                 _nextGateZ = gateZ + gateSpacing;
             }
         }
@@ -239,6 +247,13 @@ public class SpawnManager : MonoBehaviour
         }
 
         float spawnZ = Mathf.Max(_nextWaveZ, playerZ + MIN_COMBAT_SPAWN_AHEAD);
+        if (ShouldSuppressRunnerSpawn(spawnZ, RUNNER_END_COMBAT_BUFFER))
+        {
+            // DEĞİŞİKLİK: Anchor'a birkaç metre kala yeni runner enemy packet'i üretilmez.
+            _nextWaveZ = spawnZ + GetCombatTempoSpacing();
+            return;
+        }
+
         bool spawned = SpawnEnemyWave(spawnZ);
         float spacing = GetCombatTempoSpacing();
         _nextWaveZ = spawnZ + spacing;
@@ -289,6 +304,21 @@ public class SpawnManager : MonoBehaviour
 
         _lastSkipLogTime = Time.time;
         Debug.Log($"[Spawn] skipped {reason}");
+    }
+
+    bool ShouldSuppressRunnerSpawn(float spawnZ, float endBuffer)
+    {
+        // DEĞİŞİKLİK: Runner->Anchor transition sırasında gate/enemy objeleri stage bitişinin arkasına taşmaz.
+        StageManager sm = StageManager.Instance;
+        StageConfig stage = sm != null ? sm.ActiveStage : null;
+        if (stage == null || stage.playMode != StagePlayMode.RunnerToAnchor) return false;
+        return spawnZ >= sm.GetStageEndZ() - Mathf.Max(0f, endBuffer);
+    }
+
+    public string GetTransitionDebugState()
+    {
+        // DEĞİŞİKLİK: Runner-anchor transition debug için cursor state tek satır raporlanır.
+        return $"spawnEnabled={enabled} nextGateZ={_nextGateZ:F1} nextEnemyZ={_nextWaveZ:F1} gates={_spawnedGateGroups} packets={_spawnedCombatPackets}";
     }
 
     float GetCombatTempoSpacing()
@@ -515,7 +545,7 @@ public class SpawnManager : MonoBehaviour
     {
         float offset = ROAD_HALF_WIDTH * 0.40f;
 
-        GateConfig leftGate  = PickGateFromPool();
+        GateConfig leftGate  = PickGateForPlannedThreat(); // DEĞİŞİKLİK: Threat preview'a en az bir gate cevabı vermeyi dener.
         GateConfig rightGate = PickGateFromPoolDistinct(leftGate);
         int choiceGroupId = _nextGateChoiceGroupId++;
 
@@ -523,7 +553,6 @@ public class SpawnManager : MonoBehaviour
         SpawnGate(rightGate, new Vector3( offset, 1.5f, zPos), scale: 1f, choiceGroupId: choiceGroupId);
         _spawnedGateGroups++;
         _lastGateSpawnZ = zPos;
-        _followupUsedForLastGate = false;
     }
 
     GatePoolConfig GetActiveGatePool()
@@ -548,6 +577,28 @@ public class SpawnManager : MonoBehaviour
         GatePoolConfig pool  = GetActiveGatePool();
         int            stage = StageManager.Instance != null ? StageManager.Instance.CurrentStageID : 1;
         return pool != null ? pool.PickRandom(stage) : null;
+    }
+
+    GateConfig PickGateForPlannedThreat()
+    {
+        // DEĞİŞİKLİK: Swarm/Armor/Charger preview varsa ilk gate o probleme cevap olmaya çalışır.
+        GatePoolConfig pool = GetActiveGatePool();
+        if (pool == null || _plannedFollowupPacket == null)
+            return PickGateFromPool();
+
+        int stage = StageManager.Instance != null ? StageManager.Instance.CurrentStageID : 1;
+        GateFamily family = _plannedFollowupPacket.packetType switch
+        {
+            PacketType.DenseSwarm => GateFamily.Tempo,
+            PacketType.ArmorCheck => GateFamily.Solve,
+            PacketType.DelayedCharger => GateFamily.Power,
+            PacketType.EliteSpike => GateFamily.Solve,
+            PacketType.Relief => GateFamily.Sustain,
+            _ => GateFamily.Power,
+        };
+
+        GateConfig picked = pool.PickByFamily(stage, family);
+        return picked != null ? picked : PickGateFromPool();
     }
 
     void SpawnGate(GateConfig data, Vector3 pos, float scale = 1f, int choiceGroupId = 0)

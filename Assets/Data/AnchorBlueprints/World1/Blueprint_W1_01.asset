@@ -35,7 +35,7 @@ MonoBehaviour:
     waveType: 1
     groups:
     - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 7
+      count: 8
       laneBias: 3
     - archetype: {fileID: 11400000, guid: 1bd0a9e8a8870334482ce753240ab2e5, type: 2}
       count: 2
@@ -63,7 +63,7 @@ MonoBehaviour:
       count: 2
       laneBias: 3
     - archetype: {fileID: 11400000, guid: dbb9d18746c335e4cab1a18d9f48e791, type: 2}
-      count: 6
+      count: 7
       laneBias: 2
     groupDelay: 0.45
     intraDelay: 0.2

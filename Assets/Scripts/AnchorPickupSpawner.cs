@@ -11,27 +11,36 @@ public class AnchorPickupSpawner : MonoBehaviour
     [Header("Lane")]
     public float leftLaneX = -5.2f;
     public float rightLaneX = 5.2f;
-    public float pickupForwardOffset = 8f;
-    public float pickupY = 1.2f;
+    public float pickupForwardOffset = 5.5f; // DEĞİŞİKLİK: Pickup artık uzak obje değil, lane capture zone gibi savunma alanına yakın çıkar.
+    public float pickupY = 0.08f;
 
     [Header("Timing")]
     public float firstSpawnDelay = 2.4f;
-    public float spawnInterval = 5.5f;
+    public float spawnInterval = 6.2f; // DEĞİŞİKLİK: Pickup ödülü baskı testini çok sık kesmesin.
     public int maxActivePickups = 2;
     public bool spawnOnlyUnderEnemyPressure = true;
+    public int minAliveEnemiesForPickup = 3; // DEĞİŞİKLİK: Pickup seçimi daha net enemy baskısı varken çıkar.
+    public float minThreatScoreForPickup = 0.35f; // DEĞİŞİKLİK: Enemy sayısı düşükse threat score pickup için ikinci koşuldur.
+    public float maxEmptyThreatTimeForPickup = 0.75f; // DEĞİŞİKLİK: Boş pencerede pickup bedava ödül gibi kalmaz.
 
     [Header("Pickup Defaults")]
-    public float pickupLifetime = 4.8f;
+    public float pickupLifetime = 4.2f; // DEĞİŞİKLİK: Capture kararı kısa baskı penceresine bağlı kalır.
     public float buffDuration = 6f;
+
+    [Header("Debug")]
+    public bool traceSpawns = false; // DEĞİŞİKLİK: Gerekirse pickup spawn kaynağı tek satır trace ile doğrulanır.
 
     readonly List<AnchorPickup> _activePickups = new List<AnchorPickup>();
     Coroutine _loop;
     int _spawnIndex;
+    int _nextChoiceGroupId = 1;
 
     public void BeginAnchorPickups()
     {
         StopAnchorPickups();
         _spawnIndex = 0;
+        _nextChoiceGroupId = 1;
+        AnchorPickup.ResetChoiceState(); // DEĞİŞİKLİK: Anchor pickup pair seçimleri her anchor başlangıcında sıfırlanır.
         _loop = StartCoroutine(PickupLoop());
     }
 
@@ -46,7 +55,7 @@ public class AnchorPickupSpawner : MonoBehaviour
         for (int i = _activePickups.Count - 1; i >= 0; i--)
         {
             if (_activePickups[i] != null)
-                _activePickups[i].gameObject.SetActive(false);
+                Destroy(_activePickups[i].gameObject); // DEĞİŞİKLİK: Anchor bitince pickup mock objeleri inactive birikmez.
         }
         _activePickups.Clear();
     }
@@ -58,8 +67,9 @@ public class AnchorPickupSpawner : MonoBehaviour
         while (AnchorModeManager.Instance != null && AnchorModeManager.Instance.IsActive)
         {
             CleanupInactive();
+            CancelPickupsIfPressureGone(); // DEĞİŞİKLİK: Spawn sonrası baskı yoksa pickup boş ödül gibi kalmaz.
 
-            if (_activePickups.Count < maxActivePickups && HasEnemyPressure())
+            if (_activePickups.Count < maxActivePickups && HasPickupPressure())
                 SpawnChoicePair();
 
             yield return new WaitForSeconds(spawnInterval);
@@ -72,7 +82,7 @@ public class AnchorPickupSpawner : MonoBehaviour
             ? PlayerStats.Instance.transform.position
             : Vector3.zero;
 
-        float z = playerPos.z + pickupForwardOffset;
+        float z = playerPos.z + Mathf.Clamp(pickupForwardOffset, 3.5f, 7.5f); // DEĞİŞİKLİK: Lane capture zone player'ın önünde yakın ama bedava olmayan noktada kalır.
         AnchorPickupType leftType = _spawnIndex % 2 == 0
             ? AnchorPickupType.AddSoldier
             : AnchorPickupType.RepairSquad;
@@ -81,12 +91,13 @@ public class AnchorPickupSpawner : MonoBehaviour
             ? AnchorPickupType.FireRateBoost
             : AnchorPickupType.RepairAnchor;
 
-        SpawnPickup(leftType, new Vector3(leftLaneX, pickupY, z));
-        SpawnPickup(rightType, new Vector3(rightLaneX, pickupY, z));
+        int choiceGroupId = _nextChoiceGroupId++;
+        SpawnPickup(leftType, new Vector3(leftLaneX, pickupY, z), choiceGroupId);
+        SpawnPickup(rightType, new Vector3(rightLaneX, pickupY, z), choiceGroupId);
         _spawnIndex++;
     }
 
-    void SpawnPickup(AnchorPickupType type, Vector3 position)
+    void SpawnPickup(AnchorPickupType type, Vector3 position, int choiceGroupId)
     {
         GameObject obj = new GameObject($"AnchorPickup_{type}");
         obj.name = $"AnchorPickup_{type}";
@@ -94,10 +105,11 @@ public class AnchorPickupSpawner : MonoBehaviour
 
         SphereCollider col = obj.AddComponent<SphereCollider>();
         col.isTrigger = true;
-        col.radius = 1.25f;
+        col.radius = 1.85f; // DEĞİŞİKLİK: Swipe ile bedelsiz yakalanmasın, lane capture kararı istesin.
 
         AnchorPickup pickup = obj.AddComponent<AnchorPickup>();
         pickup.pickupType = type;
+        pickup.choiceGroupId = choiceGroupId; // DEĞİŞİKLİK: Anchor pickup pair gate gibi tek seçim haline gelir.
         pickup.lifetime = pickupLifetime;
         pickup.duration = buffDuration;
         pickup.pickupColor = GetColor(type);
@@ -105,7 +117,12 @@ public class AnchorPickupSpawner : MonoBehaviour
         ConfigurePickupValues(pickup);
 
         _activePickups.Add(pickup);
-        Debug.Log($"[AnchorPickupSpawner] Spawn {type} at {position}");
+        if (traceSpawns)
+        {
+            // DEĞİŞİKLİK: Spawn kaynağını tespit etmek için geçici debug log.
+            Vector3 playerPos = PlayerStats.Instance != null ? PlayerStats.Instance.transform.position : Vector3.zero;
+            Debug.Log($"[SpawnTrace] name={obj.name} source=AnchorPickupSpawner mode=Anchor pos={position:F1} distToPlayer={Vector3.Distance(position, playerPos):F1} prefab=runtime-new-gameobject");
+        }
     }
 
     void ConfigurePickupValues(AnchorPickup pickup)
@@ -173,17 +190,43 @@ public class AnchorPickupSpawner : MonoBehaviour
         }
     }
 
-    bool HasEnemyPressure()
+    bool HasPickupPressure()
     {
+        // DEĞİŞİKLİK: Pickup sadece aktif baskı penceresinde çıkar.
         if (!spawnOnlyUnderEnemyPressure) return true;
 
+        int alive = CountAliveEnemies();
+        float threat = ThreatManager.Instance != null ? ThreatManager.Instance.ThreatScore : 0f;
+        float empty = RunDebugMetrics.Instance.TimeWithoutThreat;
+        if (empty > maxEmptyThreatTimeForPickup) return false;
+        return alive >= minAliveEnemiesForPickup || threat >= minThreatScoreForPickup;
+    }
+
+    int CountAliveEnemies()
+    {
+        // DEĞİŞİKLİK: Pickup pressure kararı için aktif enemy sayısı doğrudan okunur.
+        int alive = 0;
         foreach (Enemy e in FindObjectsByType<Enemy>(FindObjectsSortMode.None))
         {
             if (e != null && e.gameObject.activeInHierarchy && e.IsAlive)
-                return true;
+                alive++;
         }
 
-        return false;
+        return alive;
+    }
+
+    void CancelPickupsIfPressureGone()
+    {
+        // DEĞİŞİKLİK: Pickup spawn olduktan sonra baskı tamamen bittiyse seçim iptal edilir.
+        if (_activePickups.Count == 0) return;
+        if (HasPickupPressure()) return;
+
+        for (int i = _activePickups.Count - 1; i >= 0; i--)
+        {
+            if (_activePickups[i] != null)
+                _activePickups[i].DismissFromChoiceGroup();
+        }
+        _activePickups.Clear();
     }
 
     void CleanupInactive()

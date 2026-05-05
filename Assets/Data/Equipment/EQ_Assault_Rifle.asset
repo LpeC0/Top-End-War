@@ -27,7 +27,7 @@ MonoBehaviour:
   damageReduction: 0
   commanderHPBonus: 0
   spreadBonus: 0
-  armorPen: 6
+  armorPen: 0
   pierceCount: 0
   eliteDamageMultiplier: 1
   rarity: 1

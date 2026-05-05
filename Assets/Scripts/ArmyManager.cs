@@ -35,7 +35,7 @@ public class ArmyManager : MonoBehaviour
 
     [Header("Mode Tuning")]
     [Range(0.5f, 1.5f)] public float runnerSoldierDpsMultiplier = 1.20f;
-    [Range(0.5f, 1.5f)] public float anchorSoldierDpsMultiplier = 0.82f;
+    [Range(0.5f, 1.5f)] public float anchorSoldierDpsMultiplier = 0.76f; // DEĞİŞİKLİK: Soldier build güçlü kalır, ama anchor testini tek başına çözmez.
 
     // (hp, dmgMult, fireRateMult, formationRank)
     static readonly Dictionary<SoldierPath, (int hp, float dmgMult, float fireRateMult, int formationRank)> SOLDIER_BASE
@@ -302,10 +302,10 @@ public class ArmyManager : MonoBehaviour
         return index switch
         {
             0 => 1.00f,
-            1 => 0.85f,
-            2 => 0.75f,
-            3 => 0.65f,
-            _ => 0.55f,
+            1 => 0.82f,
+            2 => 0.68f,
+            3 => 0.58f,
+            _ => 0.50f,
         };
     }
 

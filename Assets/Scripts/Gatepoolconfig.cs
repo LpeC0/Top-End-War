@@ -73,14 +73,15 @@ public class GatePoolConfig : ScriptableObject
     public GateConfig PickByFamily(int stageIndex, GateFamily targetFamily)
     {
         var valid = new List<GatePoolEntry>();
-        var fallback = new List<GatePoolEntry>(); // DEĞİŞİKLİK: Weapon eligibility boş havuz üretirse eski davranışa dönülür.
+        var fallback = new List<GatePoolEntry>(); // DEĞİŞİKLİK: Fallback yalnızca silah kimliğini bozmayan gate'leri kullanır.
         foreach (var e in entries)
         {
             if (e.gate == null) continue;
             if (stageIndex < e.gate.minStage || stageIndex > e.gate.maxStage) continue;
             if (e.gate.IsRisk && !allowRisk) continue;
             if (e.gate.family != targetFamily) continue;
-            fallback.Add(e);
+            if (!IsGateHardBannedForCurrentWeapon(e.gate))
+                fallback.Add(e);
             if (IsGateEligibleForCurrentWeapon(e.gate))
                 valid.Add(e);
         }
@@ -95,7 +96,7 @@ public class GatePoolConfig : ScriptableObject
                                        bool             useWeaponEligibility)
     {
         var valid = new List<GatePoolEntry>();
-        var fallback = new List<GatePoolEntry>(); // DEĞİŞİKLİK: Uygun gate kalmazsa null yerine eski havuz kullanılır.
+        var fallback = new List<GatePoolEntry>(); // DEĞİŞİKLİK: Uygun gate kalmazsa bile Sniper'a yasak gate verilmez.
         foreach (var e in entries)
         {
             if (e.gate == null) continue;
@@ -108,7 +109,8 @@ public class GatePoolConfig : ScriptableObject
             if (tFilter != GateTierFilter.None &&
                 (GateBalanceTier)(int)tFilter != e.gate.balanceTier) continue;
 
-            fallback.Add(e);
+            if (!useWeaponEligibility || !IsGateHardBannedForCurrentWeapon(e.gate))
+                fallback.Add(e);
             if (!useWeaponEligibility || IsGateEligibleForCurrentWeapon(e.gate))
                 valid.Add(e);
         }
@@ -140,6 +142,17 @@ public class GatePoolConfig : ScriptableObject
             return !hasBoss && !hasElite && (hasFireRate || hasPierce || hasArmy || !hasArmorPen || gate.family != GateFamily.Solve);
 
         return true;
+    }
+
+    bool IsGateHardBannedForCurrentWeapon(GateConfig gate)
+    {
+        // DEĞİŞİKLİK: Fallback havuzu Sniper'ı shotgun/AoE kimliğine geri döndüremez.
+        if (gate == null || PlayerStats.Instance == null) return false;
+        if (PlayerStats.Instance.GetRuntimeWeaponFamily() != WeaponFamily.Sniper) return false;
+
+        return HasModifier(gate, GateStatType2.PelletCount)
+            || HasModifier(gate, GateStatType2.SplashRadiusPercent)
+            || HasModifier(gate, GateStatType2.BounceCount);
     }
 
     bool HasModifier(GateConfig gate, GateStatType2 stat)

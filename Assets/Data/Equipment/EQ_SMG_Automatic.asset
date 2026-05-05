@@ -22,12 +22,12 @@ MonoBehaviour:
   baseCPBonus: 0
   cpMultiplier: 1
   fireRateMultiplier: 2.2
-  damageMultiplier: 0.6
+  damageMultiplier: 0.85
   globalDmgMultiplier: 1
   damageReduction: 0
   commanderHPBonus: 0
   spreadBonus: 0
-  armorPen: 2
+  armorPen: 0
   pierceCount: 0
   eliteDamageMultiplier: 1
   rarity: 1

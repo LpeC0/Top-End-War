@@ -21,15 +21,12 @@ public class GateFeedback : MonoBehaviour
     public float  shakeDuration = 0.2f;
 
     Vector3 _originalScale;
-    Vector3 _cameraOriginalPos;
     Coroutine _scaleRoutine;
-    Coroutine _shakeRoutine;
 
     void Start()
     {
         _originalScale = transform.localScale;
         if (mainCamera == null) mainCamera = Camera.main;
-        if (mainCamera != null) _cameraOriginalPos = mainCamera.transform.localPosition;
 
         GameEvents.OnTierChanged += OnTierChanged;
     }
@@ -49,8 +46,10 @@ public class GateFeedback : MonoBehaviour
         StartScalePop(tierPopScale, tierPopDuration);
         if (mainCamera != null)
         {
-            if (_shakeRoutine != null) StopCoroutine(_shakeRoutine);
-            _shakeRoutine = StartCoroutine(CameraShakeRoutine());
+            // DEĞİŞİKLİK: Tier/gate feedback kamerayı eski localPosition'a döndürmez; follow shake kullanır.
+            SimpleCameraFollow follow = mainCamera.GetComponent<SimpleCameraFollow>();
+            if (follow != null)
+                follow.AddShake(shakeStrength, shakeDuration);
         }
     }
 
@@ -94,18 +93,4 @@ public class GateFeedback : MonoBehaviour
         transform.localScale = _originalScale;
     }
 
-    IEnumerator CameraShakeRoutine()
-    {
-        float t = 0f;
-        while (t < shakeDuration)
-        {
-            t += Time.deltaTime;
-            Vector3 offset = Random.insideUnitSphere * shakeStrength;
-            offset.z = 0f;
-            mainCamera.transform.localPosition = _cameraOriginalPos + offset;
-            yield return null;
-        }
-
-        mainCamera.transform.localPosition = _cameraOriginalPos;
-    }
 }

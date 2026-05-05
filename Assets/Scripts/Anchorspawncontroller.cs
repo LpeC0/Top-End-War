@@ -23,6 +23,8 @@ public class AnchorSpawnController : MonoBehaviour
     [Header("Spawn")]
     public float spawnForwardDistance = 32f;
     public float maxVisibleSpawnForwardDistance = 38f;
+    public float minSpawnDistanceFromCore = 24f; // DEĞİŞİKLİK: Anchor enemy asla core/arena ortasına yakın doğmaz.
+    public float minSpawnDistanceFromPlayer = 22f; // DEĞİŞİKLİK: Anchor enemy player'ın dibinde ilk frame görünmez.
     [Range(0f, 1.5f)]
     public float spawnJitterX = 0.4f;
 
@@ -133,9 +135,11 @@ public class AnchorSpawnController : MonoBehaviour
 
         if (bias == LaneBias.Spread)
         {
-            AnchorLane[] cycle = { AnchorLane.Left, AnchorLane.Center, AnchorLane.Right };
+            AnchorLane[] cycle = count == 2
+                ? new[] { AnchorLane.Left, AnchorLane.Right }
+                : new[] { AnchorLane.Left, AnchorLane.Center, AnchorLane.Right }; // DEĞİŞİKLİK: 2'li spread center fallback ile ortada spawn hissi üretmez.
             for (int i = 0; i < count; i++)
-                result[i] = cycle[i % 3];
+                result[i] = cycle[i % cycle.Length];
         }
         else if (bias == LaneBias.Random)
         {
@@ -176,10 +180,37 @@ public class AnchorSpawnController : MonoBehaviour
             playerPos.y,
             playerPos.z + safeForward + memberIndex * spawnZStagger + shape.y);
 
+        float minZ = Mathf.Max(playerPos.z + minSpawnDistanceFromPlayer, corePos.z + minSpawnDistanceFromCore);
+        if (spawnPos.z < minZ)
+            spawnPos.z = minZ + memberIndex * Mathf.Max(0.5f, spawnZStagger); // DEĞİŞİKLİK: Dynamic path başlangıcı güvenli uzak girişe sabitlenir.
+
         Vector3 targetPos = GetApproachPoint(corePos, lane, memberIndex, groupIndex);
         Vector3 midPos = BuildMidPoint(spawnPos, targetPos, memberIndex, groupIndex);
 
-        return new List<Vector3> { spawnPos, midPos, targetPos };
+        return SanitizeWaypoints(new List<Vector3> { spawnPos, midPos, targetPos }, lane);
+    }
+
+    List<Vector3> SanitizeWaypoints(List<Vector3> waypoints, AnchorLane lane)
+    {
+        // DEĞİŞİKLİK: Anchor path ilk frame'de arena ortasına düşmesin diye son savunma hattı.
+        if (waypoints == null || waypoints.Count < 2 || PlayerStats.Instance == null || AnchorCore.Instance == null)
+            return waypoints;
+
+        Vector3 playerPos = PlayerStats.Instance.transform.position;
+        Vector3 corePos = AnchorCore.Instance.transform.position;
+        Vector3 start = waypoints[0];
+        float minZ = Mathf.Max(playerPos.z + minSpawnDistanceFromPlayer, corePos.z + minSpawnDistanceFromCore);
+        start.z = Mathf.Max(start.z, minZ);
+        start.x = Mathf.Clamp(start.x, -laneHalfWidth, laneHalfWidth);
+        waypoints[0] = start;
+
+        Vector3 mid = waypoints[1];
+        float minMidZ = corePos.z + 6f;
+        float maxMidZ = Mathf.Max(minMidZ + 0.5f, start.z - 2f);
+        mid.z = Mathf.Clamp(mid.z, minMidZ, maxMidZ);
+        mid.x = Mathf.Clamp(mid.x, -laneHalfWidth, laneHalfWidth);
+        waypoints[1] = mid;
+        return waypoints;
     }
 
     Vector2 GetShapeOffset(AnchorWaveType waveType, int memberIndex, int memberCount, int groupIndex)
@@ -251,9 +282,21 @@ public class AnchorSpawnController : MonoBehaviour
 
         AnchorEnemyMover mover = obj.GetComponent<AnchorEnemyMover>()
                               ?? obj.AddComponent<AnchorEnemyMover>();
-        mover.Init(waypoints, speed, damage, lane);
+        bool isCharger = IsChargerArchetype(archetype);
+        mover.Init(waypoints, speed, damage, lane, isCharger); // DEĞİŞİKLİK: Charger enemy final breach öncesi wind-up davranışı alır.
 
-        Debug.Log($"[AnchorSpawnController] Spawn: {archetype.enemyName} | Lane={lane} | from={waypoints[0]:F0} → mid={waypoints[1]:F0} → to={waypoints[waypoints.Count - 1]:F0}");
+        Vector3 playerPos = PlayerStats.Instance != null ? PlayerStats.Instance.transform.position : Vector3.zero;
+        Vector3 corePos = AnchorCore.Instance != null ? AnchorCore.Instance.transform.position : Vector3.zero;
+        Debug.Log($"[AnchorSpawnTrace] enemy={archetype.enemyName} lane={lane} spawn={obj.transform.position:F1} pathStart={waypoints[0]:F1} pathEnd={waypoints[waypoints.Count - 1]:F1} player={playerPos:F1} core={corePos:F1}"); // DEĞİŞİKLİK: Anchor spawn origin kısa trace.
+    }
+
+    bool IsChargerArchetype(EnemyArchetypeConfig archetype)
+    {
+        // DEĞİŞİKLİK: Wind-up sadece charger family enemy'lere uygulanır.
+        if (archetype == null) return false;
+        string id = archetype.enemyId != null ? archetype.enemyId.ToLowerInvariant() : "";
+        string name = archetype.enemyName != null ? archetype.enemyName.ToLowerInvariant() : "";
+        return id.Contains("charger") || name.Contains("charger");
     }
 
     public void ResetPathCursor() => _pathRoundRobin = 0;

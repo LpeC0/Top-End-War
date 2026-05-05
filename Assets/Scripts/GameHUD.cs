@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// Top End War — HUD v8 (Claude)
@@ -46,12 +47,17 @@ public class GameHUD : MonoBehaviour
     public TextMeshProUGUI threatWarningText; // DEĞİŞİKLİK: Threat Preview / wave warning görünür HUD metni.
     public TextMeshProUGUI buffSummaryText; // DEĞİŞİKLİK: Gate sonrası aktif hazırlık özetini HUD'da tutar.
     public TextMeshProUGUI prepSummaryText; // DEĞİŞİKLİK: Anchor girişinde kısa prepared loadout özeti gösterir.
+    public TextMeshProUGUI coreHPText; // DEĞİŞİKLİK: Player HUD'da savunulan AnchorCore HP'si ayrı gösterilir.
+    public Image debugPanelBackground; // DEĞİŞİKLİK: F3 debug panel okunurluğu için yarı opak arka plan.
 
     bool _autoBuilt = false;
     int  _lastCP    = 0;
     float _nextCombatReadoutRefresh = 0f;
     float _warningHideTime = 0f; // DEĞİŞİKLİK: Kısa warning paneli otomatik kapanır.
     float _prepHideTime = 0f; // DEĞİŞİKLİK: Anchor prep özeti birkaç saniye görünür.
+    float _buffHideTime = 0f; // DEĞİŞİKLİK: Gate/buff özeti kısa süre görünür.
+    int _lastGateSummaryCount = 0;
+    int _debugMode = 0; // DEĞİŞİKLİK: 0 kapalı, 1 compact, 2 full debug.
 
     void Start()
     {
@@ -63,6 +69,7 @@ public class GameHUD : MonoBehaviour
         EnsureThreatWarningText(); // DEĞİŞİKLİK: Hazır HUD kullanılan sahnelerde de warning text otomatik oluşur.
         EnsureBuffSummaryText(); // DEĞİŞİKLİK: Gate/buff etkileri log yerine HUD'da da görünür.
         EnsurePrepSummaryText(); // DEĞİŞİKLİK: Anchor'a girerken hazırlık özeti için overlay text hazır olur.
+        EnsureCoreHPText(); // DEĞİŞİKLİK: AnchorCore player-facing HUD'da ayrı okunur.
 
         GameEvents.OnCPUpdated          += OnCPUpdated;
         GameEvents.OnTierChanged        += OnTierChanged;
@@ -77,6 +84,7 @@ public class GameHUD : MonoBehaviour
         GameEvents.OnThreatPreview      += OnThreatPreview;
         GameEvents.OnAnchorDamaged      += OnAnchorDamaged;
         GameEvents.OnAnchorModeChanged  += OnAnchorModeChanged;
+        GameEvents.OnAnchorHPChanged    += OnAnchorHPChanged;
 
         _lastCP = PlayerStats.Instance.CP;
         if (cpText)   cpText.text   = PlayerStats.Instance.CP.ToString("N0");
@@ -104,10 +112,14 @@ public class GameHUD : MonoBehaviour
         GameEvents.OnThreatPreview      -= OnThreatPreview;
         GameEvents.OnAnchorDamaged      -= OnAnchorDamaged;
         GameEvents.OnAnchorModeChanged  -= OnAnchorModeChanged;
+        GameEvents.OnAnchorHPChanged    -= OnAnchorHPChanged;
     }
 
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.F3))
+            SetDebugMode((_debugMode + 1) % 3); // DEĞİŞİKLİK: F3 compact/full/kapalı debug döngüsü.
+
         if (Time.time < _nextCombatReadoutRefresh) return;
         _nextCombatReadoutRefresh = Time.time + 0.35f;
         if (combatReadoutText == null)
@@ -118,6 +130,8 @@ public class GameHUD : MonoBehaviour
             threatWarningText.gameObject.SetActive(false); // DEĞİŞİKLİK: Warning metni karar anından sonra ekranı kirletmez.
         if (prepSummaryText != null && prepSummaryText.gameObject.activeSelf && Time.time >= _prepHideTime)
             prepSummaryText.gameObject.SetActive(false); // DEĞİŞİKLİK: Prep özeti kalıcı kalıp ekranı kapatmaz.
+        if (buffSummaryText != null && buffSummaryText.gameObject.activeSelf && Time.time >= _buffHideTime)
+            buffSummaryText.gameObject.SetActive(false); // DEĞİŞİKLİK: Gate/buff özeti kısa süre sonra kapanır.
     }
 
     // ── AUTO BUILD ────────────────────────────────────────────────────────
@@ -137,7 +151,7 @@ public class GameHUD : MonoBehaviour
         if (popupText== null) popupText= MakeText(canvas.gameObject, "", new Vector2(0.5f,0.5f), new Vector2(0,80), 52, Color.cyan);
         if (threatWarningText == null)
         {
-            threatWarningText = MakeText(GetOverlayCanvas().gameObject, "", new Vector2(0.5f, 0.84f), Vector2.zero, 34, new Color(1f, 0.78f, 0.18f));
+            threatWarningText = MakeText(GetOverlayCanvas().gameObject, "", new Vector2(0.5f, 0.86f), Vector2.zero, 30, new Color(1f, 0.78f, 0.18f));
             threatWarningText.gameObject.SetActive(false); // DEĞİŞİKLİK: Warning sadece preview/wave anında görünür.
         }
 
@@ -191,12 +205,32 @@ public class GameHUD : MonoBehaviour
             go.AddComponent<GraphicRaycaster>();
         }
 
-        combatReadoutText = MakeText(canvas.gameObject, "Combat", new Vector2(1f, 1f), new Vector2(-145f, -130f), 20, new Color(0.86f, 0.96f, 1f));
+        EnsureDebugPanelBackground(canvas);
+        combatReadoutText = MakeText(debugPanelBackground.gameObject, "Combat", new Vector2(1f, 0f), new Vector2(-12f, 12f), 16, new Color(0.82f, 0.95f, 1f));
         RectTransform r = combatReadoutText.GetComponent<RectTransform>();
-        r.pivot = new Vector2(1f, 1f);
-        r.sizeDelta = new Vector2(360f, 330f); // DEĞİŞİKLİK: SGS debug metrikleri için panel yüksekliği artırıldı.
-        combatReadoutText.alignment = TextAlignmentOptions.TopRight;
+        r.pivot = new Vector2(1f, 0f);
+        r.sizeDelta = new Vector2(430f, 270f); // DEĞİŞİKLİK: Debug panel player HUD'dan ayrılıp okunur blokta gösterilir.
+        combatReadoutText.alignment = TextAlignmentOptions.BottomRight;
         combatReadoutText.raycastTarget = false;
+        SetDebugMode(_debugMode);
+    }
+
+    void EnsureDebugPanelBackground(Canvas canvas)
+    {
+        // DEĞİŞİKLİK: Debug text sahne üstünde okunabilsin diye yarı opak panel alır.
+        if (debugPanelBackground != null) return;
+        GameObject panel = new GameObject("DebugPanel");
+        panel.transform.SetParent(canvas.transform, false);
+        debugPanelBackground = panel.AddComponent<Image>();
+        debugPanelBackground.color = new Color(0f, 0f, 0f, 0.72f);
+        debugPanelBackground.raycastTarget = false;
+        RectTransform r = panel.GetComponent<RectTransform>();
+        r.anchorMin = new Vector2(1f, 0f);
+        r.anchorMax = new Vector2(1f, 0f);
+        r.pivot = new Vector2(1f, 0f);
+        r.anchoredPosition = new Vector2(-10f, 10f);
+        r.sizeDelta = new Vector2(455f, 295f);
+        panel.SetActive(false);
     }
 
     void EnsureThreatWarningText()
@@ -205,9 +239,9 @@ public class GameHUD : MonoBehaviour
         if (threatWarningText != null) return;
 
         Canvas canvas = GetOverlayCanvas();
-        threatWarningText = MakeText(canvas.gameObject, "", new Vector2(0.5f, 0.84f), Vector2.zero, 34, new Color(1f, 0.78f, 0.18f));
+        threatWarningText = MakeText(canvas.gameObject, "", new Vector2(0.5f, 0.86f), Vector2.zero, 30, new Color(1f, 0.78f, 0.18f));
         RectTransform r = threatWarningText.GetComponent<RectTransform>();
-        r.sizeDelta = new Vector2(720f, 64f);
+        r.sizeDelta = new Vector2(680f, 58f); // DEĞİŞİKLİK: Player warning paneli Core HP ve prep text ile çakışmayacak kadar kompakt tutulur.
         threatWarningText.gameObject.SetActive(false);
     }
 
@@ -216,11 +250,12 @@ public class GameHUD : MonoBehaviour
         // DEĞİŞİKLİK: Aktif gate/buff özeti sahne objesi değil screen-space HUD olarak görünür.
         if (buffSummaryText != null) return;
         Canvas canvas = GetOverlayCanvas();
-        buffSummaryText = MakeText(canvas.gameObject, "", new Vector2(0.02f, 0.78f), new Vector2(230f, 0f), 22, new Color(0.72f, 1f, 0.76f));
+        buffSummaryText = MakeText(canvas.gameObject, "", new Vector2(0.02f, 0.72f), new Vector2(210f, 0f), 18, new Color(0.72f, 1f, 0.76f));
         RectTransform r = buffSummaryText.GetComponent<RectTransform>();
         r.pivot = new Vector2(0f, 0.5f);
-        r.sizeDelta = new Vector2(520f, 96f);
+        r.sizeDelta = new Vector2(460f, 72f); // DEĞİŞİKLİK: Buff summary tüm gate geçmişini kaplayıp HUD'ı boğmaz.
         buffSummaryText.alignment = TextAlignmentOptions.Left;
+        buffSummaryText.gameObject.SetActive(false);
     }
 
     void EnsurePrepSummaryText()
@@ -228,10 +263,21 @@ public class GameHUD : MonoBehaviour
         // DEĞİŞİKLİK: Anchor başında hazırlık/tehdit özeti kısa süre üst panelde gösterilir.
         if (prepSummaryText != null) return;
         Canvas canvas = GetOverlayCanvas();
-        prepSummaryText = MakeText(canvas.gameObject, "", new Vector2(0.5f, 0.68f), Vector2.zero, 26, new Color(0.95f, 1f, 0.82f));
+        prepSummaryText = MakeText(canvas.gameObject, "", new Vector2(0.5f, 0.66f), Vector2.zero, 22, new Color(0.95f, 1f, 0.82f));
         RectTransform r = prepSummaryText.GetComponent<RectTransform>();
-        r.sizeDelta = new Vector2(760f, 110f);
+        r.sizeDelta = new Vector2(720f, 92f); // DEĞİŞİKLİK: Anchor prep özeti kısa ve ayrık kalır.
         prepSummaryText.gameObject.SetActive(false);
+    }
+
+    void EnsureCoreHPText()
+    {
+        // DEĞİŞİKLİK: Core HP debug metriklerinden ayrı, player-facing HUD'da durur.
+        if (coreHPText != null) return;
+        Canvas canvas = GetOverlayCanvas();
+        coreHPText = MakeText(canvas.gameObject, "", new Vector2(0.5f, 0.94f), Vector2.zero, 26, new Color(0.55f, 1f, 0.95f));
+        RectTransform r = coreHPText.GetComponent<RectTransform>();
+        r.sizeDelta = new Vector2(420f, 54f);
+        coreHPText.gameObject.SetActive(false);
     }
 
     Canvas GetOverlayCanvas()
@@ -260,6 +306,7 @@ public class GameHUD : MonoBehaviour
     void RefreshCombatReadout()
     {
         if (combatReadoutText == null || PlayerStats.Instance == null) return;
+        if (_debugMode == 0) return;
 
         PlayerStats.RuntimeCombatSnapshot c = PlayerStats.Instance.GetRuntimeCombatSnapshot();
         
@@ -294,6 +341,19 @@ public class GameHUD : MonoBehaviour
             stageInfo = $"\nTarget: {targetDps:0} DPS / {targetPower:N0} Pwr\n{state}";
         }
         
+        if (_debugMode == 1)
+        {
+            // DEĞİŞİKLİK: Compact debug okunurluk için en kritik SGS satırlarını gösterir.
+            combatReadoutText.fontSize = 18f;
+            combatReadoutText.text =
+                $"DPS {c.DisplayedDPS:0}+S{soldierDps:0} ({soldierPct:0}%) | FR {c.FireRate:0.0}\n" +
+                $"HP {c.CurrentHP}/{c.MaxHP} | Pen {c.ArmorPen} | Pierce {c.PierceCount}\n" +
+                $"Soldiers {ArmyManager.Instance?.SoldierCount ?? 0} [{ArmyManager.Instance?.GetActiveSoldierTypesText() ?? "-"}]\n" +
+                $"{RunDebugMetrics.Instance.BuildDebugBlock()}";
+            return;
+        }
+
+        combatReadoutText.fontSize = 16f;
         combatReadoutText.text = line1 + "\n" + line2 + "\n" + line3 + "\n" + line4 + "\n" + line5 + stageInfo
             + "\n" + RunDebugMetrics.Instance.BuildDebugBlock(); // DEĞİŞİKLİK: Eğlence teşhisi için SGS metrikleri HUD'a eklenir.
     }
@@ -423,14 +483,14 @@ public class GameHUD : MonoBehaviour
     void OnWaveWarning(string warning)
     {
         // DEĞİŞİKLİK: Anchor wave warning artık oyuncuya görünür karar sinyali verir.
-        ShowThreatWarning(warning, new Color(1f, 0.72f, 0.18f), 2.0f);
+        ShowThreatWarning(warning, new Color(1f, 0.72f, 0.18f), 1.8f);
     }
 
     void OnThreatPreview(string warning)
     {
         // DEĞİŞİKLİK: Gate öncesi yaklaşan tehdit SGS döngüsünün GÖR adımıdır.
         RunDebugMetrics.Instance.RecordThreatPreview(warning);
-        ShowThreatWarning(warning, new Color(0.35f, 0.9f, 1f), 2.2f);
+        ShowThreatWarning(warning, new Color(0.35f, 0.9f, 1f), 1.8f);
     }
 
     void OnAnchorDamaged(int amount, int currentHp)
@@ -438,6 +498,19 @@ public class GameHUD : MonoBehaviour
         // DEĞİŞİKLİK: Anchor hasarı görünür consequence olarak popup/warning verir.
         ShowPopup($"ANCHOR -{amount}", new Color(1f, 0.25f, 0.15f));
         ShowThreatWarning("ANCHOR UNDER ATTACK", new Color(1f, 0.22f, 0.16f), 1.5f);
+    }
+
+    void OnAnchorHPChanged(int current, int max)
+    {
+        // DEĞİŞİKLİK: Oyuncu hangi objeyi savunduğunu Core HP üzerinden sürekli görür.
+        if (coreHPText == null) return;
+        bool anchorActive = AnchorModeManager.Instance != null && AnchorModeManager.Instance.IsActive;
+        coreHPText.gameObject.SetActive(anchorActive);
+        if (!anchorActive) return;
+        coreHPText.text = $"ANCHOR CORE  {current}/{max}";
+        coreHPText.color = current > max * 0.5f ? new Color(0.55f, 1f, 0.95f)
+                         : current > max * 0.25f ? new Color(1f, 0.78f, 0.22f)
+                         : new Color(1f, 0.25f, 0.18f);
     }
 
     void ShowThreatWarning(string msg, Color color, float duration)
@@ -452,15 +525,33 @@ public class GameHUD : MonoBehaviour
     void OnAnchorModeChanged(bool active)
     {
         // DEĞİŞİKLİK: Runner hazırlığının Anchor'da neye dönüşeceği oyuncuya kısa özetlenir.
+        if (!active)
+        {
+            if (coreHPText != null) coreHPText.gameObject.SetActive(false);
+            return;
+        }
         if (!active || prepSummaryText == null || PlayerStats.Instance == null) return;
+        if (coreHPText != null && AnchorCore.Instance != null)
+            OnAnchorHPChanged(AnchorCore.Instance.CurrentHP, AnchorCore.Instance.MaxHP); // DEĞİŞİKLİK: Anchor başında Core HP hemen görünür.
         PlayerStats.RuntimeCombatSnapshot c = PlayerStats.Instance.GetRuntimeCombatSnapshot();
-        string gates = PlayerStats.Instance.SelectedGateHistory.Count > 0
-            ? string.Join(" / ", PlayerStats.Instance.SelectedGateHistory)
-            : "-";
+        string gates = BuildRecentGateText(PlayerStats.Instance.SelectedGateHistory, 3); // DEĞİŞİKLİK: Anchor prep uzun gate geçmişiyle HUD'ı doldurmaz.
         string soldiers = ArmyManager.Instance != null ? ArmyManager.Instance.GetActiveSoldierTypesText() : "-";
-        prepSummaryText.text = $"PREPARED: {gates}\nSQUAD: {soldiers} | DPS {c.DisplayedDPS:0} | PEN {c.ArmorPen}\nTEST: {RunDebugMetrics.Instance.LastThreatPreview}";
+        prepSummaryText.text = $"PREPARED\nBUFFS: {gates}\nSQUAD: {soldiers} | DPS {c.DisplayedDPS:0} | PEN {c.ArmorPen}\nTEST: {RunDebugMetrics.Instance.LastThreatPreview}";
         prepSummaryText.gameObject.SetActive(true);
-        _prepHideTime = Time.time + 4.0f;
+        _prepHideTime = Time.time + 3.2f;
+    }
+
+    void SetDebugMode(int mode)
+    {
+        // DEĞİŞİKLİK: Debug HUD compact/full/off modlarıyla okunur hale gelir.
+        _debugMode = Mathf.Clamp(mode, 0, 2);
+        bool visible = _debugMode > 0;
+        if (debugPanelBackground != null)
+            debugPanelBackground.gameObject.SetActive(visible);
+        if (combatReadoutText != null)
+            combatReadoutText.gameObject.SetActive(visible);
+        if (visible)
+            RefreshCombatReadout();
     }
 
     void RefreshBuffSummary()
@@ -468,10 +559,38 @@ public class GameHUD : MonoBehaviour
         // DEĞİŞİKLİK: Gate etkisi alındıktan sonra oyuncu ne kazandığını ekranda görür.
         if (buffSummaryText == null || PlayerStats.Instance == null) return;
         PlayerStats ps = PlayerStats.Instance;
-        string gates = ps.SelectedGateHistory.Count > 0 ? string.Join(" / ", ps.SelectedGateHistory) : "-";
+        int gateCount = ps.SelectedGateHistory.Count;
+        if (gateCount <= 0)
+        {
+            buffSummaryText.gameObject.SetActive(false);
+            _lastGateSummaryCount = 0;
+            return;
+        }
+
+        if (gateCount != _lastGateSummaryCount)
+        {
+            buffSummaryText.gameObject.SetActive(true);
+            _buffHideTime = Time.time + 3.2f;
+            _lastGateSummaryCount = gateCount;
+        }
+
+        if (!buffSummaryText.gameObject.activeSelf) return;
+
+        string gates = ps.SelectedGateHistory[gateCount - 1]; // DEĞİŞİKLİK: Gate sonrası sadece yeni kazanım büyük görünür, tüm geçmiş debug'a kalır.
         buffSummaryText.text =
-            $"BUFFS: {gates}\n" +
+            $"GAINED: {gates}\n" +
             $"Power +{ps.RunWeaponPowerPercent:0}% | FR +{ps.RunFireRatePercent:0}% | Pen +{ps.RunArmorPenFlat} | Pierce +{ps.RunPierceCount}";
+    }
+
+    string BuildRecentGateText(IList<string> gates, int maxItems)
+    {
+        // DEĞİŞİKLİK: Player-facing HUD en fazla son birkaç gate'i gösterir.
+        if (gates == null || gates.Count == 0) return "-";
+        int start = Mathf.Max(0, gates.Count - Mathf.Max(1, maxItems));
+        List<string> recent = new List<string>();
+        for (int i = start; i < gates.Count; i++)
+            recent.Add(gates[i]);
+        return string.Join(" / ", recent);
     }
 
     // ── POPUP ─────────────────────────────────────────────────────────────

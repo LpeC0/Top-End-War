@@ -23,7 +23,7 @@ MonoBehaviour:
   defaultTargetProfile: 0
   baseDamage: 45
   fireRate: 1.2
-  attackRange: 35
+  attackRange: 32
   projectileSpeed: 45
   armorPen: 18
   projectileCount: 1
